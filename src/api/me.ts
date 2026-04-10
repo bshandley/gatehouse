@@ -135,9 +135,15 @@ export function meRouter(db: Database, audit: AuditLog) {
       return c.json({ error: "Invalid TOTP code", request_id: c.get("requestId") }, 401);
     }
 
-    // Generate recovery codes and store their hashes
+    // Generate recovery codes and store their hashes. Hash sequentially,
+    // not in parallel: argon2id uses ~64MB per call, and running 10 in
+    // parallel blew past the 256MB container memory limit and OOM-killed
+    // the server process mid-request.
     const recoveryCodes = generateRecoveryCodes(10);
-    const hashes = await Promise.all(recoveryCodes.map(hashRecoveryCode));
+    const hashes: string[] = [];
+    for (const rc of recoveryCodes) {
+      hashes.push(await hashRecoveryCode(rc));
+    }
 
     db.query(
       "UPDATE users SET totp_enabled = 1, totp_recovery_codes = ?, updated_at = datetime('now') WHERE username = ?"
@@ -230,7 +236,10 @@ export function meRouter(db: Database, audit: AuditLog) {
     }
 
     const recoveryCodes = generateRecoveryCodes(10);
-    const hashes = await Promise.all(recoveryCodes.map(hashRecoveryCode));
+    const hashes: string[] = [];
+    for (const rc of recoveryCodes) {
+      hashes.push(await hashRecoveryCode(rc));
+    }
     db.query("UPDATE users SET totp_recovery_codes = ? WHERE username = ?").run(
       JSON.stringify(hashes),
       u.username
