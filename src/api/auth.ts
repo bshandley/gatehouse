@@ -43,6 +43,38 @@ export function authRouter(db: Database, config: GatehouseConfig) {
   const router = new Hono();
   const secret = new TextEncoder().encode(config.jwtSecret);
 
+  /**
+   * Admin gate for user/AppRole management endpoints.
+   *
+   * The /v1/auth/* router is mounted BEFORE the global auth middleware
+   * (so login endpoints remain unauthenticated), which means c.get("auth")
+   * is never populated here — we have to verify the bearer token ourselves.
+   *
+   * Accepts either the bootstrap root token or any valid JWT whose
+   * policies include "admin". User logins always sign JWTs with
+   * policies: ["admin"], so logging in as a created user works.
+   */
+  async function requireAdmin(c: any): Promise<boolean> {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) return false;
+    const token = authHeader.slice(7);
+
+    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
+    if (rootToken && token.length === rootToken.length && safeEqual(token, rootToken)) {
+      return true;
+    }
+
+    try {
+      const { payload } = await jwtVerify(token, secret, { issuer: "gatehouse" });
+      // Pre-auth TOTP tokens must not grant admin access.
+      if (payload.purpose === "totp-pending") return false;
+      const policies = (payload.policies as string[]) || [];
+      return policies.includes("admin");
+    } catch {
+      return false;
+    }
+  }
+
   // AppRole login: exchange role_id + secret for a JWT
   router.post("/approle/login", async (c) => {
     const ip = c.get("sourceIp") || "unknown";
@@ -108,11 +140,8 @@ export function authRouter(db: Database, config: GatehouseConfig) {
 
   // List all AppRoles (requires root token)
   router.get("/approle", async (c) => {
-    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
-    const authHeader = c.req.header("Authorization");
-    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
-      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    if (!(await requireAdmin(c))) {
+      return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
     }
 
     const roles = db
@@ -132,11 +161,8 @@ export function authRouter(db: Database, config: GatehouseConfig) {
 
   // Update an AppRole (requires root token)
   router.put("/approle/:roleId", async (c) => {
-    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
-    const authHeader = c.req.header("Authorization");
-    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
-      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    if (!(await requireAdmin(c))) {
+      return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
     }
 
     const roleId = c.req.param("roleId");
@@ -174,11 +200,8 @@ export function authRouter(db: Database, config: GatehouseConfig) {
 
   // Delete an AppRole (requires root token)
   router.delete("/approle/:roleId", async (c) => {
-    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
-    const authHeader = c.req.header("Authorization");
-    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
-      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    if (!(await requireAdmin(c))) {
+      return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
     }
 
     const roleId = c.req.param("roleId");
@@ -385,11 +408,8 @@ export function authRouter(db: Database, config: GatehouseConfig) {
 
   // List users
   router.get("/users", async (c) => {
-    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
-    const authHeader = c.req.header("Authorization");
-    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
-      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    if (!(await requireAdmin(c))) {
+      return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
     }
 
     const users = db
@@ -413,11 +433,8 @@ export function authRouter(db: Database, config: GatehouseConfig) {
 
   // Create user
   router.post("/users", async (c) => {
-    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
-    const authHeader = c.req.header("Authorization");
-    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
-      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    if (!(await requireAdmin(c))) {
+      return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
     }
 
     let body: { username: string; password: string; display_name: string; email?: string };
@@ -458,11 +475,8 @@ export function authRouter(db: Database, config: GatehouseConfig) {
 
   // Update user
   router.put("/users/:username", async (c) => {
-    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
-    const authHeader = c.req.header("Authorization");
-    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
-      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    if (!(await requireAdmin(c))) {
+      return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
     }
 
     const username = c.req.param("username");
@@ -514,11 +528,8 @@ export function authRouter(db: Database, config: GatehouseConfig) {
 
   // Delete user
   router.delete("/users/:username", async (c) => {
-    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
-    const authHeader = c.req.header("Authorization");
-    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
-      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    if (!(await requireAdmin(c))) {
+      return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
     }
 
     const username = c.req.param("username");
@@ -533,11 +544,8 @@ export function authRouter(db: Database, config: GatehouseConfig) {
 
   // Create an AppRole (requires root token)
   router.post("/approle", async (c) => {
-    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
-    const authHeader = c.req.header("Authorization");
-    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
-      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    if (!(await requireAdmin(c))) {
+      return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
     }
 
     let body: { display_name: string; policies: string[] };
