@@ -2421,14 +2421,14 @@
     }
   }
 
-  // Render a simple QR code for an otpauth URI using the public
-  // api.qrserver.com endpoint. We avoid shipping a QR library inline; the
-  // URI is also shown as a copyable string for users who'd rather paste it.
+  // The QR code is rendered server-side and returned as a base64 data URI
+  // in setup.qr_data_uri. This keeps the raw TOTP secret on the Gatehouse
+  // host (we never send it to a third-party QR service) and works under
+  // the existing img-src 'self' data: CSP without relaxation.
   function openTotpSetupModal(setup) {
     const modal = document.getElementById('modal-container');
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&color=0a0a0f&bgcolor=e8e6e3&data=${encodeURIComponent(setup.otpauth_uri)}`;
     modal.innerHTML = `
-      <div class="modal-backdrop">
+      <div class="modal-overlay">
         <div class="modal" style="max-width:460px">
           <div class="modal-header">
             <h3 class="modal-title">Enable Two-Factor Authentication</h3>
@@ -2439,11 +2439,7 @@
               Scan this QR code with your authenticator app, or enter the secret manually.
             </p>
             <div style="display:flex;justify-content:center;padding:12px;background:#e8e6e3;border-radius:8px">
-              <img src="${qrUrl}" alt="TOTP QR code" width="220" height="220" style="display:block"
-                   onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-              <div style="display:none;color:#0a0a0f;font-size:12px;text-align:center;padding:80px 20px">
-                Couldn't load QR code.<br>Enter the secret below manually.
-              </div>
+              <img src="${esc(setup.qr_data_uri)}" alt="TOTP QR code" width="220" height="220" style="display:block">
             </div>
             <div>
               <div class="detail-field-label">Secret</div>
@@ -2488,7 +2484,7 @@
     const modal = document.getElementById('modal-container');
     const codesText = codes.join('\n');
     modal.innerHTML = `
-      <div class="modal-backdrop">
+      <div class="modal-overlay">
         <div class="modal" style="max-width:460px">
           <div class="modal-header">
             <h3 class="modal-title">Save Your Recovery Codes</h3>
@@ -2541,7 +2537,7 @@
     return new Promise((resolve) => {
       const modal = document.getElementById('modal-container');
       modal.innerHTML = `
-        <div class="modal-backdrop">
+        <div class="modal-overlay">
           <div class="modal" style="max-width:420px">
             <div class="modal-header"><h3 class="modal-title">Confirm Password</h3></div>
             <div class="modal-body">

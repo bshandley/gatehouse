@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { Database } from "bun:sqlite";
+import QRCode from "qrcode";
 import type { AuditLog } from "../audit/logger";
 import {
   generateTotpSecret,
@@ -81,9 +82,20 @@ export function meRouter(db: Database, audit: AuditLog) {
       issuer: "Gatehouse",
     });
 
+    // Render the QR code server-side so the raw TOTP secret never leaves
+    // the Gatehouse host. Returned as a base64 PNG data URI so the UI can
+    // set it as <img src> under the existing img-src 'self' data: CSP.
+    const qrDataUri = await QRCode.toDataURL(uri, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 240,
+      color: { dark: "#0a0a0f", light: "#e8e6e3" },
+    });
+
     return c.json({
       secret,
       otpauth_uri: uri,
+      qr_data_uri: qrDataUri,
       issuer: "Gatehouse",
       account: u.username,
       algorithm: "SHA1",

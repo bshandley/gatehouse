@@ -17,6 +17,7 @@
     "mongodb": "^7.1.1",
     "mysql2": "^3.20.0",
     "pg": "^8.20.0",
+    "qrcode": "^1.5.4",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
     "uuid": "^11.0.0",
@@ -26,6 +27,7 @@
     "@types/bun": "latest",
     "@types/ioredis": "^5.0.0",
     "@types/pg": "^8.20.0",
+    "@types/qrcode": "^1.5.6",
     "@types/uuid": "^10.0.0"
   }
 }

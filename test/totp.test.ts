@@ -228,6 +228,7 @@ describe("TOTP endpoints", () => {
     const setup = await setupRes.json();
     expect(setup.secret).toBeString();
     expect(setup.otpauth_uri).toStartWith("otpauth://totp/");
+    expect(setup.qr_data_uri).toStartWith("data:image/png;base64,");
 
     const code = totp(setup.secret);
     const verifyRes = await app.request("/v1/me/totp/verify", {
