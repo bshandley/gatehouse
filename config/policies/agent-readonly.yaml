@@ -1,0 +1,6 @@
+name: agent-readonly
+rules:
+  - path: "api-keys/*"
+    capabilities: [read, lease]
+  - path: "services/*"
+    capabilities: [read, lease, list]

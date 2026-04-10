@@ -1,0 +1,10 @@
+name: agent-uploader
+rules:
+  - path: "api-keys/*"
+    capabilities: [read, write, list, lease, proxy]
+  - path: "services/*"
+    capabilities: [read, write, list, lease, proxy]
+  - path: "db/*"
+    capabilities: [read, write, list, lease, proxy]
+  - path: "git/*"
+    capabilities: [read, write, list, lease, proxy]

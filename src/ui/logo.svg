@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6c63ff"/>
+      <stop offset="100%" stop-color="#8b7aff"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <!--
+    Middle ground: A bold geometric G where the counter (inner space)
+    IS a keyhole shape. The letter dominates — it's clearly a G first —
+    but the negative space reveals a keyhole, making the security
+    meaning click a second later. Subtle, clever, not a padlock.
+  -->
+  <!-- Bold G letterform -->
+  <path d="
+    M 36 11
+    C 24.5 11, 13 20, 13 33
+    C 13 46, 23 53, 35 53
+    C 45.5 53, 52 45.5, 52 37
+    L 52 32
+    L 33 32
+    L 33 38.5
+    L 45 38.5
+    C 44 44.5, 40 48, 35 48
+    C 27 48, 20 42, 20 33
+    C 20 24, 27 18, 35 18
+    C 39.5 18, 43 20, 46 23
+    L 51 18
+    C 47 13.5, 42 11, 36 11
+    Z
+  " fill="white" fill-opacity="0.95"/>
+  <!-- Keyhole in the G's counter (negative space trick) -->
+  <circle cx="33" cy="37" r="3.2" fill="url(#g)"/>
+  <rect x="31.6" y="39.2" width="2.8" height="5" rx="0.7" fill="url(#g)"/>
+</svg>

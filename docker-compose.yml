@@ -1,0 +1,49 @@
+services:
+  gatehouse:
+    build: .
+    container_name: gatehouse
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - gatehouse-data:/data
+      - ./config:/config:ro
+    environment:
+      # REQUIRED: 64-char hex string. Generate with: openssl rand -hex 32
+      - GATEHOUSE_MASTER_KEY=${GATEHOUSE_MASTER_KEY}
+      # Bootstrap root token (change or remove after initial setup)
+      - GATEHOUSE_ROOT_TOKEN=${GATEHOUSE_ROOT_TOKEN:-gatehouse-root-changeme}
+      # Log level: info, debug, or error
+      - GATEHOUSE_LOG_LEVEL=${GATEHOUSE_LOG_LEVEL:-info}
+      # Optional: PocketID OAuth
+      # - GATEHOUSE_OAUTH_ISSUER=https://auth.yourdomain.com
+      # - GATEHOUSE_OAUTH_CLIENT_ID=gatehouse
+      # - GATEHOUSE_OAUTH_CLIENT_SECRET=your-secret
+      # - GATEHOUSE_OAUTH_REDIRECT_URI=https://gatehouse.yourdomain.com/v1/auth/callback
+    healthcheck:
+      test: ["CMD", "bun", "-e", "const r = await fetch('http://localhost:3100/health'); process.exit(r.ok ? 0 : 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "1.0"
+        reservations:
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "homepage.group=Security"
+      - "homepage.name=Gatehouse"
+      - "homepage.icon=shield-lock"
+      - "homepage.href=http://gatehouse.local:3100"
+      - "homepage.description=Secrets vault for AI agents"
+
+volumes:
+  gatehouse-data:

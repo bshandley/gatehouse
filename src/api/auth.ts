@@ -1,0 +1,448 @@
+import { Hono } from "hono";
+import { SignJWT } from "jose";
+import { Database } from "bun:sqlite";
+import type { GatehouseConfig } from "../config";
+import { safeEqual } from "../auth/middleware";
+
+// Simple in-memory rate limiter: 5 failed attempts per IP per 60s window
+const failedAttempts = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+// Periodic cleanup to prevent memory leak from accumulated stale entries
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of failedAttempts) {
+    if (now > entry.resetAt) {
+      failedAttempts.delete(ip);
+    }
+  }
+}, RATE_LIMIT_WINDOW_MS * 2);
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = failedAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    return true; // Not rate limited
+  }
+  return entry.count < RATE_LIMIT_MAX;
+}
+
+function recordFailure(ip: string) {
+  const now = Date.now();
+  const entry = failedAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    failedAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+  } else {
+    entry.count++;
+  }
+}
+
+export function authRouter(db: Database, config: GatehouseConfig) {
+  const router = new Hono();
+  const secret = new TextEncoder().encode(config.jwtSecret);
+
+  // AppRole login: exchange role_id + secret for a JWT
+  router.post("/approle/login", async (c) => {
+    const ip = c.get("sourceIp") || "unknown";
+
+    if (!checkRateLimit(ip)) {
+      return c.json(
+        { error: "Too many failed login attempts. Try again later.", request_id: c.get("requestId") },
+        429
+      );
+    }
+
+    let body: { role_id: string; secret_id: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body", request_id: c.get("requestId") }, 400);
+    }
+
+    const { role_id, secret_id } = body;
+    if (!role_id || !secret_id) {
+      return c.json({ error: "role_id and secret_id are required", request_id: c.get("requestId") }, 400);
+    }
+
+    const role = db
+      .query("SELECT * FROM app_roles WHERE role_id = ?")
+      .get(role_id) as any;
+
+    if (!role) {
+      recordFailure(ip);
+      return c.json({ error: "Invalid credentials", request_id: c.get("requestId") }, 401);
+    }
+
+    // Verify secret (using Bun's built-in password hashing)
+    const valid = await Bun.password.verify(secret_id, role.secret_hash);
+    if (!valid) {
+      recordFailure(ip);
+      return c.json({ error: "Invalid credentials", request_id: c.get("requestId") }, 401);
+    }
+
+    // Update last_used
+    db.query("UPDATE app_roles SET last_used = datetime('now') WHERE role_id = ?").run(
+      role_id
+    );
+
+    const policies = JSON.parse(role.policies);
+    const token = await new SignJWT({
+      sub: `approle:${role.display_name}`,
+      policies,
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuer("gatehouse")
+      .setIssuedAt()
+      .setExpirationTime("24h")
+      .sign(secret);
+
+    return c.json({
+      token,
+      identity: `approle:${role.display_name}`,
+      policies,
+      expires_in: 86400,
+    });
+  });
+
+  // List all AppRoles (requires root token)
+  router.get("/approle", async (c) => {
+    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
+    const authHeader = c.req.header("Authorization");
+    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
+      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    }
+
+    const roles = db
+      .query("SELECT role_id, display_name, policies, created_at, last_used FROM app_roles ORDER BY created_at DESC")
+      .all() as any[];
+
+    return c.json({
+      roles: roles.map((r) => ({
+        role_id: r.role_id,
+        display_name: r.display_name,
+        policies: JSON.parse(r.policies),
+        created_at: r.created_at,
+        last_used: r.last_used,
+      })),
+    });
+  });
+
+  // Update an AppRole (requires root token)
+  router.put("/approle/:roleId", async (c) => {
+    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
+    const authHeader = c.req.header("Authorization");
+    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
+      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    }
+
+    const roleId = c.req.param("roleId");
+    const role = db.query("SELECT role_id, display_name, policies FROM app_roles WHERE role_id = ?").get(roleId) as any;
+    if (!role) {
+      return c.json({ error: "AppRole not found", request_id: c.get("requestId") }, 404);
+    }
+
+    let body: { display_name?: string; policies?: string[] };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body", request_id: c.get("requestId") }, 400);
+    }
+
+    const displayName = body.display_name?.trim() || role.display_name;
+    const policies = body.policies || JSON.parse(role.policies);
+
+    if (!displayName) {
+      return c.json({ error: "display_name is required", request_id: c.get("requestId") }, 400);
+    }
+    if (!Array.isArray(policies) || policies.length === 0) {
+      return c.json({ error: "At least one policy is required", request_id: c.get("requestId") }, 400);
+    }
+
+    db.query("UPDATE app_roles SET display_name = ?, policies = ? WHERE role_id = ?")
+      .run(displayName, JSON.stringify(policies), roleId);
+
+    return c.json({
+      role_id: roleId,
+      display_name: displayName,
+      policies,
+    });
+  });
+
+  // Delete an AppRole (requires root token)
+  router.delete("/approle/:roleId", async (c) => {
+    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
+    const authHeader = c.req.header("Authorization");
+    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
+      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    }
+
+    const roleId = c.req.param("roleId");
+    const role = db.query("SELECT role_id FROM app_roles WHERE role_id = ?").get(roleId);
+    if (!role) {
+      return c.json({ error: "AppRole not found", request_id: c.get("requestId") }, 404);
+    }
+
+    db.query("DELETE FROM app_roles WHERE role_id = ?").run(roleId);
+    return c.json({ deleted: true });
+  });
+
+  // ───────────────────────────────────────────────────────
+  // User (human account) login: username + password → JWT
+  // ───────────────────────────────────────────────────────
+  router.post("/login", async (c) => {
+    const ip = c.get("sourceIp") || "unknown";
+
+    if (!checkRateLimit(ip)) {
+      return c.json(
+        { error: "Too many failed login attempts. Try again later.", request_id: c.get("requestId") },
+        429
+      );
+    }
+
+    let body: { username: string; password: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body", request_id: c.get("requestId") }, 400);
+    }
+
+    const { username, password } = body;
+    if (!username || !password) {
+      return c.json({ error: "username and password are required", request_id: c.get("requestId") }, 400);
+    }
+
+    const user = db
+      .query("SELECT * FROM users WHERE username = ? AND enabled = 1")
+      .get(username) as any;
+
+    if (!user) {
+      recordFailure(ip);
+      return c.json({ error: "Invalid credentials", request_id: c.get("requestId") }, 401);
+    }
+
+    const valid = await Bun.password.verify(password, user.password_hash);
+    if (!valid) {
+      recordFailure(ip);
+      return c.json({ error: "Invalid credentials", request_id: c.get("requestId") }, 401);
+    }
+
+    db.query("UPDATE users SET last_login = datetime('now') WHERE username = ?").run(username);
+
+    // All UI users are admins — policies are for AppRoles (agents), not humans
+    const token = await new SignJWT({
+      sub: `user:${user.username}`,
+      policies: ["admin"],
+      display_name: user.display_name,
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuer("gatehouse")
+      .setIssuedAt()
+      .setExpirationTime("24h")
+      .sign(secret);
+
+    return c.json({
+      token,
+      identity: `user:${user.username}`,
+      display_name: user.display_name,
+      role: user.role || "admin",
+      expires_in: 86400,
+    });
+  });
+
+  // ───────────────────────────────────────────────────────
+  // User CRUD (requires root token)
+  // Users are admin accounts for the UI — not tied to policies
+  // ───────────────────────────────────────────────────────
+
+  // List users
+  router.get("/users", async (c) => {
+    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
+    const authHeader = c.req.header("Authorization");
+    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
+      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    }
+
+    const users = db
+      .query("SELECT username, display_name, email, role, enabled, created_at, updated_at, last_login FROM users ORDER BY created_at DESC")
+      .all() as any[];
+
+    return c.json({
+      users: users.map((u) => ({
+        username: u.username,
+        display_name: u.display_name,
+        email: u.email,
+        role: u.role || "admin",
+        enabled: !!u.enabled,
+        created_at: u.created_at,
+        updated_at: u.updated_at,
+        last_login: u.last_login,
+      })),
+    });
+  });
+
+  // Create user
+  router.post("/users", async (c) => {
+    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
+    const authHeader = c.req.header("Authorization");
+    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
+      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    }
+
+    let body: { username: string; password: string; display_name: string; email?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body", request_id: c.get("requestId") }, 400);
+    }
+
+    const { username, password, display_name, email } = body;
+
+    if (!username || typeof username !== "string" || username.length < 2) {
+      return c.json({ error: "username must be at least 2 characters", request_id: c.get("requestId") }, 400);
+    }
+    if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+      return c.json({ error: "username must contain only letters, numbers, dots, hyphens, underscores", request_id: c.get("requestId") }, 400);
+    }
+    if (!password || password.length < 8) {
+      return c.json({ error: "password must be at least 8 characters", request_id: c.get("requestId") }, 400);
+    }
+    if (!display_name || typeof display_name !== "string") {
+      return c.json({ error: "display_name is required", request_id: c.get("requestId") }, 400);
+    }
+
+    const existing = db.query("SELECT username FROM users WHERE username = ?").get(username);
+    if (existing) {
+      return c.json({ error: "Username already exists", request_id: c.get("requestId") }, 409);
+    }
+
+    const password_hash = await Bun.password.hash(password);
+
+    db.query(
+      "INSERT INTO users (username, password_hash, display_name, email) VALUES (?, ?, ?, ?)"
+    ).run(username, password_hash, display_name, email || null);
+
+    return c.json({ username, display_name, email: email || null, role: "admin", enabled: true }, 201);
+  });
+
+  // Update user
+  router.put("/users/:username", async (c) => {
+    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
+    const authHeader = c.req.header("Authorization");
+    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
+      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    }
+
+    const username = c.req.param("username");
+    const existing = db.query("SELECT username FROM users WHERE username = ?").get(username);
+    if (!existing) {
+      return c.json({ error: "User not found", request_id: c.get("requestId") }, 404);
+    }
+
+    let body: { display_name?: string; email?: string; password?: string; enabled?: boolean };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body", request_id: c.get("requestId") }, 400);
+    }
+
+    if (body.password !== undefined && body.password.length < 8) {
+      return c.json({ error: "password must be at least 8 characters", request_id: c.get("requestId") }, 400);
+    }
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (body.display_name !== undefined) { updates.push("display_name = ?"); params.push(body.display_name); }
+    if (body.email !== undefined) { updates.push("email = ?"); params.push(body.email || null); }
+    if (body.enabled !== undefined) { updates.push("enabled = ?"); params.push(body.enabled ? 1 : 0); }
+    if (body.password) {
+      const hash = await Bun.password.hash(body.password);
+      updates.push("password_hash = ?");
+      params.push(hash);
+    }
+
+    if (updates.length === 0) {
+      return c.json({ error: "No fields to update", request_id: c.get("requestId") }, 400);
+    }
+
+    updates.push("updated_at = datetime('now')");
+    params.push(username);
+
+    db.query(`UPDATE users SET ${updates.join(", ")} WHERE username = ?`).run(...params);
+
+    return c.json({ updated: true });
+  });
+
+  // Delete user
+  router.delete("/users/:username", async (c) => {
+    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
+    const authHeader = c.req.header("Authorization");
+    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
+      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    }
+
+    const username = c.req.param("username");
+    const existing = db.query("SELECT username FROM users WHERE username = ?").get(username);
+    if (!existing) {
+      return c.json({ error: "User not found", request_id: c.get("requestId") }, 404);
+    }
+
+    db.query("DELETE FROM users WHERE username = ?").run(username);
+    return c.json({ deleted: true });
+  });
+
+  // Create an AppRole (requires root token)
+  router.post("/approle", async (c) => {
+    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
+    const authHeader = c.req.header("Authorization");
+    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!rootToken || !provided || provided.length !== rootToken.length || !safeEqual(provided, rootToken)) {
+      return c.json({ error: "Root token required", request_id: c.get("requestId") }, 403);
+    }
+
+    let body: { display_name: string; policies: string[] };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body", request_id: c.get("requestId") }, 400);
+    }
+
+    const { display_name, policies } = body;
+
+    if (!display_name || typeof display_name !== "string" || display_name.length < 1) {
+      return c.json({ error: "display_name is required", request_id: c.get("requestId") }, 400);
+    }
+    if (!Array.isArray(policies)) {
+      return c.json({ error: "policies must be an array of strings", request_id: c.get("requestId") }, 400);
+    }
+
+    const role_id = `role-${crypto.randomUUID()}`;
+    const secret_id = crypto.randomUUID();
+    const secret_hash = await Bun.password.hash(secret_id);
+
+    db.query(
+      "INSERT INTO app_roles (role_id, secret_hash, display_name, policies) VALUES (?, ?, ?, ?)"
+    ).run(role_id, secret_hash, display_name, JSON.stringify(policies));
+
+    return c.json(
+      {
+        role_id,
+        secret_id, // Only shown once!
+        display_name,
+        policies,
+        warning: "Save the secret_id now — it cannot be retrieved later",
+      },
+      201
+    );
+  });
+
+  return router;
+}

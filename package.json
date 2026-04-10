@@ -1,0 +1,31 @@
+{
+  "name": "gatehouse",
+  "version": "0.1.0",
+  "description": "Lightweight secrets vault for homelab AI agents",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "db:migrate": "bun run src/db/migrate.ts"
+  },
+  "dependencies": {
+    "hono": "^4.7.0",
+    "ioredis": "^5.10.1",
+    "jose": "^6.0.0",
+    "mongodb": "^7.1.1",
+    "mysql2": "^3.20.0",
+    "pg": "^8.20.0",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1",
+    "uuid": "^11.0.0",
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/ioredis": "^5.0.0",
+    "@types/pg": "^8.20.0",
+    "@types/uuid": "^10.0.0"
+  }
+}

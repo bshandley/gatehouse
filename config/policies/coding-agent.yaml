@@ -1,0 +1,10 @@
+name: coding-agent
+rules:
+  - path: "api-keys/*"
+    capabilities: [read, lease, list]
+  - path: "services/*"
+    capabilities: [read, lease, list]
+  - path: "db/*"
+    capabilities: [read, lease]
+  - path: "git/*"
+    capabilities: [read, lease]
