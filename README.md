@@ -6,13 +6,16 @@ Traditional secret managers assume the client is trusted once authenticated. AI 
 
 Gatehouse takes a different approach: **agents don't need to see your credentials at all.** With proxy mode, an agent says _"call this API for me"_ and gets back the response. The credential never enters the agent's address space, context window, or tool output. It can't be leaked because it was never there.
 
+Because every proxy call flows through Gatehouse, it also **learns**. Successful requests are recorded as reusable API patterns: method, URL template, header names, request and response schemas, and confidence scored from a rolling window of recent outcomes. The next agent to touch that secret can ask Gatehouse _"how do I call this API?"_ and get back known-good templates verified by other agents, without burning tokens on trial-and-error or stale documentation.
+
 For everything else (leasing, dynamic secrets, SSH certificates, audit logging) Gatehouse gives you Vault-grade capabilities in a single Docker container, no unsealing ceremony, no Consul cluster, no operational overhead.
 
 ## Why Gatehouse?
 
 - **Credentials never touch the agent.** Proxy mode injects secrets into HTTP requests server-side. The agent gets the API response, not the key. This isn't a feature other vaults have.
+- **APIs that teach themselves.** Every successful proxy call is recorded as a pattern (method, URL, header names, body schema) scored by confidence and multi-agent verification. New agents query `gatehouse_patterns` and learn how to call an API before spending a single token guessing.
 - **Single Docker container.** No Consul, no Raft cluster, no unsealing ceremony. `docker run` and you're done.
-- **AI-native interfaces.** MCP server (8 tools) for Claude Code, Codex, Windsurf, Cursor, OpenCode; REST API for everything else.
+- **AI-native interfaces.** MCP server (9 tools) for Claude Code, Codex, Windsurf, Cursor, OpenCode; REST API for everything else.
 - **Dynamic secrets.** Ephemeral database credentials and SSH certificates that self-destruct on expiry. No static keys to rotate or revoke.
 - **Per-agent identity.** Each agent gets its own AppRole with scoped policies and full audit trail.
 - **Homelab-first.** Runs on a Raspberry Pi, Proxmox LXC, or Jetson Orin Nano. AGPL-3.0 licensed.
@@ -23,13 +26,15 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 - **Encrypted KV store.** XSalsa20-Poly1305 envelope encryption, HKDF-SHA256 key derivation, SQLite at rest.
 - **Credential leasing.** Agents check out secrets with TTLs, auto-revoke on expiry.
 - **Proxy mode.** Agents send HTTP requests with secret references; Gatehouse injects credentials and forwards upstream. Agents never see raw keys. Domain allowlisting prevents exfiltration.
+- **Pattern learning.** Successful proxy calls are auto-recorded as normalized templates (URL with `:id`/`:num` placeholders, header names, body key/type schemas). Patterns are scored by a rolling confidence window and tagged with the agents that verified them. On proxy failure, Gatehouse returns suggested known-good patterns in the error response. Operators can pin or delete patterns through the web UI. No secret values are ever stored in a pattern.
 - **Dynamic secrets.** Vault-style temporary credential generation with 5 built-in providers: PostgreSQL, MySQL/MariaDB, MongoDB, Redis, and SSH certificates. Pluggable provider interface for custom backends. Configs encrypted at rest.
 - **Key rotation.** Rotate the master key and re-wrap all DEKs + dynamic configs in one API call, zero downtime.
 - **YAML + DB policies.** Path-based ACLs with glob matching. YAML for version control, DB for UI management. Capabilities: read, write, delete, list, lease, proxy, admin.
-- **MCP server.** 8 tools including `gatehouse_proxy` for credential-injecting HTTP forwarding.
+- **MCP server.** 9 tools including `gatehouse_proxy` for credential-injecting HTTP forwarding and `gatehouse_patterns` for querying learned API call templates.
 - **REST API.** Standard HTTP for everything else, including credential scrubbing endpoint.
 - **Audit log.** Structured JSON with configurable retention policy and automatic purge.
 - **Output scrubbing.** Catch and redact leaked credentials before they hit agent context (MCP + REST).
+- **TOTP two-factor auth.** Optional RFC 6238 TOTP for user accounts with one-time recovery codes. Self-service enrollment via the web UI; admins can force-reset a user's 2FA.
 - **Security hardened.** HKDF key derivation, timing-safe token comparison, CORS restrictions, security headers (HSTS, X-Frame-Options, CSP).
 - **OAuth + AppRole auth.** SSO integration for humans, token-based AppRole for machines.
 - **Web UI.** Dark-themed control panel for managing secrets, leases, agents, policies, proxy, dynamic secrets, and audit logs.
@@ -178,6 +183,66 @@ curl -X POST http://localhost:3100/v1/proxy \
 ```
 
 **Domain allowlisting**: Set `allowed_domains` in a secret's metadata (e.g. `"api.openai.com,openai.com"`) to restrict which hosts that secret can be sent to. Prevents compromised agents from exfiltrating credentials to unauthorized domains.
+
+## Pattern learning
+
+Every successful proxy call is captured as a reusable API pattern. The next agent that touches the same secret can ask Gatehouse what known-good requests look like instead of guessing headers, URL formats, or body shapes. Agents stop burning context on stale documentation and API trial-and-error.
+
+**What's recorded (on 2xx responses):**
+
+- HTTP method and normalized URL template (`/users/:id`, `/memos/:num`, `/events/:date`)
+- Request header **names** (never values)
+- Request body **schema**: top-level keys and their types (`string`, `number`, `boolean`, `array<string>`, `object`)
+- Response status and response body schema (same key/type format)
+- A rolling window of the last 20 outcomes (success/failure per attempt)
+- Which agent identities have verified the pattern
+
+**What's never recorded:** secret values, raw credential bytes, request bodies, response bodies. Only schemas and header names.
+
+**Confidence scoring:** `successes / total` across the rolling 20-outcome window, computed at query time. The `verified_by` count (distinct agents that have succeeded with the pattern) is reported alongside it, because multi-agent verification is a stronger signal than one agent calling the same endpoint 100 times.
+
+**Query a pattern before making a call:**
+
+```bash
+curl "http://localhost:3100/v1/proxy/patterns?secret=api-keys/memos" \
+  -H "Authorization: Bearer $GATEHOUSE_TOKEN"
+```
+
+Returns patterns sorted by confidence. Each entry shows the method, URL template, required header names, request/response schema, confidence, verified-by count, and whether an operator has pinned it:
+
+```json
+{
+  "patterns": [
+    {
+      "method": "POST",
+      "url_template": "https://memos.example/api/v1/memos",
+      "request_headers": ["Content-Type", "Authorization"],
+      "request_body_schema": {"content": "string", "visibility": "string"},
+      "response_status": 200,
+      "response_body_schema": {"id": "number", "content": "string", "creatorId": "number"},
+      "confidence": 0.95,
+      "verified_by": 3,
+      "total_successes": 47,
+      "pinned": false
+    }
+  ]
+}
+```
+
+**Auto-suggestions on failure.** When a proxy call returns 4xx/5xx, Gatehouse looks up patterns for the same secret (confidence > 0.5, or pinned) and returns up to 5 of them in the error response's `suggestions` array. Agents can correct their next attempt without a separate round trip.
+
+**MCP tool.** Call `gatehouse_patterns` with `secret_path` from any MCP-enabled agent (Claude Code, Codex, Cursor, Windsurf, OpenCode, etc.) to get the same data. Same policy gate as the REST endpoint: requires `proxy` or `read` on the secret path.
+
+**Operator control.** The **Patterns** tab in the web UI groups patterns by secret path with confidence bars, method badges, and expandable detail views showing request/response schemas, recent outcome timelines, and which agents verified each pattern. Admins can **pin** patterns (immune to low-confidence filtering) or **delete** them. There are no create or edit forms: patterns come from real proxy traffic only, so the library stays honest.
+
+**Why this matters for agents.** Without pattern learning, the first time a new agent touches an API it has to:
+
+1. Read documentation that may be stale
+2. Guess the request format
+3. Retry on 400s to figure out required fields
+4. Burn context and wall time on trial and error
+
+With pattern learning, the agent calls `gatehouse_patterns`, gets a verified template from an agent that already got it right, and makes its first attempt a working one. Each successful call makes the next agent faster.
 
 ## Dynamic secrets
 
@@ -540,7 +605,7 @@ For a typical homelab setup where agents run on the same machine, the key is ens
 - **Storage**: SQLite via bun:sqlite (WAL mode)
 - **Encryption**: tweetnacl (XSalsa20-Poly1305), envelope encryption with per-secret DEK, HKDF-SHA256 key derivation with domain separation
 - **Auth**: JWT tokens (jose), AppRole for machines, username/password for UI admins, timing-safe token comparison
-- **MCP**: 8 tools via Streamable HTTP, SSE, or stdio transport
+- **MCP**: 9 tools via Streamable HTTP, SSE, or stdio transport (including `gatehouse_patterns` for API pattern discovery)
 - **Dynamic secrets**: pg (node-postgres) for PostgreSQL temp credential lifecycle, configs encrypted at rest
 - **Security**: HKDF key derivation, CORS restrictions, CSP/HSTS/X-Frame-Options headers, key rotation support
 - **Container**: Single Dockerfile, ~50MB image
