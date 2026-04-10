@@ -1,8 +1,9 @@
 import { Hono } from "hono";
-import { SignJWT } from "jose";
+import { SignJWT, jwtVerify } from "jose";
 import { Database } from "bun:sqlite";
 import type { GatehouseConfig } from "../config";
 import { safeEqual } from "../auth/middleware";
+import { verifyTotp, verifyRecoveryCode } from "../auth/totp";
 
 // Simple in-memory rate limiter: 5 failed attempts per IP per 60s window
 const failedAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -230,6 +231,26 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       return c.json({ error: "Invalid credentials", request_id: c.get("requestId") }, 401);
     }
 
+    // If TOTP is enabled for this user, issue a short-lived "pre-auth" token
+    // that can only be used to submit the second factor at POST /v1/auth/login/totp.
+    // The full access JWT is only issued after the TOTP code is verified.
+    if (user.totp_enabled && user.totp_secret) {
+      const totpToken = await new SignJWT({
+        sub: `user:${user.username}`,
+        purpose: "totp-pending",
+      })
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuer("gatehouse")
+        .setIssuedAt()
+        .setExpirationTime("5m")
+        .sign(secret);
+
+      return c.json({
+        totp_required: true,
+        totp_token: totpToken,
+      });
+    }
+
     db.query("UPDATE users SET last_login = datetime('now') WHERE username = ?").run(username);
 
     // All UI users are admins — policies are for AppRoles (agents), not humans
@@ -254,6 +275,110 @@ export function authRouter(db: Database, config: GatehouseConfig) {
   });
 
   // ───────────────────────────────────────────────────────
+  // TOTP second-factor login
+  // Exchange a totp-pending token + 6-digit code (or recovery code) for a full JWT
+  // ───────────────────────────────────────────────────────
+  router.post("/login/totp", async (c) => {
+    const ip = c.get("sourceIp") || "unknown";
+
+    if (!checkRateLimit(ip)) {
+      return c.json(
+        { error: "Too many failed login attempts. Try again later.", request_id: c.get("requestId") },
+        429
+      );
+    }
+
+    let body: { totp_token: string; code: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body", request_id: c.get("requestId") }, 400);
+    }
+
+    const { totp_token, code } = body;
+    if (!totp_token || !code) {
+      return c.json({ error: "totp_token and code are required", request_id: c.get("requestId") }, 400);
+    }
+
+    // Verify the pre-auth token
+    let username: string;
+    try {
+      const { payload } = await jwtVerify(totp_token, secret, { issuer: "gatehouse" });
+      if (payload.purpose !== "totp-pending" || typeof payload.sub !== "string") {
+        throw new Error("wrong purpose");
+      }
+      username = payload.sub.replace(/^user:/, "");
+    } catch {
+      return c.json({ error: "Invalid or expired TOTP session", request_id: c.get("requestId") }, 401);
+    }
+
+    const user = db
+      .query("SELECT * FROM users WHERE username = ? AND enabled = 1")
+      .get(username) as any;
+
+    if (!user || !user.totp_enabled || !user.totp_secret) {
+      recordFailure(ip);
+      return c.json({ error: "Invalid credentials", request_id: c.get("requestId") }, 401);
+    }
+
+    // Accept either a 6-digit TOTP code or an 8-char recovery code (XXXX-XXXX)
+    const trimmed = code.trim();
+    let ok = false;
+    let consumedRecoveryIdx = -1;
+
+    if (/^\d{6}$/.test(trimmed.replace(/\s/g, ""))) {
+      ok = verifyTotp(user.totp_secret, trimmed);
+    } else {
+      // Try recovery codes
+      const hashes: string[] = user.totp_recovery_codes ? JSON.parse(user.totp_recovery_codes) : [];
+      for (let i = 0; i < hashes.length; i++) {
+        if (await verifyRecoveryCode(trimmed, hashes[i])) {
+          ok = true;
+          consumedRecoveryIdx = i;
+          break;
+        }
+      }
+    }
+
+    if (!ok) {
+      recordFailure(ip);
+      return c.json({ error: "Invalid TOTP code", request_id: c.get("requestId") }, 401);
+    }
+
+    // Consume a used recovery code so it can't be reused
+    if (consumedRecoveryIdx >= 0) {
+      const hashes: string[] = JSON.parse(user.totp_recovery_codes);
+      hashes.splice(consumedRecoveryIdx, 1);
+      db.query("UPDATE users SET totp_recovery_codes = ? WHERE username = ?").run(
+        JSON.stringify(hashes),
+        username
+      );
+    }
+
+    db.query("UPDATE users SET last_login = datetime('now') WHERE username = ?").run(username);
+
+    const token = await new SignJWT({
+      sub: `user:${user.username}`,
+      policies: ["admin"],
+      display_name: user.display_name,
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuer("gatehouse")
+      .setIssuedAt()
+      .setExpirationTime("24h")
+      .sign(secret);
+
+    return c.json({
+      token,
+      identity: `user:${user.username}`,
+      display_name: user.display_name,
+      role: user.role || "admin",
+      expires_in: 86400,
+      recovery_code_consumed: consumedRecoveryIdx >= 0,
+    });
+  });
+
+  // ───────────────────────────────────────────────────────
   // User CRUD (requires root token)
   // Users are admin accounts for the UI — not tied to policies
   // ───────────────────────────────────────────────────────
@@ -268,7 +393,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     }
 
     const users = db
-      .query("SELECT username, display_name, email, role, enabled, created_at, updated_at, last_login FROM users ORDER BY created_at DESC")
+      .query("SELECT username, display_name, email, role, enabled, totp_enabled, created_at, updated_at, last_login FROM users ORDER BY created_at DESC")
       .all() as any[];
 
     return c.json({
@@ -278,6 +403,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
         email: u.email,
         role: u.role || "admin",
         enabled: !!u.enabled,
+        totp_enabled: !!u.totp_enabled,
         created_at: u.created_at,
         updated_at: u.updated_at,
         last_login: u.last_login,
@@ -345,7 +471,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       return c.json({ error: "User not found", request_id: c.get("requestId") }, 404);
     }
 
-    let body: { display_name?: string; email?: string; password?: string; enabled?: boolean };
+    let body: { display_name?: string; email?: string; password?: string; enabled?: boolean; reset_totp?: boolean };
     try {
       body = await c.req.json();
     } catch {
@@ -362,6 +488,12 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     if (body.display_name !== undefined) { updates.push("display_name = ?"); params.push(body.display_name); }
     if (body.email !== undefined) { updates.push("email = ?"); params.push(body.email || null); }
     if (body.enabled !== undefined) { updates.push("enabled = ?"); params.push(body.enabled ? 1 : 0); }
+    if (body.reset_totp) {
+      // Admin force-disable of 2FA (e.g., user lost their authenticator)
+      updates.push("totp_enabled = 0");
+      updates.push("totp_secret = NULL");
+      updates.push("totp_recovery_codes = NULL");
+    }
     if (body.password) {
       const hash = await Bun.password.hash(body.password);
       updates.push("password_hash = ?");

@@ -54,6 +54,13 @@ export function authMiddleware(config: GatehouseConfig) {
         issuer: "gatehouse",
       });
 
+      // Pre-auth TOTP tokens are only valid for POST /v1/auth/login/totp.
+      // Reject them anywhere else so a stolen pre-auth token can't be used
+      // as a full access token.
+      if (payload.purpose === "totp-pending") {
+        return c.json({ error: "TOTP verification required", request_id: c.get("requestId") }, 401);
+      }
+
       c.set("auth", {
         identity: payload.sub || "unknown",
         policies: (payload.policies as string[]) || [],

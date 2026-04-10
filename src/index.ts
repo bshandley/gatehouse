@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { secretsRouter } from "./api/secrets";
 import { leaseRouter } from "./api/lease";
 import { authRouter } from "./api/auth";
+import { meRouter } from "./api/me";
 import { policyRouter } from "./api/policy";
 import { auditRouter } from "./api/audit";
 import { authMiddleware } from "./auth/middleware";
@@ -300,6 +301,7 @@ app.route("/v1/proxy/patterns", patternsRouter(patternEngine, policies));
 app.route("/v1/proxy", proxyRouter(secrets, policies, audit, patternEngine));
 app.route("/v1/dynamic", dynamicRouter(dynamicSecrets, policies, audit));
 app.route("/v1/scrub", scrubRouter());
+app.route("/v1/me", meRouter(db, audit));
 
 // Graceful shutdown
 process.on("SIGTERM", () => {

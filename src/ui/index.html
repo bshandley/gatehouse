@@ -1482,7 +1482,19 @@
         </div>
       </div>
 
-      <button class="btn btn-primary login-btn-full" onclick="doLogin()">Sign In</button>
+      <button id="login-submit-btn" class="btn btn-primary login-btn-full" onclick="doLogin()">Sign In</button>
+
+      <!-- TOTP second-factor prompt (shown after password succeeds for 2FA users) -->
+      <div id="login-form-totp" style="display:none">
+        <div class="form-group">
+          <label class="form-label" for="login-totp-code">Authenticator code</label>
+          <input type="text" id="login-totp-code" placeholder="123456 or recovery code" autocomplete="one-time-code" inputmode="numeric" maxlength="20" spellcheck="false">
+          <p style="font-size:11px;color:var(--text-secondary);margin-top:6px">Enter the 6-digit code from your authenticator app, or one of your recovery codes.</p>
+        </div>
+        <button class="btn btn-primary login-btn-full" onclick="submitTotpCode()">Verify</button>
+        <button class="btn btn-ghost login-btn-full" style="margin-top:8px" onclick="cancelTotpLogin()">Back</button>
+      </div>
+
       <p id="login-error" class="login-error hidden"></p>
       <div class="login-divider">Encrypted at rest</div>
       <p class="login-footnote">Secrets are envelope-encrypted with per-key DEKs.<br>Master key is never stored in the database.</p>
@@ -2081,6 +2093,17 @@
           </div>
         </div>
 
+        <!-- Two-Factor Authentication -->
+        <div class="card config-section" id="settings-totp-card" style="display:none">
+          <div class="card-header">
+            <span class="card-title">Two-Factor Authentication</span>
+            <span class="badge" id="settings-totp-badge">...</span>
+          </div>
+          <div class="card-body-padded" id="settings-totp-body">
+            <div style="color:var(--text-tertiary);font-size:13px">Loading...</div>
+          </div>
+        </div>
+
         <div class="danger-zone">
           <div class="danger-zone-header">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -2112,6 +2135,7 @@
   let leaseCountdownInterval = null;
   let allSecrets = [];
   let selectedSecretPath = null;
+  let pendingTotpToken = null;
 
   // ─── Theme ──────────────────────────────────────────
   const savedTheme = localStorage.getItem('gatehouseTheme') || 'dark';
@@ -2172,7 +2196,9 @@
     reloadPolicies, toggleAuditLive, exportAuditLog,
     loadDashboard, loadAuditLog, purgeExpiredLeases, toast, toggleTheme,
     openPolicyEditor, saveSSOSettings, toggleSSOEnabled,
-    switchLoginTab, openCreateUserModal
+    switchLoginTab, openCreateUserModal,
+    submitTotpCode, cancelTotpLogin,
+    startTotpSetup, disableTotp, regenerateRecoveryCodes
   });
 
   // ─── API helper ─────────────────────────────────────
@@ -2216,6 +2242,19 @@
         });
         const data = await res.json().catch(() => null);
         if (!res.ok) { err.textContent = data?.error || 'Login failed'; err.classList.remove('hidden'); return; }
+
+        // TOTP required: show the second-factor prompt instead of finalizing login
+        if (data.totp_required) {
+          pendingTotpToken = data.totp_token;
+          document.getElementById('login-form-user').style.display = 'none';
+          document.querySelector('.login-tabs').style.display = 'none';
+          document.getElementById('login-submit-btn').style.display = 'none';
+          document.getElementById('login-form-totp').style.display = 'block';
+          err.classList.add('hidden');
+          setTimeout(() => document.getElementById('login-totp-code')?.focus(), 50);
+          return;
+        }
+
         token = data.token;
         localStorage.setItem('gatehouseToken', data.token);
         err.classList.add('hidden');
@@ -2255,11 +2294,287 @@
   function doLogout() {
     localStorage.removeItem('gatehouseToken');
     token = null;
+    pendingTotpToken = null;
     if (auditLiveInterval) { clearInterval(auditLiveInterval); auditLiveInterval = null; }
     if (leaseCountdownInterval) { clearInterval(leaseCountdownInterval); leaseCountdownInterval = null; }
     document.getElementById('app-shell').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
+    // Reset login form visibility in case we were mid-TOTP flow
+    document.getElementById('login-form-totp').style.display = 'none';
+    document.querySelector('.login-tabs').style.display = '';
+    document.getElementById('login-submit-btn').style.display = '';
+    document.getElementById('login-form-user').style.display = loginMode === 'user' ? 'block' : 'none';
     history.replaceState(null, '', '/');
+  }
+
+  // ─── TOTP second-factor login helpers ────────────────
+  async function submitTotpCode() {
+    const err = document.getElementById('login-error');
+    const codeEl = document.getElementById('login-totp-code');
+    const code = codeEl.value.trim();
+    if (!code) { err.textContent = 'Code required'; err.classList.remove('hidden'); return; }
+    if (!pendingTotpToken) { err.textContent = 'Session expired, please sign in again'; err.classList.remove('hidden'); return; }
+    try {
+      const res = await fetch('/v1/auth/login/totp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ totp_token: pendingTotpToken, code }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        err.textContent = data?.error || 'Invalid code';
+        err.classList.remove('hidden');
+        codeEl.select();
+        return;
+      }
+      token = data.token;
+      localStorage.setItem('gatehouseToken', data.token);
+      pendingTotpToken = null;
+      err.classList.add('hidden');
+      if (data.recovery_code_consumed) {
+        toast('Recovery code used. Generate new ones in Settings.', 'warn');
+      }
+      // Reset form state so next logout returns to password
+      document.getElementById('login-form-totp').style.display = 'none';
+      document.querySelector('.login-tabs').style.display = '';
+      document.getElementById('login-submit-btn').style.display = '';
+      document.getElementById('login-form-user').style.display = 'block';
+      codeEl.value = '';
+      showApp();
+    } catch (e) {
+      err.textContent = 'Server unreachable';
+      err.classList.remove('hidden');
+    }
+  }
+
+  function cancelTotpLogin() {
+    pendingTotpToken = null;
+    document.getElementById('login-totp-code').value = '';
+    document.getElementById('login-form-totp').style.display = 'none';
+    document.querySelector('.login-tabs').style.display = '';
+    document.getElementById('login-submit-btn').style.display = '';
+    document.getElementById('login-form-user').style.display = 'block';
+    document.getElementById('login-error').classList.add('hidden');
+  }
+
+  // ─── TOTP settings panel ─────────────────────────────
+  // Render the 2FA card inside the Settings page. Only shown for user-account
+  // sessions (not root tokens or AppRoles).
+  async function loadTotpSettings() {
+    const card = document.getElementById('settings-totp-card');
+    if (!card) return;
+
+    // Only users can manage TOTP; hide the card for root tokens and AppRoles
+    let isUser = false;
+    if (token && token.startsWith('ey')) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        isUser = typeof payload.sub === 'string' && payload.sub.startsWith('user:');
+      } catch {}
+    }
+    if (!isUser) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const badge = document.getElementById('settings-totp-badge');
+    const body = document.getElementById('settings-totp-body');
+    try {
+      const status = await api('/v1/me/totp');
+      if (status.enabled) {
+        badge.className = 'badge badge-success';
+        badge.innerHTML = '<span class="badge-dot"></span> Enabled';
+        body.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="color:var(--text-secondary);font-size:13px;line-height:1.6">
+              Your account is protected with a time-based one-time password.
+              You have <strong style="color:var(--text-primary)">${status.recovery_codes_remaining}</strong> recovery code${status.recovery_codes_remaining === 1 ? '' : 's'} remaining.
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" onclick="regenerateRecoveryCodes()">Regenerate Recovery Codes</button>
+              <button class="btn btn-danger btn-sm" onclick="disableTotp()">Disable 2FA</button>
+            </div>
+          </div>`;
+      } else {
+        badge.className = 'badge badge-neutral';
+        badge.innerHTML = '<span class="badge-dot"></span> Disabled';
+        body.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="color:var(--text-secondary);font-size:13px;line-height:1.6">
+              Add a second factor to your account using any TOTP authenticator app
+              (Google Authenticator, Authy, 1Password, Bitwarden, etc).
+            </div>
+            <div>
+              <button class="btn btn-primary btn-sm" onclick="startTotpSetup()">Enable 2FA</button>
+            </div>
+          </div>`;
+      }
+    } catch (e) {
+      body.innerHTML = `<div style="color:var(--danger);font-size:13px">Failed to load: ${esc(e.message)}</div>`;
+    }
+  }
+
+  async function startTotpSetup() {
+    try {
+      const setup = await api('/v1/me/totp/setup', { method: 'POST' });
+      openTotpSetupModal(setup);
+    } catch (e) {
+      toast('Failed to start setup: ' + e.message, 'error');
+    }
+  }
+
+  // Render a simple QR code for an otpauth URI using the public
+  // api.qrserver.com endpoint. We avoid shipping a QR library inline; the
+  // URI is also shown as a copyable string for users who'd rather paste it.
+  function openTotpSetupModal(setup) {
+    const modal = document.getElementById('modal-container');
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&color=0a0a0f&bgcolor=e8e6e3&data=${encodeURIComponent(setup.otpauth_uri)}`;
+    modal.innerHTML = `
+      <div class="modal-backdrop">
+        <div class="modal" style="max-width:460px">
+          <div class="modal-header">
+            <h3 class="modal-title">Enable Two-Factor Authentication</h3>
+            <button class="modal-close" onclick="document.getElementById('modal-container').innerHTML=''">&times;</button>
+          </div>
+          <div class="modal-body" style="display:flex;flex-direction:column;gap:16px">
+            <p style="font-size:13px;color:var(--text-secondary);margin:0">
+              Scan this QR code with your authenticator app, or enter the secret manually.
+            </p>
+            <div style="display:flex;justify-content:center;padding:12px;background:#e8e6e3;border-radius:8px">
+              <img src="${qrUrl}" alt="TOTP QR code" width="220" height="220" style="display:block"
+                   onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+              <div style="display:none;color:#0a0a0f;font-size:12px;text-align:center;padding:80px 20px">
+                Couldn't load QR code.<br>Enter the secret below manually.
+              </div>
+            </div>
+            <div>
+              <div class="detail-field-label">Secret</div>
+              <div style="display:flex;gap:6px;align-items:center;margin-top:4px">
+                <code style="flex:1;font-family:var(--font-mono);font-size:12px;padding:8px 10px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;word-break:break-all">${esc(setup.secret)}</code>
+                <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${esc(setup.secret)}', this)">Copy</button>
+              </div>
+            </div>
+            <div>
+              <label class="form-label" for="totp-verify-code">Enter the 6-digit code from your app</label>
+              <input type="text" id="totp-verify-code" placeholder="123456" inputmode="numeric" maxlength="6" spellcheck="false" autofocus>
+              <p id="totp-verify-error" class="login-error hidden" style="margin-top:8px"></p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="document.getElementById('modal-container').innerHTML=''">Cancel</button>
+            <button class="btn btn-primary" id="totp-verify-submit">Verify &amp; Enable</button>
+          </div>
+        </div>
+      </div>`;
+    document.getElementById('totp-verify-submit').onclick = async () => {
+      const input = document.getElementById('totp-verify-code');
+      const errEl = document.getElementById('totp-verify-error');
+      const code = input.value.trim();
+      if (!/^\d{6}$/.test(code)) { errEl.textContent = 'Enter a 6-digit code'; errEl.classList.remove('hidden'); return; }
+      try {
+        const result = await api('/v1/me/totp/verify', { method: 'POST', body: { code } });
+        showRecoveryCodesModal(result.recovery_codes);
+        loadTotpSettings();
+      } catch (e) {
+        errEl.textContent = e.message;
+        errEl.classList.remove('hidden');
+        input.select();
+      }
+    };
+    document.getElementById('totp-verify-code').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('totp-verify-submit').click();
+    });
+  }
+
+  function showRecoveryCodesModal(codes) {
+    const modal = document.getElementById('modal-container');
+    const codesText = codes.join('\n');
+    modal.innerHTML = `
+      <div class="modal-backdrop">
+        <div class="modal" style="max-width:460px">
+          <div class="modal-header">
+            <h3 class="modal-title">Save Your Recovery Codes</h3>
+          </div>
+          <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+            <p style="font-size:13px;color:var(--warning);margin:0">
+              These codes can each be used <strong>once</strong> to sign in if you lose your authenticator.
+              They will not be shown again. Save them somewhere safe.
+            </p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;font-family:var(--font-mono);font-size:13px">
+              ${codes.map(c => `<div>${esc(c)}</div>`).join('')}
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(\`${codesText}\`, this)">Copy All</button>
+              <button class="btn btn-secondary btn-sm" onclick="downloadText('gatehouse-recovery-codes.txt', \`${codesText}\`)">Download .txt</button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-primary" onclick="document.getElementById('modal-container').innerHTML=''">I've Saved These</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function disableTotp() {
+    const password = await promptForPassword('Enter your password to disable 2FA');
+    if (!password) return;
+    try {
+      await api('/v1/me/totp', { method: 'DELETE', body: { password } });
+      toast('Two-factor authentication disabled', 'success');
+      loadTotpSettings();
+    } catch (e) {
+      toast('Failed to disable: ' + e.message, 'error');
+    }
+  }
+
+  async function regenerateRecoveryCodes() {
+    const password = await promptForPassword('Enter your password to generate new recovery codes');
+    if (!password) return;
+    try {
+      const result = await api('/v1/me/totp/recovery-codes/regenerate', { method: 'POST', body: { password } });
+      showRecoveryCodesModal(result.recovery_codes);
+      loadTotpSettings();
+    } catch (e) {
+      toast('Failed to regenerate: ' + e.message, 'error');
+    }
+  }
+
+  function promptForPassword(message) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('modal-container');
+      modal.innerHTML = `
+        <div class="modal-backdrop">
+          <div class="modal" style="max-width:420px">
+            <div class="modal-header"><h3 class="modal-title">Confirm Password</h3></div>
+            <div class="modal-body">
+              <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">${esc(message)}</p>
+              <input type="password" id="pw-prompt-input" class="form-input" autocomplete="current-password" autofocus>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" id="pw-prompt-cancel">Cancel</button>
+              <button class="btn btn-primary" id="pw-prompt-ok">Confirm</button>
+            </div>
+          </div>
+        </div>`;
+      const close = (val) => { modal.innerHTML = ''; resolve(val); };
+      document.getElementById('pw-prompt-cancel').onclick = () => close(null);
+      document.getElementById('pw-prompt-ok').onclick = () => {
+        const v = document.getElementById('pw-prompt-input').value;
+        close(v || null);
+      };
+      document.getElementById('pw-prompt-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('pw-prompt-ok').click();
+        if (e.key === 'Escape') close(null);
+      });
+    });
+  }
+
+  function downloadText(filename, content) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function showApp() {
@@ -4406,6 +4721,9 @@
     } catch {
       // SSO settings may not be accessible if not admin
     }
+
+    // Load TOTP (2FA) settings for current user
+    loadTotpSettings();
   }
 
   function toggleSSOEnabled() {

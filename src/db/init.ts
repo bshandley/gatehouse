@@ -98,6 +98,9 @@ export function initDB(dataDir: string): Database {
       email TEXT,
       role TEXT DEFAULT 'admin',
       enabled INTEGER DEFAULT 1,
+      totp_secret TEXT,
+      totp_enabled INTEGER DEFAULT 0,
+      totp_recovery_codes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       last_login TEXT
@@ -159,6 +162,15 @@ export function initDB(dataDir: string): Database {
   const userColNames = userCols.map((c) => c.name);
   if (userColNames.length > 0 && !userColNames.includes("role")) {
     db.run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'admin'");
+  }
+  if (userColNames.length > 0 && !userColNames.includes("totp_secret")) {
+    db.run("ALTER TABLE users ADD COLUMN totp_secret TEXT");
+  }
+  if (userColNames.length > 0 && !userColNames.includes("totp_enabled")) {
+    db.run("ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0");
+  }
+  if (userColNames.length > 0 && !userColNames.includes("totp_recovery_codes")) {
+    db.run("ALTER TABLE users ADD COLUMN totp_recovery_codes TEXT");
   }
 
   // Indexes
