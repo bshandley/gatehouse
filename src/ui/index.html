@@ -1152,7 +1152,25 @@
     .cap-chip.active {
       background: var(--accent-subtle); border-color: var(--accent); color: var(--accent);
     }
+    .cap-chip.warn.active {
+      background: rgba(251, 191, 36, 0.1); border-color: var(--warning); color: var(--warning);
+    }
     .cap-chip:hover { border-color: var(--accent); }
+    .cap-chip.warn.active::before {
+      content: "⚠"; font-size: 10px; margin-right: 2px;
+    }
+    .policy-cap-note {
+      margin-top: 12px; padding: 10px 14px; border-radius: var(--radius);
+      background: rgba(251, 191, 36, 0.06); border: 1px solid rgba(251, 191, 36, 0.25);
+      font-size: 12px; color: var(--text-secondary); line-height: 1.5;
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .policy-cap-note svg { flex-shrink: 0; margin-top: 1px; color: var(--warning); }
+    .policy-cap-note code {
+      font-family: "JetBrains Mono", monospace; font-size: 11px;
+      background: var(--bg-tertiary); padding: 1px 5px; border-radius: 3px;
+      color: var(--text-primary);
+    }
     .rule-remove {
       background: none; border: none; color: var(--text-tertiary); cursor: pointer;
       padding: 6px; border-radius: var(--radius); transition: color 0.15s;
@@ -3059,6 +3077,12 @@
         <div id="policy-rules-container">
           ${rules.map((r, i) => renderRuleRow(r, i, isReadonly)).join('')}
         </div>
+        <div class="policy-cap-note">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div>
+            <strong>Plaintext exposure:</strong> <code>read</code> and <code>lease</code> return the secret value directly to the agent, landing credentials in the model's context window. Prefer <code>proxy</code> where possible, so Gatehouse injects the credential into upstream requests and the agent never sees it.
+          </div>
+        </div>
         ${!isReadonly ? `
         <div style="display:flex;justify-content:space-between;margin-top:16px">
           <button class="btn btn-ghost btn-sm" onclick="addPolicyRule()">
@@ -3093,6 +3117,17 @@
     return allDynamic ? DYNAMIC_CAPS : ALL_CAPS;
   }
 
+  // A rule is "static-exposing" if it has any path that isn't dynamic-only.
+  // read/lease on those paths return plaintext credentials in the response.
+  function ruleExposesPlaintext(paths) {
+    if (paths.length === 0) return true; // no paths yet — assume worst case
+    return paths.some(p => !isDynamicPath(p));
+  }
+
+  function isExposingCap(cap, paths) {
+    return (cap === 'read' || cap === 'lease') && ruleExposesPlaintext(paths);
+  }
+
   function updateCapsForRule(ruleIndex) {
     const container = document.getElementById('policy-rules-container');
     const row = container?.querySelectorAll('.rule-row')[ruleIndex];
@@ -3104,7 +3139,8 @@
     if (!capsContainer) return;
     capsContainer.innerHTML = visibleCaps.map(cap => {
       const active = activeCaps.has(cap);
-      return `<span class="cap-chip ${active ? 'active' : ''}" onclick="toggleCap(${ruleIndex}, '${cap}')">${cap}</span>`;
+      const warn = isExposingCap(cap, paths);
+      return `<span class="cap-chip ${warn ? 'warn' : ''} ${active ? 'active' : ''}" onclick="toggleCap(${ruleIndex}, '${cap}')" ${warn ? 'title="Returns plaintext credentials to the agent. Prefer proxy where possible."' : ''}>${cap}</span>`;
     }).join('');
   }
 
@@ -3115,7 +3151,9 @@
 
     const capsHtml = visibleCaps.map(cap => {
       const active = rule.capabilities?.includes(cap);
-      return `<span class="cap-chip ${active ? 'active' : ''}" ${!readonly ? `onclick="toggleCap(${index}, '${cap}')"` : ''}>${cap}</span>`;
+      const warn = isExposingCap(cap, paths);
+      const title = warn ? 'title="Returns plaintext credentials to the agent. Prefer proxy where possible."' : '';
+      return `<span class="cap-chip ${warn ? 'warn' : ''} ${active ? 'active' : ''}" ${!readonly ? `onclick="toggleCap(${index}, '${cap}')"` : ''} ${title}>${cap}</span>`;
     }).join('');
 
     const tagsHtml = paths.map((p, pi) =>
