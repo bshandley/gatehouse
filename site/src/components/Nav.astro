@@ -1,0 +1,48 @@
+---
+import Logo from "./Logo.astro";
+const base = import.meta.env.BASE_URL;
+---
+
+<header class="site-nav">
+  <div class="container nav-inner">
+    <a href={base} class="brand" aria-label="Gatehouse home">
+      <Logo size={26} withWordmark={true} />
+    </a>
+    <nav>
+      <a href={`${base}docs/getting-started/`}>Docs</a>
+      <a href={`${base}docs/for-agents/`}>Agents</a>
+      <a href="https://github.com/bshandley/gatehouse" target="_blank" rel="noopener">
+        GitHub <span aria-hidden="true">↗</span>
+      </a>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(10, 10, 15, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+  }
+  .brand { display: inline-flex; align-items: center; }
+  nav {
+    display: flex;
+    gap: 1.75rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+  }
+  nav a:hover { color: var(--text-primary); }
+  @media (max-width: 640px) {
+    nav { gap: 1rem; font-size: 0.85rem; }
+  }
+</style>

@@ -1,0 +1,91 @@
+---
+import { getCollection } from "astro:content";
+
+interface Props {
+  currentSlug: string;
+}
+const { currentSlug } = Astro.props;
+const base = import.meta.env.BASE_URL;
+
+const groupOrder = ["GETTING STARTED", "CORE CONCEPTS", "USING GATEHOUSE", "REFERENCE"] as const;
+const all = await getCollection("docs");
+const grouped = groupOrder.map((group) => ({
+  name: group,
+  entries: all
+    .filter((e) => e.data.sidebar_group === group)
+    .sort((a, b) => a.data.sidebar_order - b.data.sidebar_order),
+}));
+---
+
+<aside class="sidebar">
+  <nav>
+    {grouped.map((g) => (
+      <section class="group">
+        <h4>{g.name}</h4>
+        <ul>
+          {g.entries.map((entry) => {
+            const href = `${base}docs/${entry.id}/`;
+            const isCurrent = entry.id === currentSlug;
+            return (
+              <li>
+                <a href={href} class={isCurrent ? "current" : ""}>{entry.data.title}</a>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    ))}
+  </nav>
+</aside>
+
+<style>
+  .sidebar {
+    position: sticky;
+    top: 4rem;
+    align-self: start;
+    padding: 2rem 0;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+  }
+  .group { margin-bottom: 1.75rem; }
+  .group h4 {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-tertiary);
+    margin-bottom: 0.6rem;
+    padding-left: 0.25rem;
+  }
+  .group ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .group li { margin-bottom: 0.2rem; }
+  .group a {
+    display: block;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    border-left: 2px solid transparent;
+    border-radius: 0 6px 6px 0;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .group a:hover {
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+  }
+  .group a.current {
+    color: var(--accent-light);
+    border-left-color: var(--accent);
+    background: var(--accent-subtle);
+  }
+  @media (max-width: 960px) {
+    .sidebar {
+      position: static;
+      max-height: none;
+      padding: 1rem 0;
+    }
+  }
+</style>

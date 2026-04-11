@@ -1,0 +1,86 @@
+---
+title: "Getting Started"
+description: "Install Gatehouse with Docker and store your first secret."
+sidebar_order: 1
+sidebar_group: "GETTING STARTED"
+---
+
+{/* Generated from README 2026-04-10 */}
+
+import Callout from "../../components/Callout.astro";
+
+Gatehouse runs in a single Docker container. You don't need a cluster, a sidecar, or an external key store. This page walks through installing it, getting a root token, and storing your first secret.
+
+## Install with Docker
+
+```bash
+docker run -d \
+  --name gatehouse \
+  -p 3100:3100 \
+  -v gatehouse-data:/data \
+  -v ./config:/config \
+  -e GATEHOUSE_MASTER_KEY="$(openssl rand -hex 32)" \
+  -e GATEHOUSE_ROOT_TOKEN="$(openssl rand -hex 24)" \
+  ghcr.io/bshandley/gatehouse:latest
+```
+
+<Callout type="warning" title="Save your master key">
+  The `GATEHOUSE_MASTER_KEY` is never written to disk. Losing it means losing access to every encrypted secret. Save it somewhere safe (a password manager, a printed backup, another vault) before you put real data in.
+</Callout>
+
+Open `http://localhost:3100` in a browser. You'll see the login screen. Paste the `GATEHOUSE_ROOT_TOKEN` value you set above.
+
+## Create your first user
+
+The root token is for bootstrapping only. Create a real admin user and then unset `GATEHOUSE_ROOT_TOKEN`.
+
+1. Log in with the root token.
+2. Open the **Users** tab.
+3. Click **Create user**. Pick a username, a strong password, and a display name.
+4. Log out, log back in as the new user.
+5. Stop the container, remove the `GATEHOUSE_ROOT_TOKEN` env var, and restart.
+
+## Store your first secret
+
+```bash
+export GATEHOUSE_TOKEN=<paste your JWT from the UI>
+
+curl -X POST http://localhost:3100/v1/secrets/api-keys/openai \
+  -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"value": "sk-proj-...", "metadata": {"service": "openai", "env": "prod"}}'
+```
+
+Read it back:
+
+```bash
+curl http://localhost:3100/v1/secrets/api-keys/openai/value \
+  -H "Authorization: Bearer $GATEHOUSE_TOKEN"
+```
+
+## Lease a secret
+
+Leasing is how agents get time-bounded access to a secret. The lease auto-expires after the TTL, and the reaper revokes anything that outlives it.
+
+```bash
+curl -X POST http://localhost:3100/v1/lease/api-keys/openai \
+  -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": 300}'
+```
+
+Response:
+
+```json
+{
+  "lease_id": "lease-abc123",
+  "value": "sk-proj-...",
+  "expires_at": "2026-04-10T12:05:00Z"
+}
+```
+
+## Next steps
+
+- Read the [Core Concepts](/gatehouse/docs/concepts/) to understand proxy mode, dynamic secrets, and pattern learning.
+- Set up [Authentication](/gatehouse/docs/authentication/) with user accounts, AppRoles for agents, and optional TOTP.
+- Browse the [Web UI tour](/gatehouse/docs/web-ui/) to see what each panel does.

@@ -1,0 +1,58 @@
+---
+title: "Web UI Tour"
+description: "A walkthrough of every tab in the Gatehouse control panel."
+sidebar_order: 2
+sidebar_group: "USING GATEHOUSE"
+---
+
+{/* Generated from CLAUDE.md + screenshots 2026-04-10 */}
+
+The Gatehouse web UI is a single-page app served from the same container as the API. It's dark by default, built with vanilla HTML, CSS, and JS (no framework), and loads JetBrains Mono for code and Instrument Sans for headings.
+
+## Dashboard
+
+The Dashboard shows the operational state of the vault at a glance:
+
+- **Metric cards**: total secrets, active leases, recent audit events, policy count
+- **Active leases table**: path, identity, remaining TTL (live countdown), expires_at, revoke action
+- **Recent audit log**: last 20 events, color-coded by action type
+
+## Secrets
+
+The Secrets tab has a tree view on the left (paths grouped by prefix) and a detail panel on the right. The detail panel shows metadata, version, and timestamps. The secret value is hidden behind a **Reveal** button that requires confirmation and logs the action to the audit trail.
+
+## Leases
+
+Active leases are shown first, with live TTL countdowns updated every second. Lease history (expired and revoked leases) is sortable and filterable by identity.
+
+## Policies
+
+Policies are displayed as cards listing the rules and which AppRoles reference each one. Policies defined in YAML files and policies stored in the database are shown together, with their source indicated. Use **Reload** to pick up YAML changes without restarting the container.
+
+## Agents
+
+The Agents tab manages AppRoles. Creating an AppRole opens a one-time modal showing the `role_id` and `secret_id`. This modal cannot be dismissed accidentally, because the `secret_id` is only visible once.
+
+## Users
+
+Human admin accounts for the web UI. Users have a username, display name, optional email, and a password. Each user can enable TOTP two-factor auth for themselves. Admins can force-reset another user's 2FA if they lose their authenticator.
+
+## Proxy
+
+View recent proxy requests with their injected secret paths, upstream URLs, response codes, and durations. Use this to debug proxy configurations or verify that credentials are being resolved correctly.
+
+## Dynamic Secrets
+
+Manage dynamic secret provider configurations. Create a config for PostgreSQL, MySQL, MongoDB, Redis, or SSH certificates, test the connection, and see active leases per provider.
+
+## Patterns
+
+Browse learned API call patterns, grouped by secret path. Each pattern shows the method, URL template, header and body schema, confidence score, and the list of agents that have verified it. Operators can pin patterns (to prevent deletion) or delete them.
+
+## Audit Log
+
+Full audit log with filtering by identity, action, path, and date range. Live tail mode auto-refreshes every 5 seconds. Export as JSON for ingestion into external log tools.
+
+## Settings
+
+Server version, uptime, database size, last master key rotation date, and a Danger Zone for rotating the master key, purging expired leases, and clearing old audit entries.

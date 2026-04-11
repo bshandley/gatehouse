@@ -1,0 +1,66 @@
+---
+title: "Security &amp; Threat Model"
+description: "What Gatehouse protects against, what it doesn't, and how to deploy safely."
+sidebar_order: 4
+sidebar_group: "USING GATEHOUSE"
+---
+
+{/* Generated from README 2026-04-10 */}
+
+import Callout from "../../components/Callout.astro";
+
+Gatehouse is designed for the homelab threat model: a single operator, one or more AI agents with varying degrees of trust, and a small set of credentials worth protecting. This page documents what the system protects against and the assumptions it relies on.
+
+## What Gatehouse protects
+
+- **Credential leaks from agent context windows.** Proxy mode keeps the key server-side. The agent only sees the API response.
+- **Secret sprawl.** All credentials live in one place with a single audit log.
+- **Static credential exposure.** Dynamic secrets eliminate long-lived database and SSH credentials.
+- **Privileged token misuse.** Per-agent AppRoles with scoped policies replace shared tokens.
+- **Accidental logging of credentials.** The scrubber catches 15+ common credential formats in MCP and REST responses.
+- **Encryption at rest.** Every secret is encrypted with a per-secret DEK, which is encrypted with a KEK derived from the master key via HKDF-SHA256.
+
+## What Gatehouse does not protect against
+
+- **Host compromise.** If an attacker gets root on the container host, they can read the master key from process memory, `/proc/$PID/environ`, or via `docker inspect` if the master key is set as an env var. For higher-trust deployments, pass the master key via a Docker secrets mount instead of an env var.
+- **A malicious admin.** An admin user with the `admin` capability can read any secret and revoke any lease. The audit log records what they did, but it does not prevent them.
+- **Side channels in upstream APIs.** If an agent proxies a request and the upstream API includes the credential in its response (a misconfiguration on the upstream's side), Gatehouse cannot un-leak it.
+
+## Deployment recommendations
+
+### Master key handling
+
+The `GATEHOUSE_MASTER_KEY` is never written to disk by Gatehouse. Losing it means losing access to every encrypted secret. Store the master key:
+
+- **For homelabs:** in a password manager separate from the one that holds Gatehouse credentials, plus a printed backup in a safe place.
+- **For higher-trust deployments:** use Docker secrets (mounted as a file at `/run/secrets/master_key`) instead of an env var, so the key does not appear in `docker inspect` output or `/proc/$PID/environ`.
+
+<Callout type="warning" title="Do not check in your master key">
+  The master key is a 32-byte secret. Never commit it to a git repo, never paste it into Slack, never send it in an email.
+</Callout>
+
+### Root token handling
+
+The root token is for bootstrapping only. Create a real admin user via the web UI, log in as that user, verify everything works, then:
+
+1. Stop the container.
+2. Remove the `GATEHOUSE_ROOT_TOKEN` env var from your `docker-compose.yml` or `docker run` command.
+3. Restart the container.
+
+The root token still works for bootstrapping if you set it again later, but leaving it set in production bypasses every access control check.
+
+### Policy discipline
+
+Give each agent its own AppRole with the minimum capabilities it needs. An agent that only reads from `api-keys/*` should not have `delete` or `admin`. The web UI makes it easy to inspect which policies each AppRole references and what paths each policy covers.
+
+### Network exposure
+
+Gatehouse listens on port 3100 by default. For homelab use, keep it on a private network. If you must expose it to the internet, put it behind a reverse proxy with TLS (Caddy, nginx, Traefik) and consider IP allowlisting on the proxy.
+
+## Cryptographic details
+
+- **Symmetric encryption:** XSalsa20-Poly1305 via `tweetnacl`. Per-secret random 32-byte DEK, encrypted with a KEK derived from the master key via HKDF-SHA256 with a domain separation label.
+- **Password hashing:** Argon2id via `Bun.password.hash` with default parameters (64 MiB memory, 3 iterations, parallelism 1).
+- **JWT signing:** HS256 with the `GATEHOUSE_JWT_SECRET` env var (generated at first startup if unset and persisted to the config directory).
+- **TOTP:** RFC 6238, SHA1, 6 digits, 30-second period.
+- **Recovery codes:** 10 one-time codes per user, each 8 characters, hashed with Argon2id before storage.

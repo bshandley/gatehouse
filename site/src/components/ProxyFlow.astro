@@ -1,0 +1,110 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+
+<section class="flow">
+  <div class="container">
+    <div class="label eyebrow">HOW PROXY MODE WORKS</div>
+    <h2>Three steps. Key stays home.</h2>
+
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Agent sends a request</h3>
+          <p><code>POST /v1/proxy</code> with a secret reference, not the secret itself.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Gatehouse injects the credential</h3>
+          <p>Resolves the reference server-side, forwards the request upstream.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Response comes back</h3>
+          <p>Agent sees the API response. Never the key.</p>
+        </div>
+      </li>
+    </ol>
+
+    <p class="learning">
+      Because every call flows through the vault, Gatehouse can also learn. Successful requests get recorded as reusable patterns, scored by confidence, and served to the next agent that touches that secret.
+      <a href={`${base}docs/concepts/#pattern-learning`}>How pattern learning works →</a>
+    </p>
+  </div>
+</section>
+
+<style>
+  .flow {
+    padding: 4rem 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .label { margin-bottom: 0.75rem; display: block; }
+  .flow h2 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    margin-bottom: 2.5rem;
+    max-width: 22ch;
+  }
+  .steps {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 2.5rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+  .step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: border-color 0.15s;
+  }
+  .step:hover { border-color: var(--border-hover); }
+  .step-num {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--accent);
+    margin-bottom: 0.85rem;
+  }
+  .step-body h3 {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+  }
+  .step-body p {
+    font-size: 0.92rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .step-body code {
+    background: var(--bg-tertiary);
+    color: var(--accent-light);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.82em;
+  }
+  .learning {
+    color: var(--text-secondary);
+    max-width: 60ch;
+    font-size: 0.95rem;
+    line-height: 1.65;
+  }
+  .learning a {
+    color: var(--accent-light);
+    display: inline-block;
+    margin-left: 0.25rem;
+  }
+  .learning a:hover { color: var(--accent-hover); }
+  @media (max-width: 800px) {
+    .steps { grid-template-columns: 1fr; }
+  }
+</style>

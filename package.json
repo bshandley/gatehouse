@@ -8,7 +8,9 @@
     "start": "bun run src/index.ts",
     "test": "bun test",
     "build": "bun build src/index.ts --outdir dist --target bun",
-    "db:migrate": "bun run src/db/migrate.ts"
+    "db:migrate": "bun run src/db/migrate.ts",
+    "site:dev": "cd site && bun run dev",
+    "site:build": "cd site && bun run sync-docs && bun run build && bun run publish"
   },
   "dependencies": {
     "hono": "^4.7.0",

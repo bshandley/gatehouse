@@ -1,0 +1,73 @@
+---
+import Logo from "./Logo.astro";
+const base = import.meta.env.BASE_URL;
+---
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="col brand-col">
+      <Logo size={22} withWordmark={true} />
+      <p class="tagline">A secrets vault built for AI agents.</p>
+    </div>
+    <div class="col">
+      <h4>Project</h4>
+      <ul>
+        <li><a href="https://github.com/bshandley/gatehouse" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="https://github.com/bshandley/gatehouse/blob/main/LICENSE" target="_blank" rel="noopener">License (AGPL-3.0)</a></li>
+        <li><a href="https://github.com/bshandley/gatehouse/issues" target="_blank" rel="noopener">Issues</a></li>
+      </ul>
+    </div>
+    <div class="col">
+      <h4>Docs</h4>
+      <ul>
+        <li><a href={`${base}docs/getting-started/`}>Getting started</a></li>
+        <li><a href={`${base}docs/concepts/`}>Concepts</a></li>
+        <li><a href={`${base}docs/for-agents/`}>For agents</a></li>
+      </ul>
+    </div>
+    <div class="col">
+      <h4>About</h4>
+      <p class="about-text">
+        Gatehouse is released under the GNU Affero General Public License v3.0.
+      </p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    margin-top: 6rem;
+    padding: 3rem 0 2.5rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-secondary);
+  }
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 1.3fr;
+    gap: 2.5rem;
+  }
+  .col h4 {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-secondary);
+    margin-bottom: 0.9rem;
+  }
+  .col ul { list-style: none; padding: 0; margin: 0; }
+  .col li { margin-bottom: 0.4rem; font-size: 0.88rem; }
+  .col a { color: var(--text-secondary); }
+  .col a:hover { color: var(--text-primary); }
+  .tagline, .about-text {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    margin-top: 0.75rem;
+    line-height: 1.55;
+  }
+  @media (max-width: 768px) {
+    .footer-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 480px) {
+    .footer-grid { grid-template-columns: 1fr; }
+  }
+</style>

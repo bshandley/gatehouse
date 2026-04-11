@@ -1,0 +1,62 @@
+---
+interface Props {
+  type?: "note" | "warning" | "danger";
+  title?: string;
+}
+const { type = "note", title } = Astro.props;
+const icons = { note: "i", warning: "!", danger: "!" };
+const defaultTitles = { note: "Note", warning: "Warning", danger: "Danger" };
+---
+
+<aside class={`callout callout-${type}`}>
+  <div class="callout-head">
+    <span class="icon" aria-hidden="true">{icons[type]}</span>
+    <strong>{title ?? defaultTitles[type]}</strong>
+  </div>
+  <div class="callout-body">
+    <slot />
+  </div>
+</aside>
+
+<style>
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-subtle);
+    border-radius: 0 8px 8px 0;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+  }
+  .callout-warning {
+    border-left-color: var(--warning);
+    background: rgba(251, 191, 36, 0.08);
+  }
+  .callout-danger {
+    border-left-color: var(--danger);
+    background: rgba(248, 113, 113, 0.08);
+  }
+  .callout-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+    font-family: var(--font-display);
+  }
+  .icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    font-style: italic;
+  }
+  .callout-warning .icon { background: var(--warning); color: var(--bg-primary); }
+  .callout-danger .icon { background: var(--danger); color: var(--bg-primary); }
+  .callout-body { color: var(--text-primary); }
+  .callout-body :global(p) { margin: 0.25rem 0; }
+  .callout-body :global(p + p) { margin-top: 0.5rem; }
+</style>

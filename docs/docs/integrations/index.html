@@ -1,0 +1,536 @@
+<!DOCTYPE html><html lang="en" data-astro-cid-5hce7sga> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Integrations · Gatehouse</title><meta name="description" content="How to wire Gatehouse into agent harnesses: Claude Code, Codex, Cursor, Windsurf, and more."><link rel="canonical" href="https://bshandley.github.io/gatehouse/docs/integrations/"><link rel="icon" type="image/svg+xml" href="/gatehouse/favicon.svg"><meta property="og:type" content="website"><meta property="og:title" content="Integrations · Gatehouse"><meta property="og:description" content="How to wire Gatehouse into agent harnesses: Claude Code, Codex, Cursor, Windsurf, and more."><meta property="og:url" content="https://bshandley.github.io/gatehouse/docs/integrations/"><meta property="og:image" content="https://bshandley.github.io/gatehouse/og-image.png"><meta name="twitter:card" content="summary_large_image"><link rel="stylesheet" href="/gatehouse/_assets/_slug_.C3p-BbS6.css">
+<link rel="stylesheet" href="/gatehouse/_assets/_slug_.BQPvwpNy.css"></head> <body data-astro-cid-5hce7sga> <header class="site-nav" data-astro-cid-dmqpwcec> <div class="container nav-inner" data-astro-cid-dmqpwcec> <a href="/gatehouse/" class="brand" aria-label="Gatehouse home" data-astro-cid-dmqpwcec> <span class="logo" style="--logo-size:26px" data-astro-cid-tvrurpns> <svg viewBox="199.5 34.1 199.9 199.9" width="26" height="26" preserveAspectRatio="xMidYMid meet" aria-hidden="true" data-astro-cid-tvrurpns> <defs data-astro-cid-tvrurpns> <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1" data-astro-cid-tvrurpns> <stop offset="0%" stop-color="#6c63ff" data-astro-cid-tvrurpns></stop> <stop offset="100%" stop-color="#8b7aff" data-astro-cid-tvrurpns></stop> </linearGradient> </defs> <rect x="199.5" y="34.1" width="199.9" height="199.9" rx="44" fill="url(#logo-g)" data-astro-cid-tvrurpns></rect> <g transform="translate(0,327) scale(0.1,-0.1)" fill="#ffffff" data-astro-cid-tvrurpns> <path d="M2857 2805 c-130 -44 -221 -123 -277 -241 -41 -86 -50 -142 -50 -321 l0 -154 -40 -48 c-98 -116 -161 -311 -146 -453 25 -246 157 -438 371 -542 95 -46 179 -66 285 -66 250 0 480 143 589 367 39 80 71 209 71 291 l0 62 -330 0 -330 0 0 -65 0 -65 114 0 115 0 -10 -28 c-24 -68 -111 -135 -192 -149 -78 -12 -194 50 -233 127 -14 27 -25 69 -28 103 -10 149 134 277 275 246 51 -12 124 -52 138 -77 9 -15 16 -11 58 31 l48 48 -43 39 c-77 69 -122 85 -242 85 -95 0 -110 -3 -158 -28 -78 -41 -128 -91 -165 -167 -77 -153 -49 -320 73 -434 61 -57 113 -83 192 -96 119 -18 219 13 309 97 48 45 109 148 109 185 0 16 9 18 80 18 93 0 93 0 60 -94 -43 -127 -120 -222 -235 -291 -292 -175 -663 -28 -771 305 -40 125 -14 297 63 419 46 74 77 105 143 150 78 53 113 67 213 88 84 17 90 17 174 0 163 -34 302 -132 368 -259 l30 -58 72 0 73 0 -11 27 c-31 83 -80 155 -159 234 -70 71 -100 94 -170 127 -89 42 -209 72 -290 72 -76 0 -199 -29 -274 -64 l-68 -33 4 121 c4 106 8 129 33 184 38 84 112 152 197 181 79 27 138 27 219 -1 52 -17 76 -33 124 -82 72 -73 95 -127 103 -246 l5 -85 64 -47 63 -47 0 113 c0 139 -11 203 -50 282 -102 209 -345 313 -563 239z" data-astro-cid-tvrurpns></path> </g> </svg> <span class="wordmark" data-astro-cid-tvrurpns>Gatehouse</span> </span>  </a> <nav data-astro-cid-dmqpwcec> <a href="/gatehouse/docs/getting-started/" data-astro-cid-dmqpwcec>Docs</a> <a href="/gatehouse/docs/for-agents/" data-astro-cid-dmqpwcec>Agents</a> <a href="https://github.com/bshandley/gatehouse" target="_blank" rel="noopener" data-astro-cid-dmqpwcec>
+GitHub <span aria-hidden="true" data-astro-cid-dmqpwcec>↗</span> </a> </nav> </div> </header>  <main data-astro-cid-5hce7sga>  <div class="container docs-shell" data-astro-cid-ac2mn7rr> <aside class="sidebar" data-astro-cid-ssfzsv2f> <nav data-astro-cid-ssfzsv2f> <section class="group" data-astro-cid-ssfzsv2f> <h4 data-astro-cid-ssfzsv2f>GETTING STARTED</h4> <ul data-astro-cid-ssfzsv2f> <li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/getting-started/" class data-astro-cid-ssfzsv2f>Getting Started</a> </li> </ul> </section><section class="group" data-astro-cid-ssfzsv2f> <h4 data-astro-cid-ssfzsv2f>CORE CONCEPTS</h4> <ul data-astro-cid-ssfzsv2f> <li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/concepts/" class data-astro-cid-ssfzsv2f>Core Concepts</a> </li> </ul> </section><section class="group" data-astro-cid-ssfzsv2f> <h4 data-astro-cid-ssfzsv2f>USING GATEHOUSE</h4> <ul data-astro-cid-ssfzsv2f> <li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/authentication/" class data-astro-cid-ssfzsv2f>Authentication</a> </li><li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/web-ui/" class data-astro-cid-ssfzsv2f>Web UI Tour</a> </li><li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/providers/" class data-astro-cid-ssfzsv2f>Dynamic Secret Providers</a> </li><li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/security/" class data-astro-cid-ssfzsv2f>Security &amp;amp; Threat Model</a> </li> </ul> </section><section class="group" data-astro-cid-ssfzsv2f> <h4 data-astro-cid-ssfzsv2f>REFERENCE</h4> <ul data-astro-cid-ssfzsv2f> <li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/api-reference/" class data-astro-cid-ssfzsv2f>API Reference</a> </li><li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/for-agents/" class data-astro-cid-ssfzsv2f>For Agents</a> </li><li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/integrations/" class="current" data-astro-cid-ssfzsv2f>Integrations</a> </li> </ul> </section> </nav> </aside>  <article class="prose" data-astro-cid-ac2mn7rr>  <h1>Integrations</h1> 
+<p>Gatehouse exposes two MCP transports and a REST API. Every major agent harness
+can connect to at least one of them. Pick the method that fits your setup.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Transport</th><th>Best for</th></tr></thead><tbody><tr><td>MCP Streamable HTTP</td><td>Windsurf, Cursor, OpenCode, remote agents</td></tr><tr><td>MCP stdio</td><td>Claude Code, Codex CLI, OpenClaw, Hermes</td></tr><tr><td>REST API</td><td>Scripts, CI/CD, custom tooling, direct <code>curl</code></td></tr></tbody></table>
+<hr/>
+<h2 id="1-claude-code">1. Claude Code<a class="heading-anchor" aria-label="Link to this heading" href="#1-claude-code">#</a></h2>
+<p>Claude Code supports MCP servers via <code>.claude/settings.json</code> or the <code>claude mcp</code> CLI.</p>
+<h3 id="option-a-stdio-transport-recommended-for-local">Option A: stdio transport (recommended for local)<a class="heading-anchor" aria-label="Link to this heading" href="#option-a-stdio-transport-recommended-for-local">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Register Gatehouse as an MCP server</span></span>
+<span class="line"><span style="color:#61AFEF">claude</span><span style="color:#98C379"> mcp</span><span style="color:#98C379"> add</span><span style="color:#98C379"> gatehouse</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  --transport</span><span style="color:#98C379"> stdio</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  --</span><span style="color:#98C379"> bun</span><span style="color:#98C379"> run</span><span style="color:#98C379"> /path/to/gatehouse/src/mcp-stdio.ts</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Or with Docker</span></span>
+<span class="line"><span style="color:#61AFEF">claude</span><span style="color:#98C379"> mcp</span><span style="color:#98C379"> add</span><span style="color:#98C379"> gatehouse</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  --transport</span><span style="color:#98C379"> stdio</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  --</span><span style="color:#98C379"> docker</span><span style="color:#98C379"> run</span><span style="color:#D19A66"> --rm</span><span style="color:#D19A66"> -i</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">    -v</span><span style="color:#98C379"> gatehouse-data:/data</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">    -v</span><span style="color:#98C379"> /path/to/config:/config:ro</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">    -e</span><span style="color:#98C379"> GATEHOUSE_MASTER_KEY=</span><span style="color:#E06C75">$GATEHOUSE_MASTER_KEY</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">    -e</span><span style="color:#98C379"> GATEHOUSE_ROOT_TOKEN=</span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#98C379">    gatehouse:latest</span><span style="color:#98C379"> src/mcp-stdio.ts</span></span></code></pre>
+<h3 id="option-b-http-transport-gatehouse-running-as-a-service">Option B: HTTP transport (Gatehouse running as a service)<a class="heading-anchor" aria-label="Link to this heading" href="#option-b-http-transport-gatehouse-running-as-a-service">#</a></h3>
+<p>Add to <code>.claude/settings.json</code>:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;mcpServers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;http://gatehouse.local:3100/v1/mcp&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;headers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;Authorization&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;Bearer ${GATEHOUSE_TOKEN}&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">      }</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<h3 id="usage-in-claude-code">Usage in Claude Code<a class="heading-anchor" aria-label="Link to this heading" href="#usage-in-claude-code">#</a></h3>
+<p>Once connected, Claude can call Gatehouse tools naturally:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="plaintext"><code><span class="line"><span>&gt; Use gatehouse to get the OpenAI API key from api-keys/openai</span></span>
+<span class="line"><span>&gt; Lease the GitHub token from git/github-pat for 10 minutes</span></span>
+<span class="line"><span>&gt; List all available secrets under api-keys/</span></span></code></pre>
+<hr/>
+<h2 id="2-openai-codex-cli">2. OpenAI Codex CLI<a class="heading-anchor" aria-label="Link to this heading" href="#2-openai-codex-cli">#</a></h2>
+<p>Codex supports MCP servers via <code>~/.codex/config.toml</code>.</p>
+<h3 id="option-a-stdio-transport">Option A: stdio transport<a class="heading-anchor" aria-label="Link to this heading" href="#option-a-stdio-transport">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#ABB2BF">[</span><span style="color:#61AFEF">mcp_servers</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">gatehouse</span><span style="color:#ABB2BF">]</span></span>
+<span class="line"><span style="color:#E06C75">command</span><span style="color:#ABB2BF"> = [</span><span style="color:#98C379">&quot;bun&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;run&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;/path/to/gatehouse/src/mcp-stdio.ts&quot;</span><span style="color:#ABB2BF">]</span></span>
+<span class="line"><span style="color:#E06C75">env</span><span style="color:#ABB2BF"> = [</span></span>
+<span class="line"><span style="color:#98C379">  &quot;GATEHOUSE_MASTER_KEY=&lt;your-key&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#98C379">  &quot;GATEHOUSE_DATA_DIR=/path/to/data&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#98C379">  &quot;GATEHOUSE_CONFIG_DIR=/path/to/config&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#98C379">  &quot;GATEHOUSE_ROOT_TOKEN=&lt;your-token&gt;&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">]</span></span></code></pre>
+<h3 id="option-b-http-transport">Option B: HTTP transport<a class="heading-anchor" aria-label="Link to this heading" href="#option-b-http-transport">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#ABB2BF">[</span><span style="color:#61AFEF">mcp_servers</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">gatehouse</span><span style="color:#ABB2BF">]</span></span>
+<span class="line"><span style="color:#E06C75">url</span><span style="color:#ABB2BF"> = </span><span style="color:#98C379">&quot;http://gatehouse.local:3100/v1/mcp&quot;</span></span>
+<span class="line"><span style="color:#E06C75">env_key</span><span style="color:#ABB2BF"> = </span><span style="color:#98C379">&quot;GATEHOUSE_TOKEN&quot;</span></span></code></pre>
+<h3 id="environment-variable-safety">Environment variable safety<a class="heading-anchor" aria-label="Link to this heading" href="#environment-variable-safety">#</a></h3>
+<p>Add Gatehouse credentials to Codex’s env policy to prevent leaking:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#ABB2BF">[</span><span style="color:#61AFEF">shell_environment_policy</span><span style="color:#ABB2BF">]</span></span>
+<span class="line"><span style="color:#E06C75">exclude</span><span style="color:#ABB2BF"> = [</span><span style="color:#98C379">&quot;GATEHOUSE_MASTER_KEY&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;GATEHOUSE_ROOT_TOKEN&quot;</span><span style="color:#ABB2BF">]</span></span></code></pre>
+<hr/>
+<h2 id="3-windsurf-cascade">3. Windsurf (Cascade)<a class="heading-anchor" aria-label="Link to this heading" href="#3-windsurf-cascade">#</a></h2>
+<p>Windsurf supports MCP via <code>~/.codeium/windsurf/mcp_config.json</code>.</p>
+<h3 id="streamable-http-recommended">Streamable HTTP (recommended)<a class="heading-anchor" aria-label="Link to this heading" href="#streamable-http-recommended">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;mcpServers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;serverUrl&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;http://gatehouse.local:3100/v1/mcp&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;headers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;Authorization&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;Bearer &lt;your-gatehouse-token&gt;&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">      }</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<h3 id="sse-transport">SSE transport<a class="heading-anchor" aria-label="Link to this heading" href="#sse-transport">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;mcpServers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;serverUrl&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;http://gatehouse.local:3100/v1/mcp/sse&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>After adding, restart Windsurf. Gatehouse tools will appear in the MCP panel.
+Gatehouse exposes 8 tools — well under Windsurf’s 100-tool limit.</p>
+<hr/>
+<h2 id="4-cursor">4. Cursor<a class="heading-anchor" aria-label="Link to this heading" href="#4-cursor">#</a></h2>
+<p>Add to <code>.cursor/mcp.json</code> (project-level) or <code>~/.cursor/mcp.json</code> (global):</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;mcpServers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;http://gatehouse.local:3100/v1/mcp&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;headers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;Authorization&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;Bearer &lt;your-gatehouse-token&gt;&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">      }</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>Or use stdio:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;mcpServers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;command&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;bun&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;args&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;run&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;/path/to/gatehouse/src/mcp-stdio.ts&quot;</span><span style="color:#ABB2BF">],</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;env&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;GATEHOUSE_MASTER_KEY&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;your-key&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;GATEHOUSE_ROOT_TOKEN&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;your-token&gt;&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">      }</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<hr/>
+<h2 id="5-opencode">5. OpenCode<a class="heading-anchor" aria-label="Link to this heading" href="#5-opencode">#</a></h2>
+<p>Add to your OpenCode config (<code>opencode.json</code> or <code>opencode.yaml</code>):</p>
+<h3 id="remote-http">Remote HTTP<a class="heading-anchor" aria-label="Link to this heading" href="#remote-http">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;mcp&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;servers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;type&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;remote&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;http://gatehouse.local:3100/v1/mcp&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;headers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;Authorization&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;Bearer &lt;your-gatehouse-token&gt;&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">        }</span></span>
+<span class="line"><span style="color:#ABB2BF">      }</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<h3 id="local-stdio">Local stdio<a class="heading-anchor" aria-label="Link to this heading" href="#local-stdio">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;mcp&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;servers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;type&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;local&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;command&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;bun&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;run&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;/path/to/gatehouse/src/mcp-stdio.ts&quot;</span><span style="color:#ABB2BF">],</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;env&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;GATEHOUSE_MASTER_KEY&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;your-key&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;GATEHOUSE_ROOT_TOKEN&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;your-token&gt;&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">        }</span></span>
+<span class="line"><span style="color:#ABB2BF">      }</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<hr/>
+<h2 id="6-openclaw">6. OpenClaw<a class="heading-anchor" aria-label="Link to this heading" href="#6-openclaw">#</a></h2>
+<p>OpenClaw has the most flexible secrets integration. You can use Gatehouse as
+both an MCP tool provider AND a secrets backend.</p>
+<h3 id="as-an-mcp-server-recommended">As an MCP server (recommended)<a class="heading-anchor" aria-label="Link to this heading" href="#as-an-mcp-server-recommended">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">openclaw</span><span style="color:#98C379"> mcp</span><span style="color:#98C379"> add</span><span style="color:#98C379"> gatehouse</span><span style="color:#D19A66"> --transport</span><span style="color:#98C379"> sse</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  --url</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/mcp/sse</span></span></code></pre>
+<h3 id="as-a-secrets-exec-provider">As a secrets exec provider<a class="heading-anchor" aria-label="Link to this heading" href="#as-a-secrets-exec-provider">#</a></h3>
+<p>In <code>openclaw.json</code>:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;secrets&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;providers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;source&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;exec&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;command&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;curl&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;args&quot;</span><span style="color:#ABB2BF">: [</span></span>
+<span class="line"><span style="color:#98C379">          &quot;-s&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;-H&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;Authorization: Bearer ${GATEHOUSE_TOKEN}&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#98C379">          &quot;-H&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;Accept: text/plain&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#98C379">          &quot;http://gatehouse.local:3100/v1/secrets/${id}/value&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">        ],</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;jsonOnly&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">false</span></span>
+<span class="line"><span style="color:#ABB2BF">      }</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  },</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;models&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;providers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;anthropic&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;apiKey&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;source&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;exec&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;provider&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;gatehouse&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;id&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;api-keys/anthropic&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">        }</span></span>
+<span class="line"><span style="color:#ABB2BF">      },</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;openai&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;apiKey&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;source&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;exec&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;provider&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;gatehouse&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;id&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;api-keys/openai&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">        }</span></span>
+<span class="line"><span style="color:#ABB2BF">      }</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>This means OpenClaw never stores API keys locally — it fetches them from
+Gatehouse at runtime, with full audit logging.</p>
+<hr/>
+<h2 id="7-hermes-agent">7. Hermes Agent<a class="heading-anchor" aria-label="Link to this heading" href="#7-hermes-agent">#</a></h2>
+<p>Hermes uses <code>.hermes/.env</code> for credentials. Replace static values with
+Gatehouse lookups in your shell profile or startup script:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># ~/.hermes/startup.sh (source this before launching Hermes)</span></span>
+<span class="line"><span style="color:#C678DD">export</span><span style="color:#E06C75"> OPENAI_API_KEY</span><span style="color:#56B6C2">=</span><span style="color:#ABB2BF">$(</span><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -s</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Accept: text/plain&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#98C379">  http://gatehouse.local:3100/v1/secrets/api-keys/openai/value</span><span style="color:#ABB2BF">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#C678DD">export</span><span style="color:#E06C75"> ANTHROPIC_API_KEY</span><span style="color:#56B6C2">=</span><span style="color:#ABB2BF">$(</span><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -s</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Accept: text/plain&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#98C379">  http://gatehouse.local:3100/v1/secrets/api-keys/anthropic/value</span><span style="color:#ABB2BF">)</span></span></code></pre>
+<p>Or register Gatehouse as an MCP server in Hermes’s config.</p>
+<hr/>
+<h2 id="8-roo-code--kilo-code--cline--aider">8. Roo Code / Kilo Code / Cline / Aider<a class="heading-anchor" aria-label="Link to this heading" href="#8-roo-code--kilo-code--cline--aider">#</a></h2>
+<p>All VS Code-based agent extensions support MCP via their settings files.
+The pattern is identical to Cursor:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;mcpServers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;http://gatehouse.local:3100/v1/mcp&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;headers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;Authorization&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;Bearer &lt;your-gatehouse-token&gt;&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">      }</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<hr/>
+<h2 id="9-docker-containers--cicd">9. Docker containers / CI/CD<a class="heading-anchor" aria-label="Link to this heading" href="#9-docker-containers--cicd">#</a></h2>
+<p>For non-MCP consumers (scripts, containers, GitLab CI, GitHub Actions):</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Fetch a secret</span></span>
+<span class="line"><span style="color:#E06C75">SECRET</span><span style="color:#56B6C2">=</span><span style="color:#ABB2BF">$(</span><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -s</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Accept: text/plain&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#98C379">  http://gatehouse.local:3100/v1/secrets/api-keys/openai/value</span><span style="color:#ABB2BF">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Lease a secret (auto-expires)</span></span>
+<span class="line"><span style="color:#E06C75">LEASE</span><span style="color:#56B6C2">=</span><span style="color:#ABB2BF">$(</span><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -s</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;ttl&quot;: 600}&#39;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#98C379">  http://gatehouse.local:3100/v1/lease/api-keys/openai</span><span style="color:#ABB2BF">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Extract value from lease response</span></span>
+<span class="line"><span style="color:#E06C75">VALUE</span><span style="color:#56B6C2">=</span><span style="color:#ABB2BF">$(</span><span style="color:#56B6C2">echo</span><span style="color:#E06C75"> $LEASE</span><span style="color:#ABB2BF"> | </span><span style="color:#61AFEF">jq</span><span style="color:#D19A66"> -r</span><span style="color:#98C379"> &#39;.value&#39;</span><span style="color:#ABB2BF">)</span></span>
+<span class="line"><span style="color:#E06C75">LEASE_ID</span><span style="color:#56B6C2">=</span><span style="color:#ABB2BF">$(</span><span style="color:#56B6C2">echo</span><span style="color:#E06C75"> $LEASE</span><span style="color:#ABB2BF"> | </span><span style="color:#61AFEF">jq</span><span style="color:#D19A66"> -r</span><span style="color:#98C379"> &#39;.lease.id&#39;</span><span style="color:#ABB2BF">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># ... do work ...</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Revoke when done</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -s</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> DELETE</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#98C379">  http://gatehouse.local:3100/v1/lease/</span><span style="color:#E06C75">$LEASE_ID</span></span></code></pre>
+<hr/>
+<h2 id="per-agent-identity-setup">Per-agent identity setup<a class="heading-anchor" aria-label="Link to this heading" href="#per-agent-identity-setup">#</a></h2>
+<p>The real power of Gatehouse is giving each agent its own identity and access scope.</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Create an AppRole for OpenClaw (read-only API keys, can lease)</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/auth/approle</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
+<span class="line"><span style="color:#98C379">    &quot;display_name&quot;: &quot;openclaw-prod&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;policies&quot;: [&quot;agent-readonly&quot;]</span></span>
+<span class="line"><span style="color:#98C379">  }&#39;</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Returns: { &quot;role_id&quot;: &quot;role-xxx&quot;, &quot;secret_id&quot;: &quot;yyy&quot; }</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Save the secret_id — it&#39;s shown only once.</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Create a separate AppRole for Codex (coding agent with broader access)</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/auth/approle</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
+<span class="line"><span style="color:#98C379">    &quot;display_name&quot;: &quot;codex-desktop&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;policies&quot;: [&quot;coding-agent&quot;]</span></span>
+<span class="line"><span style="color:#98C379">  }&#39;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Exchange AppRole credentials for a JWT</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/auth/approle/login</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;role_id&quot;: &quot;role-xxx&quot;, &quot;secret_id&quot;: &quot;yyy&quot;}&#39;</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Returns: { &quot;token&quot;: &quot;&lt;jwt&gt;&quot;, &quot;identity&quot;: &quot;approle:openclaw-prod&quot;, ... }</span></span></code></pre>
+<p>Now OpenClaw can only access <code>api-keys/*</code> and <code>services/*</code>, while Codex
+can also access <code>db/*</code> and <code>git/*</code>. The audit log shows exactly which
+agent accessed which secret, when.</p>
+<hr/>
+<h2 id="proxy-mode">Proxy mode<a class="heading-anchor" aria-label="Link to this heading" href="#proxy-mode">#</a></h2>
+<p>Instead of giving agents raw API keys, route their HTTP requests through Gatehouse.
+The agent constructs the request but never sees the credential — Gatehouse injects
+it server-side.</p>
+<h3 id="mcp-recommended-for-agents">MCP (recommended for agents)<a class="heading-anchor" aria-label="Link to this heading" href="#mcp-recommended-for-agents">#</a></h3>
+<p>Agents can call <code>gatehouse_proxy</code> directly:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="plaintext"><code><span class="line"><span>&gt; Use gatehouse_proxy to call the OpenAI chat completions API with api-keys/openai</span></span></code></pre>
+<p>The tool supports two injection styles:</p>
+<p><strong>Template style</strong> — <code>{{secret:path}}</code> placeholders in headers, URL, or body:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;method&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;POST&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;https://api.openai.com/v1/chat/completions&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;headers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;Authorization&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;Bearer {{secret:api-keys/openai}}&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;Content-Type&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;application/json&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">  },</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;body&quot;</span><span style="color:#ABB2BF">: {</span><span style="color:#E06C75">&quot;model&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;gpt-4&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;messages&quot;</span><span style="color:#ABB2BF">: [{</span><span style="color:#E06C75">&quot;role&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;user&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;content&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;hello&quot;</span><span style="color:#ABB2BF">}]}</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p><strong>Inject shorthand</strong> — map header names to secret paths:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;method&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;POST&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;https://api.openai.com/v1/chat/completions&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;inject&quot;</span><span style="color:#ABB2BF">: {</span><span style="color:#E06C75">&quot;Authorization&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;api-keys/openai&quot;</span><span style="color:#ABB2BF">},</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;headers&quot;</span><span style="color:#ABB2BF">: {</span><span style="color:#E06C75">&quot;Content-Type&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;application/json&quot;</span><span style="color:#ABB2BF">},</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;body&quot;</span><span style="color:#ABB2BF">: {</span><span style="color:#E06C75">&quot;model&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;gpt-4&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;messages&quot;</span><span style="color:#ABB2BF">: [{</span><span style="color:#E06C75">&quot;role&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;user&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;content&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;hello&quot;</span><span style="color:#ABB2BF">}]}</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>The inject shorthand auto-prefixes <code>Bearer </code> for Authorization headers (unless
+the secret value already starts with a scheme like <code>Bearer</code>, <code>Basic</code>, or <code>Token</code>).</p>
+<h3 id="rest-api">REST API<a class="heading-anchor" aria-label="Link to this heading" href="#rest-api">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/proxy</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
+<span class="line"><span style="color:#98C379">    &quot;method&quot;: &quot;GET&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;url&quot;: &quot;https://api.openai.com/v1/models&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;inject&quot;: {&quot;Authorization&quot;: &quot;api-keys/openai&quot;}</span></span>
+<span class="line"><span style="color:#98C379">  }&#39;</span></span></code></pre>
+<h3 id="policy">Policy<a class="heading-anchor" aria-label="Link to this heading" href="#policy">#</a></h3>
+<p>Proxy access uses the <code>proxy</code> capability, separate from <code>read</code> and <code>lease</code>:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#E06C75">name</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">proxy-only</span></span>
+<span class="line"><span style="color:#E06C75">rules</span><span style="color:#ABB2BF">:</span></span>
+<span class="line"><span style="color:#ABB2BF">  - </span><span style="color:#E06C75">path</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;api-keys/*&quot;</span></span>
+<span class="line"><span style="color:#E06C75">    capabilities</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">proxy</span><span style="color:#ABB2BF">]</span></span></code></pre>
+<p>An agent with <code>proxy</code> but not <code>read</code> can use secrets through the proxy without
+ever retrieving the raw value.</p>
+<h3 id="domain-allowlisting">Domain allowlisting<a class="heading-anchor" aria-label="Link to this heading" href="#domain-allowlisting">#</a></h3>
+<p>Set <code>allowed_domains</code> in a secret’s metadata to restrict which hosts the secret
+can be forwarded to:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/secrets/api-keys/openai</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;value&quot;: &quot;sk-...&quot;, &quot;metadata&quot;: {&quot;allowed_domains&quot;: &quot;api.openai.com,openai.com&quot;}}&#39;</span></span></code></pre>
+<p>If an agent tries to proxy this secret to <code>evil.com</code>, Gatehouse blocks it with a 403.</p>
+<hr/>
+<h2 id="dynamic-secrets">Dynamic secrets<a class="heading-anchor" aria-label="Link to this heading" href="#dynamic-secrets">#</a></h2>
+<p>For databases and other backends that support programmatic credential creation,
+Gatehouse can create temporary credentials on demand — no static passwords needed.</p>
+<h3 id="setting-up-postgresql-dynamic-secrets">Setting up PostgreSQL dynamic secrets<a class="heading-anchor" aria-label="Link to this heading" href="#setting-up-postgresql-dynamic-secrets">#</a></h3>
+<ol>
+<li><strong>Configure the connection</strong> (admin):</li>
+</ol>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
+<span class="line"><span style="color:#98C379">    &quot;path&quot;: &quot;db/postgres-prod&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;provider_type&quot;: &quot;postgresql&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;config&quot;: {</span></span>
+<span class="line"><span style="color:#98C379">      &quot;host&quot;: &quot;10.0.0.50&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;port&quot;: &quot;5432&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;database&quot;: &quot;myapp&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;user&quot;: &quot;postgres&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;password&quot;: &quot;admin-password&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;grants&quot;: &quot;SELECT,INSERT,UPDATE&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;schema&quot;: &quot;public&quot;</span></span>
+<span class="line"><span style="color:#98C379">    }</span></span>
+<span class="line"><span style="color:#98C379">  }&#39;</span></span></code></pre>
+<ol start="2">
+<li><strong>Test the connection</strong>:</li>
+</ol>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic/db/postgres-prod/validate</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Returns: { &quot;ok&quot;: true }</span></span></code></pre>
+<ol start="3">
+<li><strong>Agent checks out a temp credential</strong>:</li>
+</ol>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic/db/postgres-prod/checkout</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;ttl&quot;: 600}&#39;</span></span></code></pre>
+<p>Returns:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;lease_id&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;dlease-abc123&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;credential&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;username&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;gh_agent1_abc123&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;password&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;random-generated-password&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;host&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;10.0.0.50&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;port&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;5432&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;database&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;myapp&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;connection_string&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;postgresql://gh_agent1_abc123:...@10.0.0.50:5432/myapp&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">  },</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;expires_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;2025-01-15 12:10:00&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<ol start="4">
+<li><strong>Credential auto-revokes</strong> when the TTL expires (Gatehouse runs <code>DROP ROLE</code>).
+Or revoke early:</li>
+</ol>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> DELETE</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic/lease/dlease-abc123</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>
+<h3 id="how-it-works-under-the-hood">How it works under the hood<a class="heading-anchor" aria-label="Link to this heading" href="#how-it-works-under-the-hood">#</a></h3>
+<ul>
+<li>Gatehouse connects to PostgreSQL using the admin credentials</li>
+<li><code>CREATE ROLE gh_&lt;identity&gt;_&lt;random&gt; WITH LOGIN PASSWORD &#39;...&#39; VALID UNTIL &#39;...&#39;</code></li>
+<li>Grants configured privileges on the specified schema</li>
+<li>On revoke: <code>pg_terminate_backend()</code> + <code>REVOKE ALL</code> + <code>DROP ROLE</code></li>
+</ul>
+<h3 id="mysql--mariadb">MySQL / MariaDB<a class="heading-anchor" aria-label="Link to this heading" href="#mysql--mariadb">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
+<span class="line"><span style="color:#98C379">    &quot;path&quot;: &quot;db/mysql-prod&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;provider_type&quot;: &quot;mysql&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;config&quot;: {</span></span>
+<span class="line"><span style="color:#98C379">      &quot;host&quot;: &quot;10.0.0.51&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;port&quot;: &quot;3306&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;database&quot;: &quot;myapp&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;user&quot;: &quot;root&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;password&quot;: &quot;admin-password&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;grants&quot;: &quot;SELECT,INSERT,UPDATE&quot;</span></span>
+<span class="line"><span style="color:#98C379">    }</span></span>
+<span class="line"><span style="color:#98C379">  }&#39;</span></span></code></pre>
+<p>Creates <code>CREATE USER</code> with parameterized grants. On revoke: kills connections, <code>DROP USER IF EXISTS</code>, <code>FLUSH PRIVILEGES</code>. Admin user needs <code>CREATE USER</code> and <code>GRANT OPTION</code>.</p>
+<h3 id="mongodb">MongoDB<a class="heading-anchor" aria-label="Link to this heading" href="#mongodb">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
+<span class="line"><span style="color:#98C379">    &quot;path&quot;: &quot;db/mongo-prod&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;provider_type&quot;: &quot;mongodb&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;config&quot;: {</span></span>
+<span class="line"><span style="color:#98C379">      &quot;host&quot;: &quot;10.0.0.52&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;port&quot;: &quot;27017&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;database&quot;: &quot;myapp&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;user&quot;: &quot;admin&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;password&quot;: &quot;admin-password&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;roles&quot;: &quot;readWrite&quot;</span></span>
+<span class="line"><span style="color:#98C379">    }</span></span>
+<span class="line"><span style="color:#98C379">  }&#39;</span></span></code></pre>
+<p>Creates <code>createUser</code> with role-scoped access. On revoke: kills sessions via <code>currentOp</code>, <code>dropUser</code>. Admin user needs <code>userAdmin</code> or <code>userAdminAnyDatabase</code> role.</p>
+<h3 id="redis">Redis<a class="heading-anchor" aria-label="Link to this heading" href="#redis">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
+<span class="line"><span style="color:#98C379">    &quot;path&quot;: &quot;cache/redis-prod&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;provider_type&quot;: &quot;redis&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;config&quot;: {</span></span>
+<span class="line"><span style="color:#98C379">      &quot;host&quot;: &quot;10.0.0.53&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;port&quot;: &quot;6379&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;password&quot;: &quot;admin-password&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;commands&quot;: &quot;+@read +@write&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;keys&quot;: &quot;~myapp:*&quot;</span></span>
+<span class="line"><span style="color:#98C379">    }</span></span>
+<span class="line"><span style="color:#98C379">  }&#39;</span></span></code></pre>
+<p>Creates <code>ACL SETUSER</code> with scoped commands and key patterns. On revoke: <code>ACL DELUSER</code> (automatically disconnects sessions). Requires Redis 6+ with ACL support.</p>
+<h3 id="ssh-certificates">SSH Certificates<a class="heading-anchor" aria-label="Link to this heading" href="#ssh-certificates">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
+<span class="line"><span style="color:#98C379">    &quot;path&quot;: &quot;ssh/prod-servers&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;provider_type&quot;: &quot;ssh-cert&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;config&quot;: {</span></span>
+<span class="line"><span style="color:#98C379">      &quot;ca_private_key&quot;: &quot;-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;principals&quot;: &quot;ubuntu,deploy&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;extensions&quot;: &quot;permit-pty,permit-port-forwarding&quot;</span></span>
+<span class="line"><span style="color:#98C379">    }</span></span>
+<span class="line"><span style="color:#98C379">  }&#39;</span></span></code></pre>
+<p>Generates an ephemeral ed25519 keypair and signs it with the CA key using <code>ssh-keygen</code>. Returns <code>private_key</code>, <code>public_key</code>, <code>certificate</code>, and usage instructions. Certs self-expire via the built-in validity window — no revocation needed.</p>
+<p><strong>Server-side setup:</strong></p>
+<ol>
+<li>Generate CA: <code>ssh-keygen -t ed25519 -f gatehouse_ca -N &quot;&quot;</code></li>
+<li>Store the private key contents as <code>ca_private_key</code> in the config above</li>
+<li>On target hosts, add to <code>/etc/ssh/sshd_config</code>: <code>TrustedUserCAKeys /etc/ssh/gatehouse_ca.pub</code></li>
+<li>Copy <code>gatehouse_ca.pub</code> to each target host</li>
+</ol>
+<h3 id="policy-1">Policy<a class="heading-anchor" aria-label="Link to this heading" href="#policy-1">#</a></h3>
+<p>Dynamic secrets use the <code>lease</code> capability, same as regular lease checkout:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#E06C75">name</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">db-agent</span></span>
+<span class="line"><span style="color:#E06C75">rules</span><span style="color:#ABB2BF">:</span></span>
+<span class="line"><span style="color:#ABB2BF">  - </span><span style="color:#E06C75">path</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;db/*&quot;</span></span>
+<span class="line"><span style="color:#E06C75">    capabilities</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">lease</span><span style="color:#ABB2BF">]</span></span></code></pre>
+<hr/>
+<h2 id="credential-scrubbing">Credential scrubbing<a class="heading-anchor" aria-label="Link to this heading" href="#credential-scrubbing">#</a></h2>
+<p>Gatehouse can scan text for leaked credentials and redact them. Available via
+MCP (<code>gatehouse_scrub</code>) and REST API.</p>
+<h3 id="rest-api-1">REST API<a class="heading-anchor" aria-label="Link to this heading" href="#rest-api-1">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Scrub text — returns redacted version + list of what was found</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/scrub</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;text&quot;: &quot;My OpenAI key is sk-proj-abc123...&quot;}&#39;</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Returns: { &quot;scrubbed&quot;: &quot;My OpenAI key is sk-pro***REDACTED***&quot;, &quot;redactions&quot;: [...] }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Quick check — just returns whether credentials were detected</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/scrub/check</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;text&quot;: &quot;some text to check&quot;}&#39;</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Returns: { &quot;contains_credentials&quot;: false }</span></span></code></pre>
+<p>Detects: OpenAI keys, Anthropic keys, GitHub PATs, AWS credentials, Stripe keys,
+Slack tokens, bearer tokens, basic auth URLs, private keys, and connection strings.</p>
+<hr/>
+<h2 id="key-rotation">Key rotation<a class="heading-anchor" aria-label="Link to this heading" href="#key-rotation">#</a></h2>
+<p>Rotate the master key without downtime. All secret DEKs and encrypted dynamic
+configs are re-wrapped atomically.</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Generate a new key</span></span>
+<span class="line"><span style="color:#E06C75">NEW_KEY</span><span style="color:#56B6C2">=</span><span style="color:#ABB2BF">$(</span><span style="color:#61AFEF">openssl</span><span style="color:#98C379"> rand</span><span style="color:#D19A66"> -hex</span><span style="color:#D19A66"> 32</span><span style="color:#ABB2BF">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Rotate</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/admin/rotate-key</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &quot;{</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">new_master_key</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">: </span><span style="color:#56B6C2">\&quot;</span><span style="color:#E06C75">$NEW_KEY</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">}&quot;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Update your env var and restart Gatehouse</span></span>
+<span class="line"><span style="color:#C678DD">export</span><span style="color:#E06C75"> GATEHOUSE_MASTER_KEY</span><span style="color:#56B6C2">=</span><span style="color:#E06C75">$NEW_KEY</span></span></code></pre>
+<hr/>
+<h2 id="audit-log-retention">Audit log retention<a class="heading-anchor" aria-label="Link to this heading" href="#audit-log-retention">#</a></h2>
+<p>Configure how long audit entries are kept. Gatehouse runs an hourly background
+purge; you can also trigger it manually.</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Set retention to 90 days (0 = keep forever)</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/audit/retention</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;retention_days&quot;: 90}&#39;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># View current retention config + entry count</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/audit/retention</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Manually purge now</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/audit/purge</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>  </article> <aside class="toc" aria-label="Table of contents" data-astro-cid-xvrfupwn><h4 data-astro-cid-xvrfupwn>On this page</h4><ul data-astro-cid-xvrfupwn><li class data-astro-cid-xvrfupwn><a href="#1-claude-code" data-toc-link="1-claude-code" data-astro-cid-xvrfupwn>1. Claude Code#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#option-a-stdio-transport-recommended-for-local" data-toc-link="option-a-stdio-transport-recommended-for-local" data-astro-cid-xvrfupwn>Option A: stdio transport (recommended for local)#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#option-b-http-transport-gatehouse-running-as-a-service" data-toc-link="option-b-http-transport-gatehouse-running-as-a-service" data-astro-cid-xvrfupwn>Option B: HTTP transport (Gatehouse running as a service)#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#usage-in-claude-code" data-toc-link="usage-in-claude-code" data-astro-cid-xvrfupwn>Usage in Claude Code#</a></li><li class data-astro-cid-xvrfupwn><a href="#2-openai-codex-cli" data-toc-link="2-openai-codex-cli" data-astro-cid-xvrfupwn>2. OpenAI Codex CLI#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#option-a-stdio-transport" data-toc-link="option-a-stdio-transport" data-astro-cid-xvrfupwn>Option A: stdio transport#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#option-b-http-transport" data-toc-link="option-b-http-transport" data-astro-cid-xvrfupwn>Option B: HTTP transport#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#environment-variable-safety" data-toc-link="environment-variable-safety" data-astro-cid-xvrfupwn>Environment variable safety#</a></li><li class data-astro-cid-xvrfupwn><a href="#3-windsurf-cascade" data-toc-link="3-windsurf-cascade" data-astro-cid-xvrfupwn>3. Windsurf (Cascade)#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#streamable-http-recommended" data-toc-link="streamable-http-recommended" data-astro-cid-xvrfupwn>Streamable HTTP (recommended)#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#sse-transport" data-toc-link="sse-transport" data-astro-cid-xvrfupwn>SSE transport#</a></li><li class data-astro-cid-xvrfupwn><a href="#4-cursor" data-toc-link="4-cursor" data-astro-cid-xvrfupwn>4. Cursor#</a></li><li class data-astro-cid-xvrfupwn><a href="#5-opencode" data-toc-link="5-opencode" data-astro-cid-xvrfupwn>5. OpenCode#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#remote-http" data-toc-link="remote-http" data-astro-cid-xvrfupwn>Remote HTTP#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#local-stdio" data-toc-link="local-stdio" data-astro-cid-xvrfupwn>Local stdio#</a></li><li class data-astro-cid-xvrfupwn><a href="#6-openclaw" data-toc-link="6-openclaw" data-astro-cid-xvrfupwn>6. OpenClaw#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#as-an-mcp-server-recommended" data-toc-link="as-an-mcp-server-recommended" data-astro-cid-xvrfupwn>As an MCP server (recommended)#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#as-a-secrets-exec-provider" data-toc-link="as-a-secrets-exec-provider" data-astro-cid-xvrfupwn>As a secrets exec provider#</a></li><li class data-astro-cid-xvrfupwn><a href="#7-hermes-agent" data-toc-link="7-hermes-agent" data-astro-cid-xvrfupwn>7. Hermes Agent#</a></li><li class data-astro-cid-xvrfupwn><a href="#8-roo-code--kilo-code--cline--aider" data-toc-link="8-roo-code--kilo-code--cline--aider" data-astro-cid-xvrfupwn>8. Roo Code / Kilo Code / Cline / Aider#</a></li><li class data-astro-cid-xvrfupwn><a href="#9-docker-containers--cicd" data-toc-link="9-docker-containers--cicd" data-astro-cid-xvrfupwn>9. Docker containers / CI/CD#</a></li><li class data-astro-cid-xvrfupwn><a href="#per-agent-identity-setup" data-toc-link="per-agent-identity-setup" data-astro-cid-xvrfupwn>Per-agent identity setup#</a></li><li class data-astro-cid-xvrfupwn><a href="#proxy-mode" data-toc-link="proxy-mode" data-astro-cid-xvrfupwn>Proxy mode#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#mcp-recommended-for-agents" data-toc-link="mcp-recommended-for-agents" data-astro-cid-xvrfupwn>MCP (recommended for agents)#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#rest-api" data-toc-link="rest-api" data-astro-cid-xvrfupwn>REST API#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#policy" data-toc-link="policy" data-astro-cid-xvrfupwn>Policy#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#domain-allowlisting" data-toc-link="domain-allowlisting" data-astro-cid-xvrfupwn>Domain allowlisting#</a></li><li class data-astro-cid-xvrfupwn><a href="#dynamic-secrets" data-toc-link="dynamic-secrets" data-astro-cid-xvrfupwn>Dynamic secrets#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#setting-up-postgresql-dynamic-secrets" data-toc-link="setting-up-postgresql-dynamic-secrets" data-astro-cid-xvrfupwn>Setting up PostgreSQL dynamic secrets#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#how-it-works-under-the-hood" data-toc-link="how-it-works-under-the-hood" data-astro-cid-xvrfupwn>How it works under the hood#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#mysql--mariadb" data-toc-link="mysql--mariadb" data-astro-cid-xvrfupwn>MySQL / MariaDB#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#mongodb" data-toc-link="mongodb" data-astro-cid-xvrfupwn>MongoDB#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#redis" data-toc-link="redis" data-astro-cid-xvrfupwn>Redis#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#ssh-certificates" data-toc-link="ssh-certificates" data-astro-cid-xvrfupwn>SSH Certificates#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#policy-1" data-toc-link="policy-1" data-astro-cid-xvrfupwn>Policy#</a></li><li class data-astro-cid-xvrfupwn><a href="#credential-scrubbing" data-toc-link="credential-scrubbing" data-astro-cid-xvrfupwn>Credential scrubbing#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#rest-api-1" data-toc-link="rest-api-1" data-astro-cid-xvrfupwn>REST API#</a></li><li class data-astro-cid-xvrfupwn><a href="#key-rotation" data-toc-link="key-rotation" data-astro-cid-xvrfupwn>Key rotation#</a></li><li class data-astro-cid-xvrfupwn><a href="#audit-log-retention" data-toc-link="audit-log-retention" data-astro-cid-xvrfupwn>Audit log retention#</a></li></ul></aside><script type="module">const c=Array.from(document.querySelectorAll("[data-toc-link]"));if(c.length>0){const r=new IntersectionObserver(o=>{o.forEach(t=>{if(t.isIntersecting){const e=t.target.id;c.forEach(n=>n.classList.toggle("active",n.dataset.tocLink===e))}})},{rootMargin:"0px 0px -70% 0px",threshold:0});c.forEach(o=>{const t=o.dataset.tocLink,e=document.getElementById(t);e&&r.observe(e)})}</script> </div> <script type="module">function o(){document.querySelectorAll(".prose pre").forEach(e=>{if(e.querySelector("[data-copy-btn]"))return;const t=document.createElement("button");t.textContent="Copy",t.setAttribute("data-copy-btn",""),t.type="button",t.className="copy-button",e.style.position="relative",e.appendChild(t),t.addEventListener("click",async()=>{const n=e.querySelector("code")?.textContent??"";try{await navigator.clipboard.writeText(n),t.textContent="Copied"}catch{t.textContent="Failed"}setTimeout(()=>{t.textContent="Copy"},1500)})})}o();document.addEventListener("astro:page-load",o);</script>   </main> <footer class="site-footer" data-astro-cid-sz7xmlte> <div class="container footer-grid" data-astro-cid-sz7xmlte> <div class="col brand-col" data-astro-cid-sz7xmlte> <span class="logo" style="--logo-size:22px" data-astro-cid-tvrurpns> <svg viewBox="199.5 34.1 199.9 199.9" width="22" height="22" preserveAspectRatio="xMidYMid meet" aria-hidden="true" data-astro-cid-tvrurpns> <defs data-astro-cid-tvrurpns> <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1" data-astro-cid-tvrurpns> <stop offset="0%" stop-color="#6c63ff" data-astro-cid-tvrurpns></stop> <stop offset="100%" stop-color="#8b7aff" data-astro-cid-tvrurpns></stop> </linearGradient> </defs> <rect x="199.5" y="34.1" width="199.9" height="199.9" rx="44" fill="url(#logo-g)" data-astro-cid-tvrurpns></rect> <g transform="translate(0,327) scale(0.1,-0.1)" fill="#ffffff" data-astro-cid-tvrurpns> <path d="M2857 2805 c-130 -44 -221 -123 -277 -241 -41 -86 -50 -142 -50 -321 l0 -154 -40 -48 c-98 -116 -161 -311 -146 -453 25 -246 157 -438 371 -542 95 -46 179 -66 285 -66 250 0 480 143 589 367 39 80 71 209 71 291 l0 62 -330 0 -330 0 0 -65 0 -65 114 0 115 0 -10 -28 c-24 -68 -111 -135 -192 -149 -78 -12 -194 50 -233 127 -14 27 -25 69 -28 103 -10 149 134 277 275 246 51 -12 124 -52 138 -77 9 -15 16 -11 58 31 l48 48 -43 39 c-77 69 -122 85 -242 85 -95 0 -110 -3 -158 -28 -78 -41 -128 -91 -165 -167 -77 -153 -49 -320 73 -434 61 -57 113 -83 192 -96 119 -18 219 13 309 97 48 45 109 148 109 185 0 16 9 18 80 18 93 0 93 0 60 -94 -43 -127 -120 -222 -235 -291 -292 -175 -663 -28 -771 305 -40 125 -14 297 63 419 46 74 77 105 143 150 78 53 113 67 213 88 84 17 90 17 174 0 163 -34 302 -132 368 -259 l30 -58 72 0 73 0 -11 27 c-31 83 -80 155 -159 234 -70 71 -100 94 -170 127 -89 42 -209 72 -290 72 -76 0 -199 -29 -274 -64 l-68 -33 4 121 c4 106 8 129 33 184 38 84 112 152 197 181 79 27 138 27 219 -1 52 -17 76 -33 124 -82 72 -73 95 -127 103 -246 l5 -85 64 -47 63 -47 0 113 c0 139 -11 203 -50 282 -102 209 -345 313 -563 239z" data-astro-cid-tvrurpns></path> </g> </svg> <span class="wordmark" data-astro-cid-tvrurpns>Gatehouse</span> </span>  <p class="tagline" data-astro-cid-sz7xmlte>A secrets vault built for AI agents.</p> </div> <div class="col" data-astro-cid-sz7xmlte> <h4 data-astro-cid-sz7xmlte>Project</h4> <ul data-astro-cid-sz7xmlte> <li data-astro-cid-sz7xmlte><a href="https://github.com/bshandley/gatehouse" target="_blank" rel="noopener" data-astro-cid-sz7xmlte>GitHub</a></li> <li data-astro-cid-sz7xmlte><a href="https://github.com/bshandley/gatehouse/blob/main/LICENSE" target="_blank" rel="noopener" data-astro-cid-sz7xmlte>License (AGPL-3.0)</a></li> <li data-astro-cid-sz7xmlte><a href="https://github.com/bshandley/gatehouse/issues" target="_blank" rel="noopener" data-astro-cid-sz7xmlte>Issues</a></li> </ul> </div> <div class="col" data-astro-cid-sz7xmlte> <h4 data-astro-cid-sz7xmlte>Docs</h4> <ul data-astro-cid-sz7xmlte> <li data-astro-cid-sz7xmlte><a href="/gatehouse/docs/getting-started/" data-astro-cid-sz7xmlte>Getting started</a></li> <li data-astro-cid-sz7xmlte><a href="/gatehouse/docs/concepts/" data-astro-cid-sz7xmlte>Concepts</a></li> <li data-astro-cid-sz7xmlte><a href="/gatehouse/docs/for-agents/" data-astro-cid-sz7xmlte>For agents</a></li> </ul> </div> <div class="col" data-astro-cid-sz7xmlte> <h4 data-astro-cid-sz7xmlte>About</h4> <p class="about-text" data-astro-cid-sz7xmlte>
+Gatehouse is released under the GNU Affero General Public License v3.0.
+</p> </div> </div> </footer>  </body></html> 

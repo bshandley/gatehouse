@@ -1,0 +1,48 @@
+---
+import Base from "./Base.astro";
+import Sidebar from "../components/Sidebar.astro";
+import TableOfContents from "../components/TableOfContents.astro";
+import CodeBlockCopy from "../components/CodeBlockCopy.astro";
+import "../styles/prose.css";
+import type { MarkdownHeading } from "astro";
+
+interface Props {
+  title: string;
+  description: string;
+  currentSlug: string;
+  headings: MarkdownHeading[];
+}
+const { title, description, currentSlug, headings } = Astro.props;
+---
+
+<Base title={title} description={description}>
+  <div class="container docs-shell">
+    <Sidebar currentSlug={currentSlug} />
+    <article class="prose">
+      <slot />
+    </article>
+    <TableOfContents headings={headings} />
+  </div>
+  <CodeBlockCopy />
+</Base>
+
+<style>
+  .docs-shell {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr) 200px;
+    gap: 2.5rem;
+    padding-top: 1rem;
+    padding-bottom: 4rem;
+  }
+  .prose {
+    min-width: 0;
+    padding: 2rem 0.5rem;
+  }
+  @media (max-width: 1279px) {
+    .docs-shell { grid-template-columns: 220px minmax(0, 1fr); }
+  }
+  @media (max-width: 960px) {
+    .docs-shell { grid-template-columns: 1fr; gap: 1rem; }
+    .prose { padding: 1rem 0; }
+  }
+</style>

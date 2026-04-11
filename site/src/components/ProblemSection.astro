@@ -1,0 +1,34 @@
+<section class="problem">
+  <div class="container">
+    <h2>Agent memory is not private.</h2>
+    <div class="lines">
+      <p>AI agent context windows get logged.</p>
+      <p>They get cached.</p>
+      <p>They get sent to cloud APIs.</p>
+      <p>A credential that enters an agent's memory can end up anywhere.</p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .problem {
+    padding: 5rem 0 4rem;
+    text-align: center;
+  }
+  .problem h2 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--text-primary);
+    margin-bottom: 2rem;
+  }
+  .lines {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    font-style: italic;
+    line-height: 1.6;
+  }
+</style>

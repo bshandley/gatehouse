@@ -1,0 +1,38 @@
+---
+interface Props {
+  size?: number;
+  withWordmark?: boolean;
+}
+const { size = 24, withWordmark = false } = Astro.props;
+---
+
+<span class="logo" style={`--logo-size:${size}px`}>
+  <svg viewBox="199.5 34.1 199.9 199.9" width={size} height={size} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <defs>
+      <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#6c63ff" />
+        <stop offset="100%" stop-color="#8b7aff" />
+      </linearGradient>
+    </defs>
+    <rect x="199.5" y="34.1" width="199.9" height="199.9" rx="44" fill="url(#logo-g)" />
+    <g transform="translate(0,327) scale(0.1,-0.1)" fill="#ffffff">
+      <path d="M2857 2805 c-130 -44 -221 -123 -277 -241 -41 -86 -50 -142 -50 -321 l0 -154 -40 -48 c-98 -116 -161 -311 -146 -453 25 -246 157 -438 371 -542 95 -46 179 -66 285 -66 250 0 480 143 589 367 39 80 71 209 71 291 l0 62 -330 0 -330 0 0 -65 0 -65 114 0 115 0 -10 -28 c-24 -68 -111 -135 -192 -149 -78 -12 -194 50 -233 127 -14 27 -25 69 -28 103 -10 149 134 277 275 246 51 -12 124 -52 138 -77 9 -15 16 -11 58 31 l48 48 -43 39 c-77 69 -122 85 -242 85 -95 0 -110 -3 -158 -28 -78 -41 -128 -91 -165 -167 -77 -153 -49 -320 73 -434 61 -57 113 -83 192 -96 119 -18 219 13 309 97 48 45 109 148 109 185 0 16 9 18 80 18 93 0 93 0 60 -94 -43 -127 -120 -222 -235 -291 -292 -175 -663 -28 -771 305 -40 125 -14 297 63 419 46 74 77 105 143 150 78 53 113 67 213 88 84 17 90 17 174 0 163 -34 302 -132 368 -259 l30 -58 72 0 73 0 -11 27 c-31 83 -80 155 -159 234 -70 71 -100 94 -170 127 -89 42 -209 72 -290 72 -76 0 -199 -29 -274 -64 l-68 -33 4 121 c4 106 8 129 33 184 38 84 112 152 197 181 79 27 138 27 219 -1 52 -17 76 -33 124 -82 72 -73 95 -127 103 -246 l5 -85 64 -47 63 -47 0 113 c0 139 -11 203 -50 282 -102 209 -345 313 -563 239z"/>
+    </g>
+  </svg>
+  {withWordmark && <span class="wordmark">Gatehouse</span>}
+</span>
+
+<style>
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .wordmark {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+  }
+</style>

@@ -1,0 +1,356 @@
+<!DOCTYPE html><html lang="en" data-astro-cid-5hce7sga> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>For Agents · Gatehouse</title><meta name="description" content="Agent-facing API reference for Gatehouse: auth, secret access, proxy mode, dynamic secrets, errors."><link rel="canonical" href="https://bshandley.github.io/gatehouse/docs/for-agents/"><link rel="icon" type="image/svg+xml" href="/gatehouse/favicon.svg"><meta property="og:type" content="website"><meta property="og:title" content="For Agents · Gatehouse"><meta property="og:description" content="Agent-facing API reference for Gatehouse: auth, secret access, proxy mode, dynamic secrets, errors."><meta property="og:url" content="https://bshandley.github.io/gatehouse/docs/for-agents/"><meta property="og:image" content="https://bshandley.github.io/gatehouse/og-image.png"><meta name="twitter:card" content="summary_large_image"><link rel="stylesheet" href="/gatehouse/_assets/_slug_.C3p-BbS6.css">
+<link rel="stylesheet" href="/gatehouse/_assets/_slug_.BQPvwpNy.css"></head> <body data-astro-cid-5hce7sga> <header class="site-nav" data-astro-cid-dmqpwcec> <div class="container nav-inner" data-astro-cid-dmqpwcec> <a href="/gatehouse/" class="brand" aria-label="Gatehouse home" data-astro-cid-dmqpwcec> <span class="logo" style="--logo-size:26px" data-astro-cid-tvrurpns> <svg viewBox="199.5 34.1 199.9 199.9" width="26" height="26" preserveAspectRatio="xMidYMid meet" aria-hidden="true" data-astro-cid-tvrurpns> <defs data-astro-cid-tvrurpns> <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1" data-astro-cid-tvrurpns> <stop offset="0%" stop-color="#6c63ff" data-astro-cid-tvrurpns></stop> <stop offset="100%" stop-color="#8b7aff" data-astro-cid-tvrurpns></stop> </linearGradient> </defs> <rect x="199.5" y="34.1" width="199.9" height="199.9" rx="44" fill="url(#logo-g)" data-astro-cid-tvrurpns></rect> <g transform="translate(0,327) scale(0.1,-0.1)" fill="#ffffff" data-astro-cid-tvrurpns> <path d="M2857 2805 c-130 -44 -221 -123 -277 -241 -41 -86 -50 -142 -50 -321 l0 -154 -40 -48 c-98 -116 -161 -311 -146 -453 25 -246 157 -438 371 -542 95 -46 179 -66 285 -66 250 0 480 143 589 367 39 80 71 209 71 291 l0 62 -330 0 -330 0 0 -65 0 -65 114 0 115 0 -10 -28 c-24 -68 -111 -135 -192 -149 -78 -12 -194 50 -233 127 -14 27 -25 69 -28 103 -10 149 134 277 275 246 51 -12 124 -52 138 -77 9 -15 16 -11 58 31 l48 48 -43 39 c-77 69 -122 85 -242 85 -95 0 -110 -3 -158 -28 -78 -41 -128 -91 -165 -167 -77 -153 -49 -320 73 -434 61 -57 113 -83 192 -96 119 -18 219 13 309 97 48 45 109 148 109 185 0 16 9 18 80 18 93 0 93 0 60 -94 -43 -127 -120 -222 -235 -291 -292 -175 -663 -28 -771 305 -40 125 -14 297 63 419 46 74 77 105 143 150 78 53 113 67 213 88 84 17 90 17 174 0 163 -34 302 -132 368 -259 l30 -58 72 0 73 0 -11 27 c-31 83 -80 155 -159 234 -70 71 -100 94 -170 127 -89 42 -209 72 -290 72 -76 0 -199 -29 -274 -64 l-68 -33 4 121 c4 106 8 129 33 184 38 84 112 152 197 181 79 27 138 27 219 -1 52 -17 76 -33 124 -82 72 -73 95 -127 103 -246 l5 -85 64 -47 63 -47 0 113 c0 139 -11 203 -50 282 -102 209 -345 313 -563 239z" data-astro-cid-tvrurpns></path> </g> </svg> <span class="wordmark" data-astro-cid-tvrurpns>Gatehouse</span> </span>  </a> <nav data-astro-cid-dmqpwcec> <a href="/gatehouse/docs/getting-started/" data-astro-cid-dmqpwcec>Docs</a> <a href="/gatehouse/docs/for-agents/" data-astro-cid-dmqpwcec>Agents</a> <a href="https://github.com/bshandley/gatehouse" target="_blank" rel="noopener" data-astro-cid-dmqpwcec>
+GitHub <span aria-hidden="true" data-astro-cid-dmqpwcec>↗</span> </a> </nav> </div> </header>  <main data-astro-cid-5hce7sga>  <div class="container docs-shell" data-astro-cid-ac2mn7rr> <aside class="sidebar" data-astro-cid-ssfzsv2f> <nav data-astro-cid-ssfzsv2f> <section class="group" data-astro-cid-ssfzsv2f> <h4 data-astro-cid-ssfzsv2f>GETTING STARTED</h4> <ul data-astro-cid-ssfzsv2f> <li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/getting-started/" class data-astro-cid-ssfzsv2f>Getting Started</a> </li> </ul> </section><section class="group" data-astro-cid-ssfzsv2f> <h4 data-astro-cid-ssfzsv2f>CORE CONCEPTS</h4> <ul data-astro-cid-ssfzsv2f> <li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/concepts/" class data-astro-cid-ssfzsv2f>Core Concepts</a> </li> </ul> </section><section class="group" data-astro-cid-ssfzsv2f> <h4 data-astro-cid-ssfzsv2f>USING GATEHOUSE</h4> <ul data-astro-cid-ssfzsv2f> <li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/authentication/" class data-astro-cid-ssfzsv2f>Authentication</a> </li><li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/web-ui/" class data-astro-cid-ssfzsv2f>Web UI Tour</a> </li><li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/providers/" class data-astro-cid-ssfzsv2f>Dynamic Secret Providers</a> </li><li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/security/" class data-astro-cid-ssfzsv2f>Security &amp;amp; Threat Model</a> </li> </ul> </section><section class="group" data-astro-cid-ssfzsv2f> <h4 data-astro-cid-ssfzsv2f>REFERENCE</h4> <ul data-astro-cid-ssfzsv2f> <li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/api-reference/" class data-astro-cid-ssfzsv2f>API Reference</a> </li><li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/for-agents/" class="current" data-astro-cid-ssfzsv2f>For Agents</a> </li><li data-astro-cid-ssfzsv2f> <a href="/gatehouse/docs/integrations/" class data-astro-cid-ssfzsv2f>Integrations</a> </li> </ul> </section> </nav> </aside>  <article class="prose" data-astro-cid-ac2mn7rr>  <h1>For Agents</h1> 
+<p>This document is written for AI agents that need to authenticate with and use Gatehouse. It covers every step from login to secret access. All examples use <code>curl</code> but any HTTP client works.</p>
+<p><strong>Base URL:</strong> <code>http://&lt;gatehouse-host&gt;:3100</code></p>
+<h2 id="authentication">Authentication<a class="heading-anchor" aria-label="Link to this heading" href="#authentication">#</a></h2>
+<p>You need a JWT token before you can do anything. Your operator gave you a <code>role_id</code> and <code>secret_id</code>. These are <strong>login credentials for the vault itself</strong>, not secret paths or secret values. Exchange them for a token:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/auth/approle/login</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;role_id&quot;: &quot;YOUR_ROLE_ID&quot;, &quot;secret_id&quot;: &quot;YOUR_SECRET_ID&quot;}&#39;</span></span></code></pre>
+<p>Response:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;token&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;eyJhbGciOi...&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;identity&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;approle:your-agent-name&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;policies&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;agent-readonly&quot;</span><span style="color:#ABB2BF">],</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;expires_in&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">86400</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>Use the <code>token</code> value as a Bearer token in all subsequent requests:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="plaintext"><code><span class="line"><span>Authorization: Bearer eyJhbGciOi...</span></span></code></pre>
+<p>The token expires after 24 hours. When you get a <code>401</code> response, re-login to get a fresh token.</p>
+<h2 id="important-secrets-are-accessed-by-path-not-by-id">Important: secrets are accessed by path, not by ID<a class="heading-anchor" aria-label="Link to this heading" href="#important-secrets-are-accessed-by-path-not-by-id">#</a></h2>
+<p>Secrets in Gatehouse have human-readable paths like <code>api-keys/openai</code> or <code>services/memos-token</code>. You always use the <strong>path</strong> in API URLs, never a UUID.</p>
+<p><strong>Do not confuse <code>secret_id</code> with a secret path.</strong> The <code>secret_id</code> from AppRole login is a vault credential (like a password). It is not a reference to a stored secret. After login, discard it from your working context. To find actual secrets, use <code>GET /v1/secrets?prefix=</code> (see “List available secrets” below).</p>
+<h2 id="what-you-can-do-depends-on-your-policy">What you can do depends on your policy<a class="heading-anchor" aria-label="Link to this heading" href="#what-you-can-do-depends-on-your-policy">#</a></h2>
+<p>Your AppRole has one or more policies that control which secret paths you can access and what operations you can perform. Common capabilities:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Capability</th><th>What it allows</th></tr></thead><tbody><tr><td><code>read</code></td><td>Read a secret’s value</td></tr><tr><td><code>list</code></td><td>List secret paths under a prefix (note: <code>read</code> also grants listing)</td></tr><tr><td><code>write</code></td><td>Create or update secrets</td></tr><tr><td><code>delete</code></td><td>Delete secrets</td></tr><tr><td><code>lease</code></td><td>Check out a secret with a TTL (also used for dynamic secrets)</td></tr><tr><td><code>proxy</code></td><td>Use secrets through the HTTP proxy without seeing raw values</td></tr><tr><td><code>admin</code></td><td>Full access to configuration and management</td></tr></tbody></table>
+<p>If you get <code>{&quot;error&quot;: &quot;Forbidden&quot;}</code>, your policy does not grant the required capability on that path. Ask your operator to check your policy rules.</p>
+<h2 id="reading-secrets">Reading secrets<a class="heading-anchor" aria-label="Link to this heading" href="#reading-secrets">#</a></h2>
+<h3 id="list-available-secrets">List available secrets<a class="heading-anchor" aria-label="Link to this heading" href="#list-available-secrets">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># List everything you have access to</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/secrets?prefix=</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Or filter by prefix</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/secrets?prefix=api-keys/</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>
+<p>Response:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;secrets&quot;</span><span style="color:#ABB2BF">: [</span></span>
+<span class="line"><span style="color:#ABB2BF">    {</span><span style="color:#E06C75">&quot;path&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;api-keys/openai&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;version&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">1</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;created_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;...&quot;</span><span style="color:#ABB2BF">},</span></span>
+<span class="line"><span style="color:#ABB2BF">    {</span><span style="color:#E06C75">&quot;path&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;api-keys/anthropic&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;version&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">1</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;created_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;...&quot;</span><span style="color:#ABB2BF">}</span></span>
+<span class="line"><span style="color:#ABB2BF">  ]</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>The response is automatically filtered to only show secrets you have <code>read</code> or <code>list</code> access to. Use an empty prefix to discover everything available to you.</p>
+<h3 id="get-a-secrets-value">Get a secret’s value<a class="heading-anchor" aria-label="Link to this heading" href="#get-a-secrets-value">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/secrets/api-keys/openai/value</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>
+<p>Response:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;path&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;api-keys/openai&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;value&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;sk-proj-abc123...&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;version&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">1</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>For plain text only (no JSON wrapper):</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/secrets/api-keys/openai/value</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Accept: text/plain&quot;</span></span></code></pre>
+<p>Requires <code>read</code> capability on the path.</p>
+<h3 id="get-secret-metadata-no-value">Get secret metadata (no value)<a class="heading-anchor" aria-label="Link to this heading" href="#get-secret-metadata-no-value">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/secrets/api-keys/openai</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>
+<p>Returns path, version, metadata, and timestamps, but not the secret value.</p>
+<h2 id="leasing-secrets">Leasing secrets<a class="heading-anchor" aria-label="Link to this heading" href="#leasing-secrets">#</a></h2>
+<p>Leases give you temporary, tracked access to a secret. The lease auto-expires after the TTL, and all access is logged.</p>
+<h3 id="check-out-a-lease">Check out a lease<a class="heading-anchor" aria-label="Link to this heading" href="#check-out-a-lease">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/lease/api-keys/openai</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;ttl&quot;: 300}&#39;</span></span></code></pre>
+<p>TTL is in seconds (min: 10, max: 86400). Default: 300 (5 minutes).</p>
+<p>Response:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;lease&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;id&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;lease-xxxxxxxx&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;path&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;api-keys/openai&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;expires_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;2025-01-15T12:05:00Z&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">  },</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;value&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;sk-proj-abc123...&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>Requires <code>lease</code> capability on the path.</p>
+<h3 id="list-your-active-leases">List your active leases<a class="heading-anchor" aria-label="Link to this heading" href="#list-your-active-leases">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/lease</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>
+<h3 id="revoke-a-lease-early">Revoke a lease early<a class="heading-anchor" aria-label="Link to this heading" href="#revoke-a-lease-early">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> DELETE</span><span style="color:#98C379"> http://localhost:3100/v1/lease/lease-xxxxxxxx</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>
+<h2 id="proxy-mode-recommended">Proxy mode (recommended)<a class="heading-anchor" aria-label="Link to this heading" href="#proxy-mode-recommended">#</a></h2>
+<p>Proxy mode lets you make HTTP requests through Gatehouse without ever seeing the raw credential. Gatehouse injects the secret server-side and returns the upstream response.</p>
+<h3 id="template-style">Template style<a class="heading-anchor" aria-label="Link to this heading" href="#template-style">#</a></h3>
+<p>Use <code>{{secret:path}}</code> placeholders anywhere in headers, URL, or body:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/proxy</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
+<span class="line"><span style="color:#98C379">    &quot;method&quot;: &quot;POST&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;url&quot;: &quot;https://api.openai.com/v1/chat/completions&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;headers&quot;: {</span></span>
+<span class="line"><span style="color:#98C379">      &quot;Authorization&quot;: &quot;Bearer {{secret:api-keys/openai}}&quot;,</span></span>
+<span class="line"><span style="color:#98C379">      &quot;Content-Type&quot;: &quot;application/json&quot;</span></span>
+<span class="line"><span style="color:#98C379">    },</span></span>
+<span class="line"><span style="color:#98C379">    &quot;body&quot;: {&quot;model&quot;: &quot;gpt-4&quot;, &quot;messages&quot;: [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;hello&quot;}]}</span></span>
+<span class="line"><span style="color:#98C379">  }&#39;</span></span></code></pre>
+<h3 id="inject-shorthand-recommended">Inject shorthand (recommended)<a class="heading-anchor" aria-label="Link to this heading" href="#inject-shorthand-recommended">#</a></h3>
+<p>Map header names to secret paths. The value is <strong>just the secret path</strong>, not the full header value. Gatehouse auto-prefixes <code>Bearer </code> for Authorization headers:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/proxy</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
+<span class="line"><span style="color:#98C379">    &quot;method&quot;: &quot;POST&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;url&quot;: &quot;https://api.openai.com/v1/chat/completions&quot;,</span></span>
+<span class="line"><span style="color:#98C379">    &quot;inject&quot;: {&quot;Authorization&quot;: &quot;api-keys/openai&quot;},</span></span>
+<span class="line"><span style="color:#98C379">    &quot;headers&quot;: {&quot;Content-Type&quot;: &quot;application/json&quot;},</span></span>
+<span class="line"><span style="color:#98C379">    &quot;body&quot;: {&quot;model&quot;: &quot;gpt-4&quot;, &quot;messages&quot;: [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;hello&quot;}]}</span></span>
+<span class="line"><span style="color:#98C379">  }&#39;</span></span></code></pre>
+<p>Requires <code>proxy</code> capability on each secret path used.</p>
+<h3 id="common-proxy-mistakes">Common proxy mistakes<a class="heading-anchor" aria-label="Link to this heading" href="#common-proxy-mistakes">#</a></h3>
+<p><strong>Wrong: putting <code>Bearer</code> or the full header value in the inject map</strong></p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span><span style="color:#E06C75">&quot;inject&quot;</span><span style="color:#ABB2BF">: {</span><span style="color:#E06C75">&quot;Authorization&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;Bearer {services/my-token}&quot;</span><span style="color:#ABB2BF">}}</span></span></code></pre>
+<p>Gatehouse treats the entire value as a secret path. Since no secret exists at path <code>Bearer {services/my-token}</code>, you get a Forbidden error.</p>
+<p><strong>Right: just the path</strong></p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span><span style="color:#E06C75">&quot;inject&quot;</span><span style="color:#ABB2BF">: {</span><span style="color:#E06C75">&quot;Authorization&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;services/my-token&quot;</span><span style="color:#ABB2BF">}}</span></span></code></pre>
+<p>Gatehouse looks up <code>services/my-token</code>, gets the raw value, and automatically adds <code>Bearer </code> in front for Authorization headers.</p>
+<h3 id="proxying-to-privatelocal-networks">Proxying to private/local networks<a class="heading-anchor" aria-label="Link to this heading" href="#proxying-to-privatelocal-networks">#</a></h3>
+<p>By default, Gatehouse blocks proxy requests to private IP ranges (10.x, 192.168.x, localhost, etc.) to prevent SSRF attacks. If you need to proxy to a service on your local network, your operator needs to either:</p>
+<ul>
+<li>Set <code>GATEHOUSE_PROXY_ALLOW_PRIVATE=true</code> in Gatehouse’s environment, or</li>
+<li>Add <code>allow_private: &quot;true&quot;</code> to the secret’s metadata</li>
+</ul>
+<p>If you see an error about “private/internal networks are blocked”, ask your operator to enable this.</p>
+<h2 id="dynamic-secrets">Dynamic secrets<a class="heading-anchor" aria-label="Link to this heading" href="#dynamic-secrets">#</a></h2>
+<p>Dynamic secrets generate temporary credentials on demand (e.g., database users, SSH certificates). The credentials are automatically destroyed when the lease expires.</p>
+<h3 id="check-out-a-dynamic-credential">Check out a dynamic credential<a class="heading-anchor" aria-label="Link to this heading" href="#check-out-a-dynamic-credential">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/dynamic/db/postgres-prod/checkout</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;ttl&quot;: 600}&#39;</span></span></code></pre>
+<p>Response (varies by provider type):</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;lease_id&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;dlease-abc123&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;path&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;db/postgres-prod&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;provider_type&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;postgresql&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;credential&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;username&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;gh_myagent_abc123&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;password&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;random-generated-password&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;host&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;10.0.0.50&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;port&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;5432&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;database&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;myapp&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;connection_string&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;postgresql://gh_myagent_abc123:...@10.0.0.50:5432/myapp&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">  },</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;ttl_seconds&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">600</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;expires_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;2025-01-15T12:10:00Z&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>Requires <code>lease</code> capability on the dynamic secret path.</p>
+<h3 id="revoke-a-dynamic-lease-early">Revoke a dynamic lease early<a class="heading-anchor" aria-label="Link to this heading" href="#revoke-a-dynamic-lease-early">#</a></h3>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> DELETE</span><span style="color:#98C379"> http://localhost:3100/v1/dynamic/lease/dlease-abc123</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>
+<p>The provider-specific credential (database user, SSH cert, etc.) is destroyed immediately.</p>
+<h2 id="credential-scrubbing">Credential scrubbing<a class="heading-anchor" aria-label="Link to this heading" href="#credential-scrubbing">#</a></h2>
+<p>Before outputting text that might contain secrets, you can ask Gatehouse to redact them:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/scrub</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;text&quot;: &quot;The key is sk-proj-abc123...&quot;}&#39;</span></span></code></pre>
+<p>Response:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;scrubbed&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;The key is sk-pro***REDACTED***&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;redactions&quot;</span><span style="color:#ABB2BF">: [{</span><span style="color:#E06C75">&quot;type&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;openai_key&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;count&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">1</span><span style="color:#ABB2BF">}]</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<h2 id="discovering-api-call-patterns">Discovering API call patterns<a class="heading-anchor" aria-label="Link to this heading" href="#discovering-api-call-patterns">#</a></h2>
+<p>Before making your first proxy call to an unfamiliar API, check if other agents have already figured out the correct request format:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/proxy/patterns?secret=services/memos-token</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>
+<p>Response:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;patterns&quot;</span><span style="color:#ABB2BF">: [</span></span>
+<span class="line"><span style="color:#ABB2BF">    {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;method&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;POST&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;url_template&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;https://memos.example/api/v1/memos&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;host&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;memos.example&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;request_headers&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;Content-Type&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;Authorization&quot;</span><span style="color:#ABB2BF">],</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;request_body_schema&quot;</span><span style="color:#ABB2BF">: {</span><span style="color:#E06C75">&quot;content&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;string&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;visibility&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;string&quot;</span><span style="color:#ABB2BF">},</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;response_status&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">200</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;response_body_schema&quot;</span><span style="color:#ABB2BF">: {</span><span style="color:#E06C75">&quot;id&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;number&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;content&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;string&quot;</span><span style="color:#ABB2BF">},</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;confidence&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">0.95</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;verified_by&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">3</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;total_successes&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">47</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;total_failures&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">2</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;last_used&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;2026-04-09T...&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  ]</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>Patterns are learned automatically from real proxy traffic. When you make a successful proxy call, Gatehouse records the normalized request template (no secret values, just the structure). High-confidence patterns have been verified by multiple agents over many calls.</p>
+<p>If your proxy call fails, Gatehouse will include a <code>suggestions</code> field in the error response with known-good patterns for that secret. You don’t need to query the patterns endpoint separately when handling errors.</p>
+<p>Requires <code>proxy</code> or <code>read</code> capability on the secret path.</p>
+<p><strong>MCP:</strong> Use the <code>gatehouse_patterns</code> tool with <code>secret_path</code> to get the same data.</p>
+<h2 id="error-responses">Error responses<a class="heading-anchor" aria-label="Link to this heading" href="#error-responses">#</a></h2>
+<p>All errors follow this format:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;error&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;Human-readable error message&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;request_id&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;uuid-for-debugging&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>Common HTTP status codes:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Code</th><th>Meaning</th></tr></thead><tbody><tr><td>400</td><td>Bad request (invalid input, missing fields)</td></tr><tr><td>401</td><td>Unauthorized (missing or expired token, re-login needed)</td></tr><tr><td>403</td><td>Forbidden (valid token, but policy does not allow this action on this path)</td></tr><tr><td>404</td><td>Not found (secret path does not exist)</td></tr><tr><td>502</td><td>Provider error (dynamic secret backend unreachable)</td></tr></tbody></table>
+<h2 id="mcp-interface">MCP interface<a class="heading-anchor" aria-label="Link to this heading" href="#mcp-interface">#</a></h2>
+<p>If your harness supports MCP (Model Context Protocol), you can use Gatehouse as an MCP tool server instead of calling the REST API directly.</p>
+<p><strong>Endpoint:</strong> <code>POST /v1/mcp</code> (Streamable HTTP transport)</p>
+<p><strong>Auth:</strong> Same <code>Authorization: Bearer &lt;JWT&gt;</code> header as the REST API.</p>
+<p><strong>Protocol:</strong> JSON-RPC 2.0. Method names follow the MCP standard:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Method</th><th>Description</th></tr></thead><tbody><tr><td><code>initialize</code></td><td>Handshake, returns server capabilities</td></tr><tr><td><code>tools/list</code></td><td>List available tools</td></tr><tr><td><code>tools/call</code></td><td>Call a tool by name</td></tr></tbody></table>
+<p><strong>Available tools:</strong></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Tool name</th><th>What it does</th></tr></thead><tbody><tr><td><code>gatehouse_get</code></td><td>Read a secret value</td></tr><tr><td><code>gatehouse_put</code></td><td>Store/update a secret</td></tr><tr><td><code>gatehouse_list</code></td><td>List secret paths</td></tr><tr><td><code>gatehouse_lease</code></td><td>Check out a secret with TTL</td></tr><tr><td><code>gatehouse_revoke</code></td><td>Revoke an active lease</td></tr><tr><td><code>gatehouse_scrub</code></td><td>Redact credentials from text</td></tr><tr><td><code>gatehouse_proxy</code></td><td>Forward HTTP request with secret injection</td></tr><tr><td><code>gatehouse_patterns</code></td><td>Query learned API call patterns for a secret</td></tr><tr><td><code>gatehouse_status</code></td><td>Health check and identity info</td></tr></tbody></table>
+<p>Most agent harnesses handle the MCP protocol automatically. See <code>docs/integrations.md</code> for harness-specific setup (Claude Code, Codex, Windsurf, Cursor, etc.).</p>
+<h2 id="quick-start-checklist">Quick start checklist<a class="heading-anchor" aria-label="Link to this heading" href="#quick-start-checklist">#</a></h2>
+<ol>
+<li>Get your <code>role_id</code> and <code>secret_id</code> from your operator (these are login credentials, not secret paths)</li>
+<li><code>POST /v1/auth/approle/login</code> with both values to get a JWT</li>
+<li>Use the JWT as <code>Authorization: Bearer &lt;token&gt;</code> on all requests</li>
+<li><code>GET /v1/secrets?prefix=</code> to discover all secrets you have access to</li>
+<li><code>GET /v1/proxy/patterns?secret=&lt;path&gt;</code> to see known-good API call patterns for a secret</li>
+<li><code>GET /v1/secrets/&lt;path&gt;/value</code> to read a secret, or <code>POST /v1/proxy</code> to use it without seeing it</li>
+<li>Re-login when you get a 401</li>
+</ol>  </article> <aside class="toc" aria-label="Table of contents" data-astro-cid-xvrfupwn><h4 data-astro-cid-xvrfupwn>On this page</h4><ul data-astro-cid-xvrfupwn><li class data-astro-cid-xvrfupwn><a href="#authentication" data-toc-link="authentication" data-astro-cid-xvrfupwn>Authentication#</a></li><li class data-astro-cid-xvrfupwn><a href="#important-secrets-are-accessed-by-path-not-by-id" data-toc-link="important-secrets-are-accessed-by-path-not-by-id" data-astro-cid-xvrfupwn>Important: secrets are accessed by path, not by ID#</a></li><li class data-astro-cid-xvrfupwn><a href="#what-you-can-do-depends-on-your-policy" data-toc-link="what-you-can-do-depends-on-your-policy" data-astro-cid-xvrfupwn>What you can do depends on your policy#</a></li><li class data-astro-cid-xvrfupwn><a href="#reading-secrets" data-toc-link="reading-secrets" data-astro-cid-xvrfupwn>Reading secrets#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#list-available-secrets" data-toc-link="list-available-secrets" data-astro-cid-xvrfupwn>List available secrets#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#get-a-secrets-value" data-toc-link="get-a-secrets-value" data-astro-cid-xvrfupwn>Get a secret’s value#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#get-secret-metadata-no-value" data-toc-link="get-secret-metadata-no-value" data-astro-cid-xvrfupwn>Get secret metadata (no value)#</a></li><li class data-astro-cid-xvrfupwn><a href="#leasing-secrets" data-toc-link="leasing-secrets" data-astro-cid-xvrfupwn>Leasing secrets#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#check-out-a-lease" data-toc-link="check-out-a-lease" data-astro-cid-xvrfupwn>Check out a lease#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#list-your-active-leases" data-toc-link="list-your-active-leases" data-astro-cid-xvrfupwn>List your active leases#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#revoke-a-lease-early" data-toc-link="revoke-a-lease-early" data-astro-cid-xvrfupwn>Revoke a lease early#</a></li><li class data-astro-cid-xvrfupwn><a href="#proxy-mode-recommended" data-toc-link="proxy-mode-recommended" data-astro-cid-xvrfupwn>Proxy mode (recommended)#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#template-style" data-toc-link="template-style" data-astro-cid-xvrfupwn>Template style#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#inject-shorthand-recommended" data-toc-link="inject-shorthand-recommended" data-astro-cid-xvrfupwn>Inject shorthand (recommended)#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#common-proxy-mistakes" data-toc-link="common-proxy-mistakes" data-astro-cid-xvrfupwn>Common proxy mistakes#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#proxying-to-privatelocal-networks" data-toc-link="proxying-to-privatelocal-networks" data-astro-cid-xvrfupwn>Proxying to private/local networks#</a></li><li class data-astro-cid-xvrfupwn><a href="#dynamic-secrets" data-toc-link="dynamic-secrets" data-astro-cid-xvrfupwn>Dynamic secrets#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#check-out-a-dynamic-credential" data-toc-link="check-out-a-dynamic-credential" data-astro-cid-xvrfupwn>Check out a dynamic credential#</a></li><li class="indent" data-astro-cid-xvrfupwn><a href="#revoke-a-dynamic-lease-early" data-toc-link="revoke-a-dynamic-lease-early" data-astro-cid-xvrfupwn>Revoke a dynamic lease early#</a></li><li class data-astro-cid-xvrfupwn><a href="#credential-scrubbing" data-toc-link="credential-scrubbing" data-astro-cid-xvrfupwn>Credential scrubbing#</a></li><li class data-astro-cid-xvrfupwn><a href="#discovering-api-call-patterns" data-toc-link="discovering-api-call-patterns" data-astro-cid-xvrfupwn>Discovering API call patterns#</a></li><li class data-astro-cid-xvrfupwn><a href="#error-responses" data-toc-link="error-responses" data-astro-cid-xvrfupwn>Error responses#</a></li><li class data-astro-cid-xvrfupwn><a href="#mcp-interface" data-toc-link="mcp-interface" data-astro-cid-xvrfupwn>MCP interface#</a></li><li class data-astro-cid-xvrfupwn><a href="#quick-start-checklist" data-toc-link="quick-start-checklist" data-astro-cid-xvrfupwn>Quick start checklist#</a></li></ul></aside><script type="module">const c=Array.from(document.querySelectorAll("[data-toc-link]"));if(c.length>0){const r=new IntersectionObserver(o=>{o.forEach(t=>{if(t.isIntersecting){const e=t.target.id;c.forEach(n=>n.classList.toggle("active",n.dataset.tocLink===e))}})},{rootMargin:"0px 0px -70% 0px",threshold:0});c.forEach(o=>{const t=o.dataset.tocLink,e=document.getElementById(t);e&&r.observe(e)})}</script> </div> <script type="module">function o(){document.querySelectorAll(".prose pre").forEach(e=>{if(e.querySelector("[data-copy-btn]"))return;const t=document.createElement("button");t.textContent="Copy",t.setAttribute("data-copy-btn",""),t.type="button",t.className="copy-button",e.style.position="relative",e.appendChild(t),t.addEventListener("click",async()=>{const n=e.querySelector("code")?.textContent??"";try{await navigator.clipboard.writeText(n),t.textContent="Copied"}catch{t.textContent="Failed"}setTimeout(()=>{t.textContent="Copy"},1500)})})}o();document.addEventListener("astro:page-load",o);</script>   </main> <footer class="site-footer" data-astro-cid-sz7xmlte> <div class="container footer-grid" data-astro-cid-sz7xmlte> <div class="col brand-col" data-astro-cid-sz7xmlte> <span class="logo" style="--logo-size:22px" data-astro-cid-tvrurpns> <svg viewBox="199.5 34.1 199.9 199.9" width="22" height="22" preserveAspectRatio="xMidYMid meet" aria-hidden="true" data-astro-cid-tvrurpns> <defs data-astro-cid-tvrurpns> <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1" data-astro-cid-tvrurpns> <stop offset="0%" stop-color="#6c63ff" data-astro-cid-tvrurpns></stop> <stop offset="100%" stop-color="#8b7aff" data-astro-cid-tvrurpns></stop> </linearGradient> </defs> <rect x="199.5" y="34.1" width="199.9" height="199.9" rx="44" fill="url(#logo-g)" data-astro-cid-tvrurpns></rect> <g transform="translate(0,327) scale(0.1,-0.1)" fill="#ffffff" data-astro-cid-tvrurpns> <path d="M2857 2805 c-130 -44 -221 -123 -277 -241 -41 -86 -50 -142 -50 -321 l0 -154 -40 -48 c-98 -116 -161 -311 -146 -453 25 -246 157 -438 371 -542 95 -46 179 -66 285 -66 250 0 480 143 589 367 39 80 71 209 71 291 l0 62 -330 0 -330 0 0 -65 0 -65 114 0 115 0 -10 -28 c-24 -68 -111 -135 -192 -149 -78 -12 -194 50 -233 127 -14 27 -25 69 -28 103 -10 149 134 277 275 246 51 -12 124 -52 138 -77 9 -15 16 -11 58 31 l48 48 -43 39 c-77 69 -122 85 -242 85 -95 0 -110 -3 -158 -28 -78 -41 -128 -91 -165 -167 -77 -153 -49 -320 73 -434 61 -57 113 -83 192 -96 119 -18 219 13 309 97 48 45 109 148 109 185 0 16 9 18 80 18 93 0 93 0 60 -94 -43 -127 -120 -222 -235 -291 -292 -175 -663 -28 -771 305 -40 125 -14 297 63 419 46 74 77 105 143 150 78 53 113 67 213 88 84 17 90 17 174 0 163 -34 302 -132 368 -259 l30 -58 72 0 73 0 -11 27 c-31 83 -80 155 -159 234 -70 71 -100 94 -170 127 -89 42 -209 72 -290 72 -76 0 -199 -29 -274 -64 l-68 -33 4 121 c4 106 8 129 33 184 38 84 112 152 197 181 79 27 138 27 219 -1 52 -17 76 -33 124 -82 72 -73 95 -127 103 -246 l5 -85 64 -47 63 -47 0 113 c0 139 -11 203 -50 282 -102 209 -345 313 -563 239z" data-astro-cid-tvrurpns></path> </g> </svg> <span class="wordmark" data-astro-cid-tvrurpns>Gatehouse</span> </span>  <p class="tagline" data-astro-cid-sz7xmlte>A secrets vault built for AI agents.</p> </div> <div class="col" data-astro-cid-sz7xmlte> <h4 data-astro-cid-sz7xmlte>Project</h4> <ul data-astro-cid-sz7xmlte> <li data-astro-cid-sz7xmlte><a href="https://github.com/bshandley/gatehouse" target="_blank" rel="noopener" data-astro-cid-sz7xmlte>GitHub</a></li> <li data-astro-cid-sz7xmlte><a href="https://github.com/bshandley/gatehouse/blob/main/LICENSE" target="_blank" rel="noopener" data-astro-cid-sz7xmlte>License (AGPL-3.0)</a></li> <li data-astro-cid-sz7xmlte><a href="https://github.com/bshandley/gatehouse/issues" target="_blank" rel="noopener" data-astro-cid-sz7xmlte>Issues</a></li> </ul> </div> <div class="col" data-astro-cid-sz7xmlte> <h4 data-astro-cid-sz7xmlte>Docs</h4> <ul data-astro-cid-sz7xmlte> <li data-astro-cid-sz7xmlte><a href="/gatehouse/docs/getting-started/" data-astro-cid-sz7xmlte>Getting started</a></li> <li data-astro-cid-sz7xmlte><a href="/gatehouse/docs/concepts/" data-astro-cid-sz7xmlte>Concepts</a></li> <li data-astro-cid-sz7xmlte><a href="/gatehouse/docs/for-agents/" data-astro-cid-sz7xmlte>For agents</a></li> </ul> </div> <div class="col" data-astro-cid-sz7xmlte> <h4 data-astro-cid-sz7xmlte>About</h4> <p class="about-text" data-astro-cid-sz7xmlte>
+Gatehouse is released under the GNU Affero General Public License v3.0.
+</p> </div> </div> </footer>  </body></html> 

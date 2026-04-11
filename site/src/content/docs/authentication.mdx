@@ -1,0 +1,103 @@
+---
+title: "Authentication"
+description: "Root token, user accounts, AppRoles for agents, and TOTP two-factor auth."
+sidebar_order: 1
+sidebar_group: "USING GATEHOUSE"
+---
+
+{/* Generated from README 2026-04-10 */}
+
+import Callout from "../../components/Callout.astro";
+
+Gatehouse supports three authentication methods. They all produce (or are) a bearer token that goes in the `Authorization` header.
+
+## Root token
+
+Set via the `GATEHOUSE_ROOT_TOKEN` environment variable on the container. The root token has `admin` capability on everything. Use it to bootstrap the first admin user, then unset the env var and restart.
+
+```bash
+curl -H "Authorization: Bearer $GATEHOUSE_ROOT_TOKEN" \
+  http://localhost:3100/v1/auth/users
+```
+
+<Callout type="danger" title="Do not leave the root token set in production">
+  The root token bypasses every access control check. Once you have an admin user account, remove `GATEHOUSE_ROOT_TOKEN` from the container environment and restart.
+</Callout>
+
+## User accounts (for humans)
+
+Admin users log into the web UI with a username and password. User accounts can optionally enable TOTP two-factor auth.
+
+**Login:**
+
+```bash
+curl -X POST http://localhost:3100/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "password": "..."}'
+```
+
+Response (when TOTP is disabled):
+
+```json
+{
+  "token": "<JWT>",
+  "identity": "user:alice",
+  "expires_in": 86400
+}
+```
+
+When TOTP is enabled, the login endpoint returns a short-lived pre-auth token that can only be exchanged for a full JWT at `POST /v1/auth/login/totp` with a valid 6-digit code or recovery code.
+
+## AppRoles (for agents)
+
+AppRoles are how agents authenticate. An admin creates an AppRole in the web UI or via the API, which produces a `role_id` and `secret_id`. The agent exchanges these for a JWT and uses the JWT for all subsequent requests.
+
+**Admin creates an AppRole:**
+
+```bash
+curl -X POST http://localhost:3100/v1/auth/approle \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"display_name": "my-agent", "policies": ["agent-readonly"]}'
+```
+
+Response:
+
+```json
+{
+  "role_id": "role-xxxx-...",
+  "secret_id": "yyyy-...",
+  "display_name": "my-agent",
+  "policies": ["agent-readonly"],
+  "warning": "Save the secret_id now, it cannot be retrieved later"
+}
+```
+
+**Agent exchanges credentials for a JWT:**
+
+```bash
+curl -X POST http://localhost:3100/v1/auth/approle/login \
+  -H "Content-Type: application/json" \
+  -d '{"role_id": "role-xxxx-...", "secret_id": "yyyy-..."}'
+```
+
+Response:
+
+```json
+{
+  "token": "<JWT>",
+  "identity": "approle:my-agent",
+  "policies": ["agent-readonly"],
+  "expires_in": 86400
+}
+```
+
+## TOTP (two-factor auth)
+
+Enable TOTP for a user account from the web UI: **Me → Security → Enable 2FA**. Scan the QR code with any RFC 6238 authenticator (Google Authenticator, Authy, 1Password, Aegis). Confirm the setup with a 6-digit code. You'll be shown 10 one-time recovery codes. Save them somewhere safe.
+
+After enabling TOTP:
+
+- Every subsequent login requires the 6-digit code after the password.
+- If you lose your authenticator, you can log in with one of the recovery codes (each consumable exactly once).
+- Admins can force-reset a user's 2FA from the Users tab.

@@ -1,0 +1,66 @@
+---
+const base = import.meta.env.BASE_URL;
+const shots = [
+  { src: `${base}screenshots/dashboard.png`, alt: "Gatehouse dashboard showing active leases and recent audit events", caption: "Dashboard with live lease TTLs and audit feed" },
+  { src: `${base}screenshots/secrets.png`, alt: "Secrets view with tree of paths and detail panel", caption: "Secrets browser with path tree and metadata panel" },
+  { src: `${base}screenshots/patterns.png`, alt: "Patterns tab showing learned API templates with confidence scores", caption: "Learned API patterns, grouped and scored by confidence" },
+];
+---
+
+<section class="shots">
+  <div class="container">
+    <div class="label eyebrow">THE WEB UI</div>
+    <h2>A control panel built for the job.</h2>
+    <div class="grid">
+      {shots.map((s) => (
+        <figure>
+          <a href={s.src} target="_blank" rel="noopener">
+            <img src={s.src} alt={s.alt} loading="lazy" />
+          </a>
+          <figcaption>{s.caption}</figcaption>
+        </figure>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .shots {
+    padding: 4rem 0 5rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .label { display: block; margin-bottom: 0.75rem; }
+  .shots h2 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    margin-bottom: 2.5rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+  figure { margin: 0; }
+  figure img {
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  figure img:hover {
+    border-color: var(--accent-subtle);
+    transform: translateY(-2px);
+  }
+  figcaption {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 0.75rem;
+    line-height: 1.5;
+  }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; gap: 2rem; }
+  }
+</style>

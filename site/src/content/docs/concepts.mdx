@@ -1,0 +1,71 @@
+---
+title: "Core Concepts"
+description: "Proxy mode, leasing, dynamic secrets, pattern learning, and policies."
+sidebar_order: 1
+sidebar_group: "CORE CONCEPTS"
+---
+
+{/* Generated from README 2026-04-10 */}
+
+Gatehouse is built around five core ideas. Understanding them is the fastest way to use the rest of the system effectively.
+
+## Proxy mode
+
+Traditional secret managers hand the key to the client and trust the client to handle it carefully. That assumption breaks for AI agents, whose context windows get logged, cached, and sent to cloud APIs.
+
+Proxy mode flips the model. The agent sends an HTTP request to Gatehouse with a **secret reference** instead of the secret itself. Gatehouse resolves the reference server-side, injects the credential into the outbound request, forwards it upstream, and returns only the response body. The agent never sees the key.
+
+```bash
+curl -X POST http://gatehouse:3100/v1/proxy \
+  -H "Authorization: Bearer $AGENT_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "inject": { "Authorization": "Bearer {api-keys/openai}" },
+    "body": { "model": "gpt-4", "messages": [...] }
+  }'
+```
+
+Domain allowlisting prevents exfiltration. An agent cannot use proxy mode to send a secret to an attacker-controlled host.
+
+## Credential leasing
+
+A lease is a time-bounded checkout of a secret. Agents request a lease with a TTL (10 to 86400 seconds), Gatehouse returns the value and a lease ID. When the TTL expires, a server-side reaper revokes the lease automatically. Agents can also revoke leases early.
+
+Use leasing when proxy mode isn't an option (for example, when the agent needs to hand the credential to a library that doesn't support a proxy).
+
+## Dynamic secrets
+
+Dynamic secrets are credentials that didn't exist until the agent asked for them. Gatehouse creates a scoped, ephemeral user in the target system (PostgreSQL, MySQL, MongoDB, Redis, or an SSH certificate), gives the credential to the agent with a lease, and destroys the user when the lease expires.
+
+Dynamic secrets are better than static ones because:
+
+- There's no static key to rotate.
+- Each agent gets its own identity in the target system, so audit logs on both ends are meaningful.
+- A leaked credential self-destructs on TTL.
+
+See [Dynamic secret providers](/gatehouse/docs/providers/) for per-provider setup.
+
+## Pattern learning
+
+Because every proxy call flows through Gatehouse, the vault sees which requests succeeded. Successful calls are recorded as **normalized patterns**: method, URL template (with `:id`/`:num` placeholders), header names, request and response schemas. No secret values are ever stored in a pattern.
+
+Each pattern has a confidence score computed from a rolling window of the last 20 outcomes. When an agent's proxy call fails, Gatehouse returns suggested known-good patterns in the error response. New agents can also query patterns directly via the `gatehouse_patterns` MCP tool to learn how to call an API before spending a single token guessing.
+
+Operators can pin patterns (to prevent deletion) or delete them through the web UI.
+
+## Policies &amp; capabilities
+
+Access control is path-based. Each policy is a list of rules, where a rule is a glob pattern and a set of capabilities. Capabilities are: `read`, `write`, `delete`, `list`, `lease`, `proxy`, and `admin`.
+
+```yaml
+name: agent-readonly
+rules:
+  - path: "api-keys/*"
+    capabilities: [read, lease]
+  - path: "services/*"
+    capabilities: [read, lease, list]
+```
+
+Policies are loaded from YAML files in `/config/policies/` on startup and can also be edited through the web UI (DB-backed policies merge with the YAML ones). An agent's AppRole references one or more policies, and the union of their rules is the agent's capability set.

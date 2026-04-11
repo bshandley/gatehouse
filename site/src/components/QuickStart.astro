@@ -1,0 +1,89 @@
+<section class="quickstart">
+  <div class="container">
+    <div class="label eyebrow">QUICK START</div>
+    <h2>One command.</h2>
+    <div class="code-wrap">
+      <pre><code>docker run -d \
+  --name gatehouse \
+  -p 3100:3100 \
+  -v gatehouse-data:/data \
+  -v ./config:/config \
+  -e GATEHOUSE_MASTER_KEY="$(openssl rand -hex 32)" \
+  ghcr.io/bshandley/gatehouse:latest</code></pre>
+      <button class="copy-btn" type="button" data-copy-target>Copy</button>
+    </div>
+    <p class="after">
+      That's it. Open <code>localhost:3100</code>, paste your root token, start storing secrets.
+    </p>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>("[data-copy-target]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const code = btn.parentElement?.querySelector("code")?.textContent ?? "";
+      try {
+        await navigator.clipboard.writeText(code);
+        const original = btn.textContent;
+        btn.textContent = "Copied";
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      } catch {
+        btn.textContent = "Copy failed";
+      }
+    });
+  });
+</script>
+
+<style>
+  .quickstart { padding: 5rem 0; }
+  .label { display: block; margin-bottom: 0.75rem; }
+  .quickstart h2 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    margin-bottom: 1.5rem;
+  }
+  .code-wrap {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+    overflow-x: auto;
+  }
+  .code-wrap pre {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.6;
+  }
+  .copy-btn {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .copy-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+  }
+  .after {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+  .after code {
+    background: var(--bg-tertiary);
+    color: var(--accent-light);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
+</style>

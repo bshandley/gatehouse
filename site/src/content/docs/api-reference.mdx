@@ -1,0 +1,150 @@
+---
+title: "API Reference"
+description: "REST endpoints and MCP tools exposed by Gatehouse."
+sidebar_order: 1
+sidebar_group: "REFERENCE"
+---
+
+{/* Generated from CLAUDE.md 2026-04-10 */}
+
+All REST routes under `/v1/` require `Authorization: Bearer <token>` except `/v1/auth/*` and `/health`.
+
+## Health and metadata
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | Health check. Returns `{ status, version }`. |
+| GET | `/` | Web UI. |
+| GET | `/v1/config` | Server config (non-sensitive values). |
+
+## Authentication
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/v1/auth/login` | User login (username + password → JWT). |
+| POST | `/v1/auth/login/totp` | Exchange pre-auth token + TOTP code for a full JWT. |
+| POST | `/v1/auth/approle/login` | Exchange role_id + secret_id for a JWT. |
+| GET | `/v1/auth/approle` | List AppRoles (admin). |
+| POST | `/v1/auth/approle` | Create AppRole (admin). |
+| PUT | `/v1/auth/approle/:roleId` | Update AppRole (admin). |
+| DELETE | `/v1/auth/approle/:roleId` | Delete AppRole (admin). |
+| GET | `/v1/auth/users` | List users (admin). |
+| POST | `/v1/auth/users` | Create user (admin). |
+| PUT | `/v1/auth/users/:username` | Update user (admin). |
+| DELETE | `/v1/auth/users/:username` | Delete user (admin). |
+
+## TOTP self-service
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/v1/me/totp` | Get TOTP status. |
+| POST | `/v1/me/totp/setup` | Begin TOTP enrollment (returns QR code). |
+| POST | `/v1/me/totp/verify` | Confirm TOTP setup, activate, return recovery codes. |
+| DELETE | `/v1/me/totp` | Disable TOTP (requires password). |
+| POST | `/v1/me/totp/recovery-codes/regenerate` | Regenerate recovery codes. |
+
+## Secrets
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/v1/secrets?prefix=` | List secrets accessible to the caller. |
+| GET | `/v1/secrets/:path` | Get secret metadata. |
+| GET | `/v1/secrets/:path/value` | Get secret value. |
+| POST | `/v1/secrets/:path` | Create or update secret. |
+| DELETE | `/v1/secrets/:path` | Delete secret. |
+
+## Leases
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/v1/lease/:path` | Check out a lease (returns lease + value). |
+| GET | `/v1/lease` | List active leases. |
+| DELETE | `/v1/lease/:leaseId` | Revoke a lease. |
+
+## Proxy
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/v1/proxy` | Forward an HTTP request with secret injection. |
+
+## Dynamic secrets
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/v1/dynamic` | List dynamic secret configs (admin). |
+| POST | `/v1/dynamic` | Create or update config (admin). |
+| GET | `/v1/dynamic/:path` | Get config detail (admin, redacted). |
+| DELETE | `/v1/dynamic/:path` | Delete config and revoke all leases (admin). |
+| POST | `/v1/dynamic/:path/checkout` | Create a temp credential. |
+| POST | `/v1/dynamic/:path/validate` | Test provider connection (admin). |
+| GET | `/v1/dynamic/:path/leases` | List active dynamic leases (admin). |
+| DELETE | `/v1/dynamic/lease/:leaseId` | Revoke a dynamic lease. |
+| POST | `/v1/dynamic/generate-ca-keypair` | Generate ed25519 CA keypair (admin). |
+| GET | `/v1/dynamic/:path/ca-pubkey` | Get CA public key for an existing config (admin). |
+
+## Patterns
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/v1/patterns` | Query learned patterns (admin). |
+| GET | `/v1/patterns/:id` | Get a pattern by ID (admin). |
+| POST | `/v1/patterns/:id/pin` | Pin or unpin a pattern (admin). |
+| DELETE | `/v1/patterns/:id` | Delete a pattern (admin). |
+
+## Policies
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/v1/policy` | List policies (admin). |
+| GET | `/v1/policy/:name` | Get policy detail (admin). |
+| POST | `/v1/policy` | Create policy (admin). |
+| PUT | `/v1/policy/:name` | Update policy (admin). |
+| DELETE | `/v1/policy/:name` | Delete policy (admin, DB-backed only). |
+| POST | `/v1/policy/reload` | Reload policies from disk (admin). |
+
+## Audit
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/v1/audit?...` | Query audit log. |
+| GET | `/v1/audit/retention` | Get retention policy (admin). |
+| POST | `/v1/audit/retention` | Set retention policy (admin). |
+| POST | `/v1/audit/purge` | Manually purge old entries (admin). |
+
+## Scrubbing
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/v1/scrub` | Scrub credentials from text. |
+| POST | `/v1/scrub/check` | Quick boolean credential check. |
+
+## Admin
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/v1/admin/rotate-key` | Rotate master key, re-wrap all DEKs (admin). |
+| GET | `/v1/settings/sso` | Get SSO config (admin). |
+| POST | `/v1/settings/sso` | Update SSO config (admin). |
+
+## MCP
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/v1/mcp` | MCP Streamable HTTP endpoint. |
+| GET | `/v1/mcp/sse` | MCP SSE endpoint. |
+| POST | `/v1/mcp/message` | MCP SSE message handler. |
+| GET | `/v1/mcp/tools` | List MCP tools. |
+
+## MCP tools
+
+| Tool | Description | Capability |
+|---|---|---|
+| `gatehouse_get` | Read a secret value | `read` on path |
+| `gatehouse_lease` | Checkout with TTL | `lease` on path |
+| `gatehouse_revoke` | Revoke an active lease | Owner or `admin` |
+| `gatehouse_list` | List secret paths | `read` or `list` on path |
+| `gatehouse_put` | Store or update a secret | `write` on path |
+| `gatehouse_scrub` | Redact credentials from text | Any authenticated |
+| `gatehouse_proxy` | Forward HTTP request with injection | `proxy` on each path |
+| `gatehouse_patterns` | Query learned API patterns by path | `read` on path |
+| `gatehouse_status` | Health and identity info | Any authenticated |

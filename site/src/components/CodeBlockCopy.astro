@@ -1,0 +1,49 @@
+<script>
+  function addCopyButtons() {
+    document.querySelectorAll<HTMLPreElement>(".prose pre").forEach((pre) => {
+      if (pre.querySelector("[data-copy-btn]")) return;
+      const btn = document.createElement("button");
+      btn.textContent = "Copy";
+      btn.setAttribute("data-copy-btn", "");
+      btn.type = "button";
+      btn.className = "copy-button";
+      pre.style.position = "relative";
+      pre.appendChild(btn);
+      btn.addEventListener("click", async () => {
+        const code = pre.querySelector("code")?.textContent ?? "";
+        try {
+          await navigator.clipboard.writeText(code);
+          btn.textContent = "Copied";
+        } catch {
+          btn.textContent = "Failed";
+        }
+        setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+      });
+    });
+  }
+  addCopyButtons();
+  document.addEventListener("astro:page-load", addCopyButtons);
+</script>
+
+<style is:global>
+  .prose pre .copy-button {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.25rem 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .prose pre:hover .copy-button { opacity: 1; }
+  .prose pre .copy-button:hover {
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+  }
+</style>

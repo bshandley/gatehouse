@@ -1,0 +1,123 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+
+<section class="hero">
+  <div class="container hero-grid">
+    <div class="hero-copy">
+      <div class="eyebrow">A SECRETS VAULT FOR AI AGENTS</div>
+      <h1>
+        Credentials that <em>never leave</em> the vault.
+      </h1>
+      <p class="hero-body">
+        Traditional secret managers hand the key to the client. Gatehouse doesn't. Agents proxy HTTP requests through the vault and get the response back, while the credential stays server-side, out of every context window, log, and tool output. Every successful call is learned as a reusable pattern, so the next agent already knows how to use the API without burning tokens guessing.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href={`${base}docs/getting-started/`}>Read the docs →</a>
+        <a class="btn btn-ghost" href="https://github.com/bshandley/gatehouse" target="_blank" rel="noopener">
+          github.com/bshandley/gatehouse ↗
+        </a>
+      </div>
+    </div>
+
+    <div class="hero-preview" aria-hidden="true">
+      <pre><code><span class="c"># Agent asks the vault</span>
+POST /v1/proxy
+<span class="k">secret</span>: <span class="v">"api-keys/openai"</span>
+<span class="k">url</span>:    <span class="v">"api.openai.com/v1/chat"</span>
+
+<span class="c"># Gatehouse injects the key,</span>
+<span class="c"># forwards upstream, returns body.</span>
+<span class="c"># Agent never touches the secret.</span>
+
+<span class="w">✓ pattern learned</span>
+<span class="c"># Next agent queries patterns</span>
+<span class="c"># and gets this template back,</span>
+<span class="c"># verified and confidence-scored.</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    padding: 5rem 0 4rem;
+    background: linear-gradient(180deg, #0e0e18 0%, #12121e 100%);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 3rem;
+    align-items: center;
+  }
+  .hero-copy h1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    margin: 0.75rem 0 1.25rem;
+    max-width: 14ch;
+  }
+  .hero-copy h1 em {
+    font-style: italic;
+    font-weight: 300;
+    color: var(--accent-light);
+  }
+  .hero-body {
+    color: var(--text-secondary);
+    max-width: 55ch;
+    line-height: 1.65;
+    margin-bottom: 2rem;
+  }
+  .cta-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.85rem 1.4rem;
+    border-radius: 999px;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: transform 0.12s, background 0.12s;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+  }
+  .btn-primary:hover { background: #ffffff; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 0.85rem 0.5rem;
+  }
+  .btn-ghost:hover { color: var(--text-primary); }
+
+  .hero-preview {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    overflow-x: auto;
+  }
+  .hero-preview pre {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.85;
+  }
+  .hero-preview .c { color: var(--text-tertiary); }
+  .hero-preview .k { color: var(--success); }
+  .hero-preview .v { color: var(--accent-light); }
+  .hero-preview .w { color: var(--warning); }
+
+  @media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 2rem; }
+    .hero { padding: 3rem 0; }
+  }
+</style>

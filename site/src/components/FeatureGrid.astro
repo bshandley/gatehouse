@@ -1,0 +1,91 @@
+<section class="features">
+  <div class="container">
+    <div class="label eyebrow">FEATURES</div>
+    <h2>Everything you need in one container.</h2>
+
+    <div class="grid">
+      <div class="card">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12h16M12 4v16"/><circle cx="12" cy="12" r="9"/></svg>
+        <h3>Proxy mode</h3>
+        <p>Agents send HTTP requests with secret references. Gatehouse injects credentials server-side.</p>
+      </div>
+      <div class="card">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L3 7l9 5 9-5-9-5zM3 17l9 5 9-5M3 12l9 5 9-5"/></svg>
+        <h3>Pattern learning</h3>
+        <p>Every successful API call becomes a verified, confidence-scored template for the next agent.</p>
+      </div>
+      <div class="card">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v20M5 9l7-7 7 7M5 15l7 7 7-7"/></svg>
+        <h3>Dynamic secrets</h3>
+        <p>Ephemeral database credentials and SSH certificates. Five built-in providers, self-destruct on expiry.</p>
+      </div>
+      <div class="card">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <h3>Credential leasing</h3>
+        <p>Agents check out secrets with TTLs. Server-side reaper revokes automatically.</p>
+      </div>
+      <div class="card">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10l3 3-3 3M13 16h4"/></svg>
+        <h3>MCP + REST</h3>
+        <p>Nine MCP tools for Claude Code, Codex, Windsurf, Cursor. Standard REST for everything else.</p>
+      </div>
+      <div class="card">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <h3>Audit &amp; scrubbing</h3>
+        <p>Structured JSON audit log with retention. Pattern-based credential redaction for MCP and REST.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .features {
+    padding: 5rem 0;
+  }
+  .label { display: block; margin-bottom: 0.75rem; }
+  .features h2 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    margin-bottom: 2.5rem;
+    max-width: 20ch;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 1.5rem 1.75rem;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+  }
+  .icon {
+    width: 26px;
+    height: 26px;
+    color: var(--accent);
+    margin-bottom: 1rem;
+  }
+  .card h3 {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+  }
+  .card p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>

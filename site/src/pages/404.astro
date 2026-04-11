@@ -1,0 +1,30 @@
+---
+import Base from "../layouts/Base.astro";
+const base = import.meta.env.BASE_URL;
+---
+
+<Base title="Page not found" description="That page walked off.">
+  <div class="container not-found">
+    <div class="eyebrow">404</div>
+    <h1>That page walked off.</h1>
+    <p><a href={`${base}docs/getting-started/`}>Back to docs index →</a></p>
+  </div>
+</Base>
+
+<style>
+  .not-found {
+    padding: 8rem 0;
+    text-align: center;
+  }
+  .not-found h1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    margin: 1rem 0 1.5rem;
+  }
+  .not-found a {
+    color: var(--accent-light);
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+  }
+  .not-found a:hover { color: var(--accent-hover); }
+</style>

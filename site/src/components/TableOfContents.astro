@@ -1,0 +1,88 @@
+---
+import type { MarkdownHeading } from "astro";
+interface Props {
+  headings: MarkdownHeading[];
+}
+const { headings } = Astro.props;
+const items = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+{items.length > 0 && (
+  <aside class="toc" aria-label="Table of contents">
+    <h4>On this page</h4>
+    <ul>
+      {items.map((h) => (
+        <li class={h.depth === 3 ? "indent" : ""}>
+          <a href={`#${h.slug}`} data-toc-link={h.slug}>{h.text}</a>
+        </li>
+      ))}
+    </ul>
+  </aside>
+)}
+
+<script>
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>("[data-toc-link]"));
+  if (links.length > 0) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const id = entry.target.id;
+            links.forEach((a) => a.classList.toggle("active", a.dataset.tocLink === id));
+          }
+        });
+      },
+      { rootMargin: "0px 0px -70% 0px", threshold: 0 }
+    );
+    links.forEach((a) => {
+      const id = a.dataset.tocLink!;
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+  }
+</script>
+
+<style>
+  .toc {
+    position: sticky;
+    top: 5rem;
+    align-self: start;
+    padding: 2rem 0;
+    max-height: calc(100vh - 5rem);
+    overflow-y: auto;
+    font-size: 0.85rem;
+  }
+  .toc h4 {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-tertiary);
+    margin-bottom: 0.75rem;
+  }
+  .toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-left: 1px solid var(--border);
+  }
+  .toc li { margin: 0; }
+  .toc li.indent { padding-left: 0.75rem; }
+  .toc a {
+    display: block;
+    padding: 0.3rem 0.85rem;
+    color: var(--text-secondary);
+    margin-left: -1px;
+    border-left: 1px solid transparent;
+    line-height: 1.45;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .toc a:hover { color: var(--text-primary); }
+  .toc a.active {
+    color: var(--accent-light);
+    border-left-color: var(--accent);
+  }
+  @media (max-width: 1279px) {
+    .toc { display: none; }
+  }
+</style>

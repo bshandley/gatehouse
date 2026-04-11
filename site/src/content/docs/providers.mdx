@@ -1,0 +1,108 @@
+---
+title: "Dynamic Secret Providers"
+description: "Per-provider setup for PostgreSQL, MySQL, MongoDB, Redis, and SSH certificates."
+sidebar_order: 3
+sidebar_group: "USING GATEHOUSE"
+---
+
+{/* Generated from README 2026-04-10 */}
+
+import Callout from "../../components/Callout.astro";
+
+Gatehouse ships with five dynamic secret providers. Each provider has its own configuration schema and a different set of required privileges on the target system.
+
+## PostgreSQL
+
+Creates a time-bounded role with the privileges you specify, then drops the role when the lease expires.
+
+**Required privileges on the connection user:** `CREATEROLE` plus any privileges you want to grant the ephemeral users.
+
+**Example config:**
+
+```json
+{
+  "provider": "postgresql",
+  "connection_string": "postgresql://gatehouse_admin:pw@db.internal:5432/appdb",
+  "creation_statements": [
+    "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';",
+    "GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
+  ],
+  "revocation_statements": [
+    "REVOKE ALL ON ALL TABLES IN SCHEMA public FROM \"{{name}}\";",
+    "DROP ROLE \"{{name}}\";"
+  ]
+}
+```
+
+## MySQL / MariaDB
+
+<Callout type="note">
+  MariaDB and some MySQL versions reject parameterized placeholders in DDL. Gatehouse uses quoted string interpolation with proper escaping for `user@host` identifiers.
+</Callout>
+
+**Required privileges on the connection user:** `CREATE USER`, `GRANT OPTION`, plus any privileges you want to pass through.
+
+**Example config:**
+
+```json
+{
+  "provider": "mysql",
+  "connection_string": "mysql://gatehouse_admin:pw@db.internal:3306/appdb",
+  "grants": ["SELECT", "INSERT"],
+  "database": "appdb",
+  "host_pattern": "%"
+}
+```
+
+## MongoDB
+
+Uses `db.createUser()` and `db.dropUser()` with the `root` role on the admin DB (or any role with `userAdminAnyDatabase`).
+
+**Example config:**
+
+```json
+{
+  "provider": "mongodb",
+  "connection_string": "mongodb://gatehouse_admin:pw@mongo.internal:27017/admin",
+  "target_database": "appdb",
+  "roles": ["readWrite"]
+}
+```
+
+## Redis
+
+Uses Redis ACLs (`ACL SETUSER`, `ACL DELUSER`). Requires Redis 6.0+.
+
+**Example config:**
+
+```json
+{
+  "provider": "redis",
+  "connection_string": "redis://gatehouse_admin:pw@cache.internal:6379",
+  "acl_rules": "~app:* +@read +@write"
+}
+```
+
+## SSH certificates
+
+Signs ephemeral SSH certificates with a CA key stored in Gatehouse. Agents present the certificate to the target host, the host verifies the certificate against the CA public key, and the agent is allowed in for the certificate's validity period.
+
+**Setup:**
+
+1. Click **Generate New CA Keypair** in the dynamic secrets config modal. Gatehouse generates an ed25519 CA keypair and shows you both the private and public keys.
+2. Copy the CA public key.
+3. On each target host, add the CA public key to `/etc/ssh/ca.pub` and reference it in `/etc/ssh/sshd_config` with `TrustedUserCAKeys /etc/ssh/ca.pub`.
+4. Restart `sshd`.
+5. Back in Gatehouse, specify the principals (SSH usernames) the certificate should be valid for. Without principals, certs default to the agent's AppRole identity, which won't match any real SSH user.
+
+**Example config:**
+
+```json
+{
+  "provider": "ssh",
+  "ca_private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+  "principals": ["deploy", "readonly"],
+  "validity_seconds": 3600,
+  "extensions": { "permit-pty": "", "permit-port-forwarding": "" }
+}
+```
