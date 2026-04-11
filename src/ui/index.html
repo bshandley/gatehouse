@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gatehouse</title>
   <meta name="description" content="Secrets vault for homelab AI agents">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236c63ff'/%3E%3Cstop offset='100%25' stop-color='%238b7aff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Csvg x='10' y='10' width='44' height='44' viewBox='199.5 34.1 199.9 199.9' preserveAspectRatio='xMidYMid meet'%3E%3Cg transform='translate(0,327) scale(0.1,-0.1)' fill='%23ffffff'%3E%3Cpath d='M2857 2805 c-130 -44 -221 -123 -277 -241 -41 -86 -50 -142 -50 -321 l0 -154 -40 -48 c-98 -116 -161 -311 -146 -453 25 -246 157 -438 371 -542 95 -46 179 -66 285 -66 250 0 480 143 589 367 39 80 71 209 71 291 l0 62 -330 0 -330 0 0 -65 0 -65 114 0 115 0 -10 -28 c-24 -68 -111 -135 -192 -149 -78 -12 -194 50 -233 127 -14 27 -25 69 -28 103 -10 149 134 277 275 246 51 -12 124 -52 138 -77 9 -15 16 -11 58 31 l48 48 -43 39 c-77 69 -122 85 -242 85 -95 0 -110 -3 -158 -28 -78 -41 -128 -91 -165 -167 -77 -153 -49 -320 73 -434 61 -57 113 -83 192 -96 119 -18 219 13 309 97 48 45 109 148 109 185 0 16 9 18 80 18 93 0 93 0 60 -94 -43 -127 -120 -222 -235 -291 -292 -175 -663 -28 -771 305 -40 125 -14 297 63 419 46 74 77 105 143 150 78 53 113 67 213 88 84 17 90 17 174 0 163 -34 302 -132 368 -259 l30 -58 72 0 73 0 -11 27 c-31 83 -80 155 -159 234 -70 71 -100 94 -170 127 -89 42 -209 72 -290 72 -76 0 -199 -29 -274 -64 l-68 -33 4 121 c4 106 8 129 33 184 38 84 112 152 197 181 79 27 138 27 219 -1 52 -17 76 -33 124 -82 72 -73 95 -127 103 -246 l5 -85 64 -47 63 -47 0 113 c0 139 -11 203 -50 282 -102 209 -345 313 -563 239z'/%3E%3C/g%3E%3C/svg%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='190 50 220 230'%3E%3Cg transform='translate(0,328) scale(0.1,-0.1)'%3E%3Cpath fill='%236c63ff' d='M2490 2696 l-485 -122 0 -519 c0 -471 2 -528 19 -605 73 -333 278 -607 608 -812 134 -83 327 -172 373 -172 48 0 282 114 411 199 257 171 449 412 528 661 52 167 51 156 51 719 l0 529 -485 123 c-267 67 -496 122 -510 122 -14 0 -243 -55 -510 -123z'/%3E%3Cpath fill='%23ffffff' d='M2935 2303 c-278 -41 -485 -277 -485 -553 0 -259 188 -492 439 -545 89 -19 137 -19 224 0 105 22 192 70 272 150 107 106 165 235 165 366 0 89 1 89 -242 89 -192 0 -206 1 -223 20 -31 34 -86 45 -127 26 -85 -40 -92 -154 -12 -207 48 -32 119 -19 147 28 6 10 47 13 169 13 l160 0 -7 -37 c-32 -172 -206 -321 -386 -331 -323 -19 -548 312 -413 607 115 254 444 331 654 155 57 -48 120 -29 120 36 0 46 -102 121 -219 159 -60 20 -183 32 -236 24z'/%3E%3C/g%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Instrument+Sans:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -135,24 +135,10 @@
     }
     .sidebar-logo {
       width: 32px; height: 32px;
-      background: linear-gradient(135deg, var(--accent), #8b7aff);
-      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 15px;
-      font-weight: 700;
-      color: white;
-      font-family: var(--font-heading);
-      box-shadow: 0 0 20px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.15);
-      position: relative;
-    }
-    .sidebar-logo::after {
-      content: '';
-      position: absolute;
-      inset: -1px;
-      border-radius: 9px;
-      border: 1px solid rgba(108, 99, 255, 0.3);
+      filter: drop-shadow(0 0 12px var(--accent-glow));
     }
     .sidebar-title {
       font-family: var(--font-heading);
@@ -676,26 +662,16 @@
     }
     .login-mark {
       width: 60px; height: 60px;
-      background: linear-gradient(135deg, var(--accent), #8b7aff);
-      border-radius: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
       margin: 0 auto 24px;
-      box-shadow: 0 0 40px var(--accent-glow), 0 8px 32px rgba(108, 99, 255, 0.2), inset 0 1px 0 rgba(255,255,255,0.2);
-      position: relative;
+      filter: drop-shadow(0 0 24px var(--accent-glow)) drop-shadow(0 6px 20px rgba(108, 99, 255, 0.3));
       animation: logoFloat 3s ease-in-out infinite;
     }
     @keyframes logoFloat {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-3px); }
-    }
-    .login-mark::after {
-      content: '';
-      position: absolute;
-      inset: -2px;
-      border-radius: 18px;
-      border: 1px solid rgba(108, 99, 255, 0.35);
     }
     .login-title {
       text-align: center;
@@ -1470,7 +1446,7 @@
   <div class="login-container">
     <div class="login-glow"></div>
     <div class="login-box">
-      <div class="login-mark"><svg viewBox="199.5 34.1 199.9 199.9" width="36" height="36" preserveAspectRatio="xMidYMid meet"><g transform="translate(0,327) scale(0.1,-0.1)" fill="#ffffff"><path d="M2857 2805 c-130 -44 -221 -123 -277 -241 -41 -86 -50 -142 -50 -321 l0 -154 -40 -48 c-98 -116 -161 -311 -146 -453 25 -246 157 -438 371 -542 95 -46 179 -66 285 -66 250 0 480 143 589 367 39 80 71 209 71 291 l0 62 -330 0 -330 0 0 -65 0 -65 114 0 115 0 -10 -28 c-24 -68 -111 -135 -192 -149 -78 -12 -194 50 -233 127 -14 27 -25 69 -28 103 -10 149 134 277 275 246 51 -12 124 -52 138 -77 9 -15 16 -11 58 31 l48 48 -43 39 c-77 69 -122 85 -242 85 -95 0 -110 -3 -158 -28 -78 -41 -128 -91 -165 -167 -77 -153 -49 -320 73 -434 61 -57 113 -83 192 -96 119 -18 219 13 309 97 48 45 109 148 109 185 0 16 9 18 80 18 93 0 93 0 60 -94 -43 -127 -120 -222 -235 -291 -292 -175 -663 -28 -771 305 -40 125 -14 297 63 419 46 74 77 105 143 150 78 53 113 67 213 88 84 17 90 17 174 0 163 -34 302 -132 368 -259 l30 -58 72 0 73 0 -11 27 c-31 83 -80 155 -159 234 -70 71 -100 94 -170 127 -89 42 -209 72 -290 72 -76 0 -199 -29 -274 -64 l-68 -33 4 121 c4 106 8 129 33 184 38 84 112 152 197 181 79 27 138 27 219 -1 52 -17 76 -33 124 -82 72 -73 95 -127 103 -246 l5 -85 64 -47 63 -47 0 113 c0 139 -11 203 -50 282 -102 209 -345 313 -563 239z"/></g></svg></div>
+      <div class="login-mark"><svg viewBox="190 50 220 230" width="60" height="60" preserveAspectRatio="xMidYMid meet"><g transform="translate(0,328) scale(0.1,-0.1)"><path fill="#6c63ff" d="M2490 2696 l-485 -122 0 -519 c0 -471 2 -528 19 -605 73 -333 278 -607 608 -812 134 -83 327 -172 373 -172 48 0 282 114 411 199 257 171 449 412 528 661 52 167 51 156 51 719 l0 529 -485 123 c-267 67 -496 122 -510 122 -14 0 -243 -55 -510 -123z"/><path fill="#ffffff" d="M2935 2303 c-278 -41 -485 -277 -485 -553 0 -259 188 -492 439 -545 89 -19 137 -19 224 0 105 22 192 70 272 150 107 106 165 235 165 366 0 89 1 89 -242 89 -192 0 -206 1 -223 20 -31 34 -86 45 -127 26 -85 -40 -92 -154 -12 -207 48 -32 119 -19 147 28 6 10 47 13 169 13 l160 0 -7 -37 c-32 -172 -206 -321 -386 -331 -323 -19 -548 312 -413 607 115 254 444 331 654 155 57 -48 120 -29 120 36 0 46 -102 121 -219 159 -60 20 -183 32 -236 24z"/></g></svg></div>
       <h1 class="login-title">Gatehouse</h1>
       <p class="login-sub">Sign in to the secrets vault</p>
 
@@ -1524,7 +1500,7 @@
 <div id="app-shell" class="app hidden">
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-logo"><svg viewBox="199.5 34.1 199.9 199.9" width="20" height="20" preserveAspectRatio="xMidYMid meet"><g transform="translate(0,327) scale(0.1,-0.1)" fill="#ffffff"><path d="M2857 2805 c-130 -44 -221 -123 -277 -241 -41 -86 -50 -142 -50 -321 l0 -154 -40 -48 c-98 -116 -161 -311 -146 -453 25 -246 157 -438 371 -542 95 -46 179 -66 285 -66 250 0 480 143 589 367 39 80 71 209 71 291 l0 62 -330 0 -330 0 0 -65 0 -65 114 0 115 0 -10 -28 c-24 -68 -111 -135 -192 -149 -78 -12 -194 50 -233 127 -14 27 -25 69 -28 103 -10 149 134 277 275 246 51 -12 124 -52 138 -77 9 -15 16 -11 58 31 l48 48 -43 39 c-77 69 -122 85 -242 85 -95 0 -110 -3 -158 -28 -78 -41 -128 -91 -165 -167 -77 -153 -49 -320 73 -434 61 -57 113 -83 192 -96 119 -18 219 13 309 97 48 45 109 148 109 185 0 16 9 18 80 18 93 0 93 0 60 -94 -43 -127 -120 -222 -235 -291 -292 -175 -663 -28 -771 305 -40 125 -14 297 63 419 46 74 77 105 143 150 78 53 113 67 213 88 84 17 90 17 174 0 163 -34 302 -132 368 -259 l30 -58 72 0 73 0 -11 27 c-31 83 -80 155 -159 234 -70 71 -100 94 -170 127 -89 42 -209 72 -290 72 -76 0 -199 -29 -274 -64 l-68 -33 4 121 c4 106 8 129 33 184 38 84 112 152 197 181 79 27 138 27 219 -1 52 -17 76 -33 124 -82 72 -73 95 -127 103 -246 l5 -85 64 -47 63 -47 0 113 c0 139 -11 203 -50 282 -102 209 -345 313 -563 239z"/></g></svg></div>
+      <div class="sidebar-logo"><svg viewBox="190 50 220 230" width="32" height="32" preserveAspectRatio="xMidYMid meet"><g transform="translate(0,328) scale(0.1,-0.1)"><path fill="#6c63ff" d="M2490 2696 l-485 -122 0 -519 c0 -471 2 -528 19 -605 73 -333 278 -607 608 -812 134 -83 327 -172 373 -172 48 0 282 114 411 199 257 171 449 412 528 661 52 167 51 156 51 719 l0 529 -485 123 c-267 67 -496 122 -510 122 -14 0 -243 -55 -510 -123z"/><path fill="#ffffff" d="M2935 2303 c-278 -41 -485 -277 -485 -553 0 -259 188 -492 439 -545 89 -19 137 -19 224 0 105 22 192 70 272 150 107 106 165 235 165 366 0 89 1 89 -242 89 -192 0 -206 1 -223 20 -31 34 -86 45 -127 26 -85 -40 -92 -154 -12 -207 48 -32 119 -19 147 28 6 10 47 13 169 13 l160 0 -7 -37 c-32 -172 -206 -321 -386 -331 -323 -19 -548 312 -413 607 115 254 444 331 654 155 57 -48 120 -29 120 36 0 46 -102 121 -219 159 -60 20 -183 32 -236 24z"/></g></svg></div>
       <span class="sidebar-title">Gatehouse</span>
       <span class="sidebar-version" id="sidebar-version">v0.1</span>
     </div>
