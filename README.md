@@ -569,6 +569,83 @@ curl -X POST http://localhost:3100/v1/audit/purge \
 
 Or use the MCP server directly. Gatehouse registers as an MCP tool provider.
 
+## Configuration reference
+
+Every `GATEHOUSE_*` environment variable, what it does, and what you're trading off when you change it.
+
+### Required
+
+| Variable | Default | Description |
+|---|---|---|
+| `GATEHOUSE_MASTER_KEY` | *(none, required)* | 64-character hex string used to derive the KEK that wraps all secret DEKs. Generate with `openssl rand -hex 32`. If this value is lost, all encrypted secrets are unrecoverable. If it leaks, anyone with the database file can decrypt everything offline. |
+| `GATEHOUSE_ROOT_TOKEN` | *(none)* | Bootstrap token for initial setup (creating users and AppRoles). This token bypasses all policy checks and has full admin access. **Remove it from your environment after creating your first user account and AppRoles.** Leaving it set is a persistent backdoor. |
+
+### Networking and server
+
+| Variable | Default | Description |
+|---|---|---|
+| `GATEHOUSE_PORT` | `3100` | HTTP listen port inside the container. |
+| `GATEHOUSE_CORS_ORIGINS` | *(empty, restrictive)* | Comma-separated list of allowed CORS origins. Only needed if you access the web UI from a different origin than where Gatehouse is running (e.g., behind a reverse proxy on a different hostname). Example: `https://gatehouse.local,https://gatehouse.yourdomain.com`. When empty, CORS is restricted to same-origin requests only. |
+| `GATEHOUSE_MAX_BODY_SIZE` | `1048576` (1 MB) | Maximum request body size in bytes. Increase this if your proxy payloads are larger than 1 MB (e.g., forwarding file uploads through the proxy). Setting this too high lets agents send arbitrarily large payloads through Gatehouse. |
+
+### Proxy and SSRF
+
+| Variable | Default | Description |
+|---|---|---|
+| `GATEHOUSE_PROXY_ALLOW_PRIVATE` | `false` | **This is the setting most homelabbers need to change.** By default, the proxy blocks all requests to private/internal IP ranges (10.x, 172.16-31.x, 192.168.x, 127.x, link-local, and IPv6 equivalents) to prevent SSRF attacks. In a homelab, your services *are* on private IPs, so the proxy won't work without enabling this. Set to `true` to allow proxying to private networks. **What you're opting into:** agents can reach anything on your LAN through Gatehouse, so your policy rules and domain allowlists on secrets are the only thing scoping what they can hit. The more surgical alternative is leaving this `false` and setting `allow_private=true` in the metadata of specific secrets that need LAN access. |
+
+### Paths and storage
+
+| Variable | Default | Description |
+|---|---|---|
+| `GATEHOUSE_DATA_DIR` | `/data` | Directory for the SQLite database file. In Docker, mount a volume here so data persists across container restarts. |
+| `GATEHOUSE_CONFIG_DIR` | `/config` | Directory for YAML policy files. Mount read-only (`:ro`) in Docker. Policies here are loaded on startup and can be reloaded via the API. |
+
+### Authentication
+
+| Variable | Default | Description |
+|---|---|---|
+| `GATEHOUSE_JWT_SECRET` | *(derived from master key)* | Override the JWT signing secret. By default, it's derived from `GATEHOUSE_MASTER_KEY` via HKDF with domain separation, which is fine for single-instance deployments. You'd only set this if you need JWT tokens to survive a master key rotation (uncommon). |
+
+### Logging
+
+| Variable | Default | Description |
+|---|---|---|
+| `GATEHOUSE_LOG_LEVEL` | `info` | Controls stdout log verbosity. Options: `debug` (verbose, includes request details), `info` (startup, errors, audit), `error` (errors only). |
+
+### OAuth / SSO (optional)
+
+| Variable | Default | Description |
+|---|---|---|
+| `GATEHOUSE_OAUTH_ISSUER` | *(empty, disabled)* | OIDC issuer URL for SSO integration (e.g., PocketID, Authelia, Authentik). When set, enables "Sign in with SSO" on the login screen. |
+| `GATEHOUSE_OAUTH_CLIENT_ID` | *(empty)* | OAuth client ID registered with your identity provider. |
+| `GATEHOUSE_OAUTH_CLIENT_SECRET` | *(empty)* | OAuth client secret. |
+| `GATEHOUSE_OAUTH_REDIRECT_URI` | *(empty)* | OAuth callback URL. Must be reachable by the user's browser. Example: `https://gatehouse.yourdomain.com/v1/auth/callback`. |
+
+### MCP stdio mode
+
+These are only used when running the MCP stdio transport directly (not the main server).
+
+| Variable | Default | Description |
+|---|---|---|
+| `GATEHOUSE_TOKEN` | *(none)* | Pre-authenticated JWT or root token for the stdio MCP session. |
+| `GATEHOUSE_IDENTITY` | `mcp-agent` | Identity string used in audit logs for stdio MCP sessions. |
+| `GATEHOUSE_POLICIES` | `admin` | Comma-separated policy list for stdio MCP sessions. |
+
+### Homelab quick reference
+
+A typical homelab `docker-compose.yml` environment block:
+
+```yaml
+environment:
+  - GATEHOUSE_MASTER_KEY=${GATEHOUSE_MASTER_KEY}       # openssl rand -hex 32
+  - GATEHOUSE_ROOT_TOKEN=${GATEHOUSE_ROOT_TOKEN}       # remove after initial setup
+  - GATEHOUSE_PROXY_ALLOW_PRIVATE=true                 # required for LAN proxying
+  - GATEHOUSE_LOG_LEVEL=info
+```
+
+The `GATEHOUSE_PROXY_ALLOW_PRIVATE=true` line is the most common missing piece. Without it, any proxy request to a `192.168.x.x` or `10.x.x.x` address returns a 403 SSRF block.
+
 ## Security considerations
 
 Gatehouse encrypts all secrets at rest using envelope encryption (per-secret DEK, wrapped by a KEK derived from `GATEHOUSE_MASTER_KEY`). However, encryption at rest only protects against one threat: someone stealing the database file alone. If an attacker has both the SQLite file **and** the master key, they can decrypt everything offline, bypassing all ACLs and audit logging.

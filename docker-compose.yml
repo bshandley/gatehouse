@@ -11,11 +11,17 @@ services:
     environment:
       # REQUIRED: 64-char hex string. Generate with: openssl rand -hex 32
       - GATEHOUSE_MASTER_KEY=${GATEHOUSE_MASTER_KEY}
-      # Bootstrap root token (change or remove after initial setup)
+      # Bootstrap root token. Remove after creating users/AppRoles.
       - GATEHOUSE_ROOT_TOKEN=${GATEHOUSE_ROOT_TOKEN:-gatehouse-root-changeme}
-      # Log level: info, debug, or error
+      # Allow proxying to private/LAN IPs (10.x, 192.168.x, etc.)
+      # Required for most homelab setups where services are on local network.
+      # Without this, proxy requests to LAN addresses return 403 SSRF block.
+      - GATEHOUSE_PROXY_ALLOW_PRIVATE=${GATEHOUSE_PROXY_ALLOW_PRIVATE:-false}
+      # Log level: debug, info, or error
       - GATEHOUSE_LOG_LEVEL=${GATEHOUSE_LOG_LEVEL:-info}
-      # Optional: PocketID OAuth
+      # CORS origins (comma-separated). Only needed behind a reverse proxy.
+      # - GATEHOUSE_CORS_ORIGINS=https://gatehouse.yourdomain.com
+      # Optional: PocketID / OIDC SSO
       # - GATEHOUSE_OAUTH_ISSUER=https://auth.yourdomain.com
       # - GATEHOUSE_OAUTH_CLIENT_ID=gatehouse
       # - GATEHOUSE_OAUTH_CLIENT_SECRET=your-secret
