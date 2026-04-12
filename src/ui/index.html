@@ -1723,7 +1723,7 @@
           <div class="card-body">
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Role ID</th><th>Display Name</th><th>Policies</th><th>Last Used</th><th>Created</th><th></th></tr></thead>
+                <thead><tr><th>Role ID</th><th>Display Name</th><th>Policies</th><th>Status</th><th>Last Used</th><th>Created</th><th></th></tr></thead>
                 <tbody id="agents-body"></tbody>
               </table>
             </div>
@@ -3440,23 +3440,29 @@
       const data = await api('/v1/auth/approle');
       const roles = data.roles || [];
       if (!roles.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No AppRoles created yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No AppRoles created yet</td></tr>';
         return;
       }
       tbody.innerHTML = roles.map(r => `<tr>
         <td class="mono" style="font-size:11px" title="${esc(r.role_id)}">${esc(r.role_id.slice(0, 20))}...</td>
         <td style="font-weight:500">${esc(r.display_name)}</td>
         <td>${(r.policies || []).map(p => `<span class="cap-badge cap-read">${esc(p)}</span>`).join(' ')}</td>
+        <td>${r.suspended
+          ? '<span class="badge badge-danger" style="font-size:10px">Suspended</span>'
+          : '<span class="badge badge-success" style="font-size:10px">Active</span>'}</td>
         <td style="font-size:12px;color:var(--text-secondary)">${r.last_used ? fmtTime(r.last_used) : 'Never'}</td>
         <td style="font-size:12px;color:var(--text-secondary)">${fmtTime(r.created_at)}</td>
         <td style="display:flex;gap:6px">
           <button class="btn btn-ghost btn-sm" onclick="openEditAgentModal(this)" data-rid="${esc(r.role_id)}" data-dname="${esc(r.display_name)}" data-pol='${JSON.stringify(r.policies || []).replace(/'/g, "&#39;")}'>Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="window._toggleSuspend('${esc(r.role_id)}', ${r.suspended ? 'false' : 'true'})" title="${r.suspended ? 'Reinstate' : 'Suspend'}">${r.suspended
+            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+            : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>'}</button>
           <button class="btn btn-danger btn-sm" onclick="window._deleteAgent('${esc(r.role_id)}')">Delete</button>
         </td>
       </tr>`).join('');
     } catch (e) {
       // Fallback for non-root tokens
-      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">AppRole listing requires root token. Use the + button to create new roles.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">AppRole listing requires root token. Use the + button to create new roles.</td></tr>';
     }
   }
 
@@ -3468,6 +3474,21 @@
       loadAgents();
     } catch (e) {
       toast('Delete failed: ' + e.message, 'error');
+    }
+  };
+
+  window._toggleSuspend = async function(roleId, suspend) {
+    const action = suspend ? 'Suspend' : 'Reinstate';
+    const message = suspend
+      ? `Suspend "${roleId}"? The agent will not be able to log in until reinstated.`
+      : `Reinstate "${roleId}"? The agent will be able to log in again.`;
+    if (!await ghConfirm({ title: `${action} AppRole`, message, confirmText: action })) return;
+    try {
+      await api(`/v1/auth/approle/${roleId}/suspend`, { method: 'PATCH', body: { suspended: suspend } });
+      toast(`AppRole ${suspend ? 'suspended' : 'reinstated'}`, 'success');
+      loadAgents();
+    } catch (e) {
+      toast(`${action} failed: ` + e.message, 'error');
     }
   };
 

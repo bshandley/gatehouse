@@ -107,6 +107,10 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       return c.json({ error: "Invalid credentials", request_id: c.get("requestId") }, 401);
     }
 
+    if (role.suspended) {
+      return c.json({ error: "AppRole is suspended", request_id: c.get("requestId") }, 403);
+    }
+
     // Verify secret (using Bun's built-in password hashing)
     const valid = await Bun.password.verify(secret_id, role.secret_hash);
     if (!valid) {
@@ -145,7 +149,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     }
 
     const roles = db
-      .query("SELECT role_id, display_name, policies, created_at, last_used FROM app_roles ORDER BY created_at DESC")
+      .query("SELECT role_id, display_name, policies, suspended, created_at, last_used FROM app_roles ORDER BY created_at DESC")
       .all() as any[];
 
     return c.json({
@@ -153,6 +157,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
         role_id: r.role_id,
         display_name: r.display_name,
         policies: JSON.parse(r.policies),
+        suspended: !!r.suspended,
         created_at: r.created_at,
         last_used: r.last_used,
       })),
@@ -195,6 +200,36 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       role_id: roleId,
       display_name: displayName,
       policies,
+    });
+  });
+
+  // Suspend or reinstate an AppRole (requires root token)
+  router.patch("/approle/:roleId/suspend", async (c) => {
+    if (!(await requireAdmin(c))) {
+      return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
+    }
+
+    const roleId = c.req.param("roleId");
+    const role = db.query("SELECT role_id, display_name, suspended FROM app_roles WHERE role_id = ?").get(roleId) as any;
+    if (!role) {
+      return c.json({ error: "AppRole not found", request_id: c.get("requestId") }, 404);
+    }
+
+    let body: { suspended: boolean };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body", request_id: c.get("requestId") }, 400);
+    }
+
+    const suspended = !!body.suspended;
+    db.query("UPDATE app_roles SET suspended = ? WHERE role_id = ?")
+      .run(suspended ? 1 : 0, roleId);
+
+    return c.json({
+      role_id: roleId,
+      display_name: role.display_name,
+      suspended,
     });
   });
 

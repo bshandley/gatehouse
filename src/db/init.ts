@@ -173,6 +173,13 @@ export function initDB(dataDir: string): Database {
     db.run("ALTER TABLE users ADD COLUMN totp_recovery_codes TEXT");
   }
 
+  // AppRole migrations
+  const appRoleCols = db.query("PRAGMA table_info(app_roles)").all() as { name: string }[];
+  const appRoleColNames = appRoleCols.map((c) => c.name);
+  if (appRoleColNames.length > 0 && !appRoleColNames.includes("suspended")) {
+    db.run("ALTER TABLE app_roles ADD COLUMN suspended INTEGER DEFAULT 0");
+  }
+
   // Indexes
   db.run(
     "CREATE INDEX IF NOT EXISTS idx_leases_expires ON leases(expires_at) WHERE revoked = 0"
