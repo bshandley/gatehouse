@@ -55,8 +55,15 @@ export class DynamicSecretsManager {
     if (masterKey) {
       this.configKey = deriveKey(masterKey, "gatehouse-dynamic-config");
     } else {
-      // Test mode — use a zero key (tests that don't pass masterKey get plaintext)
-      this.configKey = new Uint8Array(32);
+      // Test / ephemeral mode — use a random per-instance key.
+      // This was previously a hardcoded zero key, which meant a caller who
+      // forgot to pass masterKey in production would get a predictable,
+      // attacker-reproducible key and an empty audit trail. Failing at
+      // construction would break existing tests and the stdio MCP entry
+      // point, so we instead use a fresh random key. Anything persisted
+      // will become unreadable across restarts, making the misconfiguration
+      // loud rather than silent.
+      this.configKey = nacl.randomBytes(32);
     }
 
     // Register built-in providers
@@ -67,6 +74,56 @@ export class DynamicSecretsManager {
     this.registerProvider(new SSHCertProvider());
 
     this.audit = audit;
+
+    // One-time migration: any legacy plaintext-JSON config rows written
+    // before envelope encryption was enabled get re-encrypted at startup.
+    if (masterKey) {
+      this.migrateLegacyPlaintextConfigs();
+    }
+  }
+
+  /**
+   * Scan dynamic_secrets for legacy plaintext configs (stored as JSON text
+   * before envelope encryption was added) and re-encrypt them with the
+   * current configKey. Does nothing in ephemeral/test mode.
+   *
+   * A row is considered legacy plaintext iff its bytes parse as a JSON
+   * object AND are too short to be a nonce+ciphertext blob.
+   */
+  private migrateLegacyPlaintextConfigs(): void {
+    const rows = this.db
+      .query("SELECT path, config FROM dynamic_secrets")
+      .all() as { path: string; config: Buffer | Uint8Array }[];
+
+    for (const row of rows) {
+      const bytes = new Uint8Array(row.config);
+      // Envelope blobs are always > nonce length + poly1305 tag = 40 bytes
+      if (bytes.length <= nacl.secretbox.nonceLength + 16) continue;
+      // Try parsing as JSON — if it round-trips and decrypt-with-current-key
+      // fails, treat it as legacy plaintext and re-encrypt.
+      let parsed: any = null;
+      try {
+        const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        parsed = JSON.parse(text);
+      } catch {
+        continue; // Not plaintext JSON — assume valid envelope blob.
+      }
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) continue;
+
+      // Belt-and-braces: verify the blob does NOT decrypt with current key.
+      // If it does decrypt, some adversary could have crafted a plaintext
+      // that happens to decrypt validly — extremely unlikely but skip.
+      const nonce = bytes.slice(0, nacl.secretbox.nonceLength);
+      const ct = bytes.slice(nacl.secretbox.nonceLength);
+      const opened = nacl.secretbox.open(ct, nonce, this.configKey);
+      if (opened !== null) continue;
+
+      const encrypted = this.encryptConfig(parsed as Record<string, string>);
+      this.db
+        .query("UPDATE dynamic_secrets SET config = ?, updated_at = datetime('now') WHERE path = ?")
+        .run(encrypted, row.path);
+      console.log(`[gatehouse:dynamic] migrated legacy plaintext config for ${row.path}`);
+    }
   }
 
   private encryptConfig(config: Record<string, string>): Buffer {
@@ -84,17 +141,15 @@ export class DynamicSecretsManager {
     const bytes = new Uint8Array(data);
     const nonceLen = nacl.secretbox.nonceLength;
 
-    // If the data looks like valid JSON, it's a legacy plaintext config — migrate it
-    try {
-      const text = new TextDecoder().decode(bytes);
-      const parsed = JSON.parse(text);
-      if (typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parsed;
-      }
-    } catch {
-      // Not JSON — proceed with decryption
+    if (bytes.length <= nonceLen) {
+      throw new Error("Failed to decrypt dynamic secret config: blob too short");
     }
 
+    // Fail closed on decryption errors. Legacy plaintext configs are
+    // migrated once at startup by migrateLegacyPlaintextConfigs; at runtime
+    // we never accept a plaintext blob, because an attacker with DB write
+    // access could otherwise swap an encrypted row for a malicious
+    // plaintext one and have it honored.
     const nonce = bytes.slice(0, nonceLen);
     const ciphertext = bytes.slice(nonceLen);
     const plaintext = nacl.secretbox.open(ciphertext, nonce, this.configKey);
@@ -435,35 +490,44 @@ export class DynamicSecretsManager {
   /**
    * Re-encrypt all dynamic secret configs with a new master key.
    * Called during key rotation.
+   *
+   * The re-encryption runs inside a SQLite transaction so a crash partway
+   * through leaves the database in a consistent state: either every row
+   * is re-wrapped with the new key, or none are. The in-memory configKey
+   * is only switched after the transaction commits.
    */
   rotateConfigKey(newMasterKey: Buffer): number {
-    const rows = this.db
-      .query("SELECT path, config FROM dynamic_secrets")
-      .all() as { path: string; config: Buffer | Uint8Array }[];
-
     const newConfigKey = deriveKey(newMasterKey, "gatehouse-dynamic-config");
-    let count = 0;
 
-    for (const row of rows) {
-      // Decrypt with current key
-      const config = this.decryptConfig(row.config);
+    const rotate = this.db.transaction(() => {
+      const rows = this.db
+        .query("SELECT path, config FROM dynamic_secrets")
+        .all() as { path: string; config: Buffer | Uint8Array }[];
 
-      // Re-encrypt with new key
-      const plaintext = new TextEncoder().encode(JSON.stringify(config));
-      const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
-      const ciphertext = nacl.secretbox(plaintext, nonce, newConfigKey);
-      const combined = new Uint8Array(nonce.length + ciphertext.length);
-      combined.set(nonce);
-      combined.set(ciphertext, nonce.length);
+      let count = 0;
+      for (const row of rows) {
+        // Decrypt with current key
+        const config = this.decryptConfig(row.config);
 
-      this.db
-        .query("UPDATE dynamic_secrets SET config = ?, updated_at = datetime('now') WHERE path = ?")
-        .run(Buffer.from(combined), row.path);
+        // Re-encrypt with new key
+        const plaintext = new TextEncoder().encode(JSON.stringify(config));
+        const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+        const ciphertext = nacl.secretbox(plaintext, nonce, newConfigKey);
+        const combined = new Uint8Array(nonce.length + ciphertext.length);
+        combined.set(nonce);
+        combined.set(ciphertext, nonce.length);
 
-      count++;
-    }
+        this.db
+          .query("UPDATE dynamic_secrets SET config = ?, updated_at = datetime('now') WHERE path = ?")
+          .run(Buffer.from(combined), row.path);
 
-    // Switch to new key
+        count++;
+      }
+      return count;
+    });
+
+    const count = rotate();
+    // Only switch to the new key after the transaction commits successfully.
     this.configKey = newConfigKey;
     return count;
   }

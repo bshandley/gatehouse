@@ -8,6 +8,7 @@ import type { AuthContext } from "../auth/middleware";
 import { scrubValue } from "../scrub/scrubber";
 import { v4 as uuid } from "uuid";
 import type { PatternEngine } from "../patterns/engine";
+import { isPrivateHost, scrubResponseBody, readCappedText, MAX_UPSTREAM_BODY_BYTES } from "../security/ssrf";
 
 /**
  * Gatehouse MCP Server
@@ -425,12 +426,7 @@ export function createMCPHandler(
           try {
             const parsedUrl = new URL(upstreamUrl);
             const h = parsedUrl.hostname;
-            const privatePatterns = [
-              /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
-              /^169\.254\./, /^0\./, /^::1$/, /^fc00:/i, /^fd[0-9a-f]{2}:/i,
-              /^fe80:/i, /^localhost$/i, /^.*\.local$/i,
-            ];
-            if (privatePatterns.some(p => p.test(h))) {
+            if (isPrivateHost(h)) {
               const allowPrivateEnv = (process.env.GATEHOUSE_PROXY_ALLOW_PRIVATE || "").toLowerCase() === "true";
               const anySecretAllowsPrivate = [...refs].some(rp => {
                 const m = secrets.getMeta(rp);
@@ -501,6 +497,8 @@ export function createMCPHandler(
               headers: upstreamHeaders,
               body: upstreamBody,
               signal: controller.signal,
+              // Never auto-follow redirects — would bypass SSRF pre-flight
+              redirect: "manual",
             });
             clearTimeout(timer);
 
@@ -515,7 +513,9 @@ export function createMCPHandler(
               },
             });
 
-            const responseBody = await upstream.text();
+            // Cap upstream body + scrub any injected secret values echoed back
+            const rawBody = await readCappedText(upstream, MAX_UPSTREAM_BODY_BYTES);
+            const responseBody = scrubResponseBody(rawBody, resolved.values());
             let parsed: any;
             try { parsed = JSON.parse(responseBody); } catch { parsed = responseBody; }
 
@@ -532,6 +532,7 @@ export function createMCPHandler(
               success: false,
             });
             if (e.name === "AbortError") return error(`Request timed out after ${timeout}ms`);
+            if (e.code === "BODY_TOO_LARGE") return error(`Upstream response exceeds ${MAX_UPSTREAM_BODY_BYTES} bytes`);
             return error(`Upstream request failed: ${e.message}`);
           }
         }

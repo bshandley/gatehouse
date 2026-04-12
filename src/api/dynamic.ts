@@ -7,6 +7,14 @@ import type { DynamicSecretsManager } from "../dynamic/manager";
 import type { PolicyEngine } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 
+const PATH_REGEX = /^[a-zA-Z0-9/_-]+$/;
+function validateDynamicPath(path: string): string | null {
+  if (!path || path.length === 0) return "Path is required";
+  if (path.length > 256) return "Path must be under 256 characters";
+  if (!PATH_REGEX.test(path)) return "Path must match ^[a-zA-Z0-9/_-]+$";
+  return null;
+}
+
 export function dynamicRouter(
   dynamic: DynamicSecretsManager,
   policies: PolicyEngine,
@@ -84,6 +92,10 @@ export function dynamicRouter(
     if (path.endsWith("/ca-pubkey")) {
       // Derive CA public key from stored private key (SSH cert configs only)
       const secretPath = path.replace(/\/ca-pubkey$/, "");
+      const pathError = validateDynamicPath(secretPath);
+      if (pathError) {
+        return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
+      }
       if (!policies.check(auth.policies, secretPath, "admin")) {
         return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
       }
@@ -108,6 +120,10 @@ export function dynamicRouter(
     if (path.endsWith("/leases")) {
       // List active leases for this dynamic secret
       const secretPath = path.replace(/\/leases$/, "");
+      const pathError = validateDynamicPath(secretPath);
+      if (pathError) {
+        return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
+      }
       if (!policies.check(auth.policies, secretPath, "admin")) {
         return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
       }
@@ -126,6 +142,11 @@ export function dynamicRouter(
           credential_username: l.credential.username || l.credential.role_name,
         })),
       });
+    }
+
+    const pathError = validateDynamicPath(path);
+    if (pathError) {
+      return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
     }
 
     if (!policies.check(auth.policies, path, "admin")) {
@@ -175,8 +196,9 @@ export function dynamicRouter(
 
     const { path, provider_type, config: providerConfig } = body;
 
-    if (!path || !/^[a-zA-Z0-9/_-]+$/.test(path)) {
-      return c.json({ error: "Invalid path format", request_id: c.get("requestId") }, 400);
+    const pathError = validateDynamicPath(path);
+    if (pathError) {
+      return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
     }
     if (!provider_type) {
       return c.json({ error: "provider_type is required", request_id: c.get("requestId") }, 400);
@@ -229,6 +251,11 @@ export function dynamicRouter(
     const auth = c.get("auth") as { identity: string; policies: string[] };
     const path = c.req.param("path").replace(/\/validate$/, "");
 
+    const pathError = validateDynamicPath(path);
+    if (pathError) {
+      return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
+    }
+
     if (!policies.check(auth.policies, path, "admin")) {
       return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
     }
@@ -245,6 +272,11 @@ export function dynamicRouter(
   router.post("/:path{.+}/checkout", async (c) => {
     const auth = c.get("auth") as { identity: string; policies: string[] };
     const fullPath = c.req.param("path").replace(/\/checkout$/, "");
+
+    const pathError = validateDynamicPath(fullPath);
+    if (pathError) {
+      return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
+    }
 
     if (!policies.check(auth.policies, fullPath, "lease")) {
       audit.log({
@@ -324,6 +356,11 @@ export function dynamicRouter(
   router.delete("/:path{.+}", async (c) => {
     const auth = c.get("auth") as { identity: string; policies: string[] };
     const path = c.req.param("path");
+
+    const pathError = validateDynamicPath(path);
+    if (pathError) {
+      return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
+    }
 
     if (!policies.check(auth.policies, path, "admin")) {
       return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);

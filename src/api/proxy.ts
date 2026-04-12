@@ -3,6 +3,7 @@ import type { SecretsEngine } from "../secrets/engine";
 import type { PolicyEngine } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 import type { PatternEngine } from "../patterns/engine";
+import { isPrivateHost, scrubResponseBody, readCappedText, MAX_UPSTREAM_BODY_BYTES } from "../security/ssrf";
 
 /**
  * Proxy request format — three injection styles supported:
@@ -92,29 +93,6 @@ function injectSecrets(
   });
 }
 
-/**
- * Block requests to private/reserved IP ranges to prevent SSRF attacks.
- * Checks both the hostname (if it's an IP literal) and resolves DNS.
- */
-function isPrivateHost(hostname: string): boolean {
-  // Block obvious private IP literals
-  const privatePatterns = [
-    /^127\./,                          // IPv4 loopback
-    /^10\./,                           // RFC 1918
-    /^172\.(1[6-9]|2\d|3[01])\./,     // RFC 1918
-    /^192\.168\./,                     // RFC 1918
-    /^169\.254\./,                     // Link-local
-    /^0\./,                            // Current network
-    /^100\.(6[4-9]|[7-9]\d|1[0-2]\d)\./, // Shared address space (CGN)
-    /^::1$/,                           // IPv6 loopback
-    /^fc00:/i,                         // IPv6 ULA
-    /^fd[0-9a-f]{2}:/i,               // IPv6 ULA
-    /^fe80:/i,                         // IPv6 link-local
-    /^localhost$/i,
-    /^.*\.local$/i,
-  ];
-  return privatePatterns.some((p) => p.test(hostname));
-}
 
 /**
  * Validate that a URL's hostname is in the allowed domains list.
@@ -436,6 +414,11 @@ export function proxyRouter(
         headers: upstreamHeaders,
         body: upstreamBody,
         signal: controller.signal,
+        // Never auto-follow redirects: the redirect target may be a private
+        // host that bypasses the pre-flight SSRF check. Callers receive the
+        // 3xx status and Location header and can choose to re-submit after
+        // their own validation.
+        redirect: "manual",
       });
 
       clearTimeout(timer);
@@ -453,11 +436,14 @@ export function proxyRouter(
         },
       });
 
-      // Return the upstream response
-      const responseBody = await upstream.text();
+      // Return the upstream response. Read with a hard body cap so an
+      // oversized/hostile upstream can't exhaust memory, then scrub any
+      // injected secret values that the upstream echoed back.
+      const rawResponseBody = await readCappedText(upstream, MAX_UPSTREAM_BODY_BYTES);
+      const responseBody = scrubResponseBody(rawResponseBody, resolved.values());
       const responseHeaders: Record<string, string> = {};
 
-      // Forward safe response headers
+      // Forward safe response headers (scrub any echoed secret values)
       const safeHeaders = [
         "content-type",
         "x-request-id",
@@ -467,7 +453,12 @@ export function proxyRouter(
       ];
       for (const h of safeHeaders) {
         const v = upstream.headers.get(h);
-        if (v) responseHeaders[h] = v;
+        if (v) responseHeaders[h] = scrubResponseBody(v, resolved.values());
+      }
+      // Surface redirect target so callers know why they got a 3xx
+      if (upstream.status >= 300 && upstream.status < 400) {
+        const loc = upstream.headers.get("location");
+        if (loc) responseHeaders["location"] = scrubResponseBody(loc, resolved.values());
       }
 
       // Record pattern (fire-and-forget, non-critical)
@@ -527,6 +518,16 @@ export function proxyRouter(
             request_id: c.get("requestId"),
           },
           504
+        );
+      }
+
+      if (err.code === "BODY_TOO_LARGE") {
+        return c.json(
+          {
+            error: `Upstream response exceeds ${MAX_UPSTREAM_BODY_BYTES} bytes`,
+            request_id: c.get("requestId"),
+          },
+          502
         );
       }
 

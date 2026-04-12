@@ -74,10 +74,16 @@ export class MongoDBProvider implements DynamicProvider {
     config: Record<string, string>,
     revocationHandle: string
   ): Promise<void> {
+    const [database, username] = revocationHandle.split(":", 2);
+    if (!username || !/^gh_[a-zA-Z0-9_]{1,64}$/.test(username)) {
+      throw new Error(
+        `MongoDB: refusing to revoke user with non-gatehouse handle "${username}"`
+      );
+    }
+
     const client = await this.connect(config);
 
     try {
-      const [database, username] = revocationHandle.split(":", 2);
       const db = client.db(database);
 
       // Kill user sessions
@@ -142,8 +148,17 @@ export class MongoDBProvider implements DynamicProvider {
   private async connect(config: Record<string, string>): Promise<MongoClient> {
     const port = config.port || "27017";
     const authSource = config.auth_source || config.database || "admin";
-    const tls = config.ssl === "true" ? "&tls=true&tlsAllowInvalidCertificates=true" : "";
-    const uri = `mongodb://${encodeURIComponent(config.user)}:${encodeURIComponent(config.password)}@${config.host}:${port}/${config.database}?authSource=${authSource}${tls}`;
+    // TLS modes:
+    //   ssl="true"      -> TLS with cert verification (default strict)
+    //   ssl="insecure"  -> TLS without cert verification (homelab opt-in)
+    //   otherwise       -> plaintext
+    let tlsParams = "";
+    if (config.ssl === "true") {
+      tlsParams = "&tls=true";
+    } else if (config.ssl === "insecure") {
+      tlsParams = "&tls=true&tlsAllowInvalidCertificates=true";
+    }
+    const uri = `mongodb://${encodeURIComponent(config.user)}:${encodeURIComponent(config.password)}@${config.host}:${port}/${config.database}?authSource=${authSource}${tlsParams}`;
 
     const client = new MongoClient(uri, {
       connectTimeoutMS: 10_000,

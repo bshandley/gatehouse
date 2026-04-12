@@ -60,6 +60,11 @@ export function secretsRouter(
     const isValueRequest = rawPath.endsWith("/value");
     const path = isValueRequest ? rawPath.slice(0, -6) : rawPath;
 
+    const pathError = validatePath(path);
+    if (pathError) {
+      return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
+    }
+
     if (!policies.check(auth.policies, path, "read")) {
       audit.log({ identity: auth.identity, action: "secret.read", path, success: false,
         source_ip: c.get("sourceIp") });
@@ -151,6 +156,11 @@ export function secretsRouter(
   router.delete("/:path{.+}", (c) => {
     const auth = c.get("auth") as AuthContext;
     const path = c.req.param("path");
+
+    const pathError = validatePath(path);
+    if (pathError) {
+      return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
+    }
 
     if (!policies.check(auth.policies, path, "delete")) {
       audit.log({ identity: auth.identity, action: "secret.delete", path, success: false });

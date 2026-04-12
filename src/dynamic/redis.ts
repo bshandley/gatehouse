@@ -76,6 +76,12 @@ export class RedisProvider implements DynamicProvider {
     config: Record<string, string>,
     revocationHandle: string
   ): Promise<void> {
+    // Only revoke ACL users this provider created.
+    if (!/^gh_[a-zA-Z0-9_]{1,64}$/.test(revocationHandle)) {
+      throw new Error(
+        `Redis: refusing to revoke user with non-gatehouse handle "${revocationHandle}"`
+      );
+    }
     const client = this.connect(config);
     const username = revocationHandle;
 
@@ -115,13 +121,22 @@ export class RedisProvider implements DynamicProvider {
   }
 
   private connect(config: Record<string, string>): Redis {
+    // TLS modes:
+    //   ssl="true"      -> TLS with cert verification (default strict)
+    //   ssl="insecure"  -> TLS without cert verification (homelab opt-in)
+    //   otherwise       -> plaintext
+    let tls: any = undefined;
+    if (config.ssl === "true") tls = { rejectUnauthorized: true };
+    else if (config.ssl === "insecure") tls = { rejectUnauthorized: false };
+    if (tls && config.ssl_ca) tls.ca = config.ssl_ca;
+
     return new Redis({
       host: config.host,
       port: parseInt(config.port || "6379"),
       password: config.password,
       db: parseInt(config.db || "0"),
       connectTimeout: 10_000,
-      tls: config.ssl === "true" ? { rejectUnauthorized: false } : undefined,
+      tls,
       lazyConnect: false,
     });
   }

@@ -60,34 +60,40 @@ export class SecretsEngine {
     const dekNonce = nacl.randomBytes(nacl.secretbox.nonceLength);
     const encryptedDek = nacl.secretbox(dek, dekNonce, this.kek);
 
-    const existing = this.db
-      .query("SELECT version FROM secrets WHERE path = ?")
-      .get(path) as { version: number } | null;
+    // Read version + write UPSERT inside a single transaction so two
+    // concurrent put() calls can't both read version N and both write
+    // version N+1, clobbering each other's DEK/metadata.
+    const putTxn = this.db.transaction(() => {
+      const existing = this.db
+        .query("SELECT version FROM secrets WHERE path = ?")
+        .get(path) as { version: number } | null;
 
-    const version = existing ? existing.version + 1 : 1;
+      const version = existing ? existing.version + 1 : 1;
 
-    this.db
-      .query(
-        `INSERT INTO secrets (path, encrypted_value, nonce, encrypted_dek, dek_nonce, metadata, version, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-       ON CONFLICT(path) DO UPDATE SET
-         encrypted_value = excluded.encrypted_value,
-         nonce = excluded.nonce,
-         encrypted_dek = excluded.encrypted_dek,
-         dek_nonce = excluded.dek_nonce,
-         metadata = excluded.metadata,
-         version = excluded.version,
-         updated_at = excluded.updated_at`
-      )
-      .run(
-        path,
-        Buffer.from(encryptedValue),
-        Buffer.from(valueNonce),
-        Buffer.from(encryptedDek),
-        Buffer.from(dekNonce),
-        JSON.stringify(metadata),
-        version
-      );
+      this.db
+        .query(
+          `INSERT INTO secrets (path, encrypted_value, nonce, encrypted_dek, dek_nonce, metadata, version, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         ON CONFLICT(path) DO UPDATE SET
+           encrypted_value = excluded.encrypted_value,
+           nonce = excluded.nonce,
+           encrypted_dek = excluded.encrypted_dek,
+           dek_nonce = excluded.dek_nonce,
+           metadata = excluded.metadata,
+           version = excluded.version,
+           updated_at = excluded.updated_at`
+        )
+        .run(
+          path,
+          Buffer.from(encryptedValue),
+          Buffer.from(valueNonce),
+          Buffer.from(encryptedDek),
+          Buffer.from(dekNonce),
+          JSON.stringify(metadata),
+          version
+        );
+    });
+    putTxn();
 
     return this.getMeta(path)!;
   }
@@ -114,7 +120,9 @@ export class SecretsEngine {
     );
 
     if (!dek) {
-      throw new Error(`Failed to decrypt DEK for path: ${path}`);
+      // Never leak the path in an error — it's caller-provided and the
+      // response lands in the audit log / HTTP error body.
+      throw new Error("Failed to decrypt DEK");
     }
 
     // Decrypt the value
@@ -125,7 +133,7 @@ export class SecretsEngine {
     );
 
     if (!value) {
-      throw new Error(`Failed to decrypt value for path: ${path}`);
+      throw new Error("Failed to decrypt secret value");
     }
 
     return new TextDecoder().decode(value);
@@ -166,13 +174,18 @@ export class SecretsEngine {
   }
 
   delete(path: string): boolean {
-    // Remove all lease rows referencing this secret (FK constraint)
-    this.db
-      .query("DELETE FROM leases WHERE secret_path = ?")
-      .run(path);
-    const result = this.db
-      .query("DELETE FROM secrets WHERE path = ?")
-      .run(path);
+    // Lease cleanup + secret delete must be atomic: if we crash between
+    // the two DELETEs, the lease table orphans would point at a vanished
+    // secret. Wrap both in a single transaction.
+    const deleteTxn = this.db.transaction(() => {
+      this.db
+        .query("DELETE FROM leases WHERE secret_path = ?")
+        .run(path);
+      return this.db
+        .query("DELETE FROM secrets WHERE path = ?")
+        .run(path);
+    });
+    const result = deleteTxn();
     return result.changes > 0;
   }
 
@@ -187,41 +200,52 @@ export class SecretsEngine {
    * Rotate the KEK: re-wrap all DEKs with a new key derived from the new master key.
    * Secret values are NOT re-encrypted — only the DEK wrapping changes.
    * Returns the number of secrets re-wrapped.
+   *
+   * The entire rotation runs inside a SQLite transaction. If any row fails
+   * to decrypt (or any UPDATE fails), the transaction rolls back and the
+   * database stays fully wrapped under the old KEK. The in-memory KEK is
+   * only swapped after the transaction commits, so a mid-rotation crash
+   * leaves the server in a recoverable state.
    */
   rotateKEK(newMasterKey: Buffer): number {
     const newKek = deriveKey(newMasterKey, "gatehouse-kek");
 
-    const rows = this.db
-      .query("SELECT path, encrypted_dek, dek_nonce FROM secrets")
-      .all() as { path: string; encrypted_dek: Buffer; dek_nonce: Buffer }[];
+    const rotate = this.db.transaction(() => {
+      const rows = this.db
+        .query("SELECT path, encrypted_dek, dek_nonce FROM secrets")
+        .all() as { path: string; encrypted_dek: Buffer; dek_nonce: Buffer }[];
 
-    let count = 0;
-    for (const row of rows) {
-      // Decrypt DEK with old KEK
-      const dek = nacl.secretbox.open(
-        new Uint8Array(row.encrypted_dek),
-        new Uint8Array(row.dek_nonce),
-        this.kek
-      );
+      let count = 0;
+      for (const row of rows) {
+        // Decrypt DEK with old KEK
+        const dek = nacl.secretbox.open(
+          new Uint8Array(row.encrypted_dek),
+          new Uint8Array(row.dek_nonce),
+          this.kek
+        );
 
-      if (!dek) {
-        throw new Error(`Failed to decrypt DEK for path: ${row.path} during rotation`);
+        if (!dek) {
+          // Aborting the transaction rolls back everything wrapped so far.
+          throw new Error("Failed to decrypt DEK during rotation");
+        }
+
+        // Re-encrypt DEK with new KEK
+        const newDekNonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+        const newEncryptedDek = nacl.secretbox(dek, newDekNonce, newKek);
+
+        this.db
+          .query(
+            "UPDATE secrets SET encrypted_dek = ?, dek_nonce = ?, updated_at = datetime('now') WHERE path = ?"
+          )
+          .run(Buffer.from(newEncryptedDek), Buffer.from(newDekNonce), row.path);
+
+        count++;
       }
+      return count;
+    });
 
-      // Re-encrypt DEK with new KEK
-      const newDekNonce = nacl.randomBytes(nacl.secretbox.nonceLength);
-      const newEncryptedDek = nacl.secretbox(dek, newDekNonce, newKek);
-
-      this.db
-        .query(
-          "UPDATE secrets SET encrypted_dek = ?, dek_nonce = ?, updated_at = datetime('now') WHERE path = ?"
-        )
-        .run(Buffer.from(newEncryptedDek), Buffer.from(newDekNonce), row.path);
-
-      count++;
-    }
-
-    // Switch to new KEK
+    const count = rotate();
+    // Only flip the in-memory KEK after the transaction commits.
     this.kek = newKek;
     return count;
   }

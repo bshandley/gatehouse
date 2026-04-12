@@ -1,5 +1,6 @@
 import { Client } from "pg";
 import type { DynamicProvider, DynamicCredential } from "./provider";
+import { validatePostgresGrants } from "./grants";
 
 /**
  * PostgreSQL Dynamic Secrets Provider
@@ -30,6 +31,11 @@ export class PostgreSQLProvider implements DynamicProvider {
   ): Promise<DynamicCredential> {
     const client = await this.connect(config);
 
+    // Validate grants BEFORE touching the database so a bad config never
+    // results in a partially-created role.
+    const privileges = validatePostgresGrants(config.grants || "SELECT");
+    const normalizedGrants = privileges.join(", ");
+
     try {
       // Generate a unique role name and password
       const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
@@ -40,38 +46,49 @@ export class PostgreSQLProvider implements DynamicProvider {
       const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
       const validUntil = expiresAt.toISOString();
 
-      const grants = (config.grants || "SELECT").toUpperCase();
       const schema = config.schema || "public";
       const database = config.database;
 
-      // Create the role with login privilege and expiry
-      await client.query(
-        `CREATE ROLE ${quoteIdent(roleName)} WITH LOGIN PASSWORD ${quoteLiteral(password)} VALID UNTIL ${quoteLiteral(validUntil)}`
-      );
+      // Wrap the whole create sequence in a transaction. Either the role
+      // exists with all grants, or nothing was created.
+      let committed = false;
+      try {
+        await client.query("BEGIN");
 
-      // Grant connect on the database
-      await client.query(
-        `GRANT CONNECT ON DATABASE ${quoteIdent(database)} TO ${quoteIdent(roleName)}`
-      );
-
-      // Grant usage on schema
-      await client.query(
-        `GRANT USAGE ON SCHEMA ${quoteIdent(schema)} TO ${quoteIdent(roleName)}`
-      );
-
-      // Grant table privileges
-      // Parse grants like "SELECT,INSERT" into individual privileges
-      const privileges = grants.split(",").map((g) => g.trim()).filter(Boolean);
-      for (const priv of privileges) {
+        // Create the role with login privilege and expiry
         await client.query(
-          `GRANT ${priv} ON ALL TABLES IN SCHEMA ${quoteIdent(schema)} TO ${quoteIdent(roleName)}`
+          `CREATE ROLE ${quoteIdent(roleName)} WITH LOGIN PASSWORD ${quoteLiteral(password)} VALID UNTIL ${quoteLiteral(validUntil)}`
         );
-      }
 
-      // Also grant on future tables so the role works for newly created tables
-      await client.query(
-        `ALTER DEFAULT PRIVILEGES IN SCHEMA ${quoteIdent(schema)} GRANT ${grants} ON TABLES TO ${quoteIdent(roleName)}`
-      );
+        // Grant connect on the database
+        await client.query(
+          `GRANT CONNECT ON DATABASE ${quoteIdent(database)} TO ${quoteIdent(roleName)}`
+        );
+
+        // Grant usage on schema
+        await client.query(
+          `GRANT USAGE ON SCHEMA ${quoteIdent(schema)} TO ${quoteIdent(roleName)}`
+        );
+
+        // Grant table privileges (privileges were allowlisted above, safe to interpolate)
+        for (const priv of privileges) {
+          await client.query(
+            `GRANT ${priv} ON ALL TABLES IN SCHEMA ${quoteIdent(schema)} TO ${quoteIdent(roleName)}`
+          );
+        }
+
+        // Also grant on future tables so the role works for newly created tables
+        await client.query(
+          `ALTER DEFAULT PRIVILEGES IN SCHEMA ${quoteIdent(schema)} GRANT ${normalizedGrants} ON TABLES TO ${quoteIdent(roleName)}`
+        );
+
+        await client.query("COMMIT");
+        committed = true;
+      } finally {
+        if (!committed) {
+          await client.query("ROLLBACK").catch(() => {});
+        }
+      }
 
       const port = config.port || "5432";
       const connectionString = `postgresql://${roleName}:${password}@${config.host}:${port}/${database}`;
@@ -96,6 +113,13 @@ export class PostgreSQLProvider implements DynamicProvider {
     config: Record<string, string>,
     revocationHandle: string
   ): Promise<void> {
+    // Only revoke roles this provider created. Anything missing the gh_
+    // prefix is a caller-supplied handle we should not touch.
+    if (!/^gh_[a-zA-Z0-9_]{1,64}$/.test(revocationHandle)) {
+      throw new Error(
+        `PostgreSQL: refusing to revoke role with non-gatehouse handle "${revocationHandle}"`
+      );
+    }
     const client = await this.connect(config);
     const roleName = revocationHandle;
 
@@ -160,6 +184,15 @@ export class PostgreSQLProvider implements DynamicProvider {
   }
 
   private async connect(config: Record<string, string>): Promise<Client> {
+    // TLS modes:
+    //   ssl="true"              -> verify upstream cert (default strict)
+    //   ssl="insecure"          -> TLS on, skip verification (homelab opt-in)
+    //   anything else / unset   -> no TLS
+    let ssl: boolean | { rejectUnauthorized: boolean; ca?: string } = false;
+    if (config.ssl === "true") ssl = { rejectUnauthorized: true };
+    else if (config.ssl === "insecure") ssl = { rejectUnauthorized: false };
+    if (typeof ssl === "object" && config.ssl_ca) ssl.ca = config.ssl_ca;
+
     const client = new Client({
       host: config.host,
       port: parseInt(config.port || "5432"),
@@ -167,8 +200,7 @@ export class PostgreSQLProvider implements DynamicProvider {
       user: config.user,
       password: config.password,
       connectionTimeoutMillis: 10_000,
-      // Allow self-signed certs in homelab environments
-      ssl: config.ssl === "true" ? { rejectUnauthorized: false } : false,
+      ssl,
     });
     await client.connect();
     return client;
