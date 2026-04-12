@@ -4,8 +4,8 @@ import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 
 export default defineConfig({
-  site: "https://bshandley.github.io",
-  base: "/gatehouse",
+  site: "https://gatehouse.to",
+  base: "/",
   trailingSlash: "always",
   integrations: [mdx()],
   markdown: {
