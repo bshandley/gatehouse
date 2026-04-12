@@ -2203,6 +2203,10 @@
       opts.body = JSON.stringify(opts.body);
     }
     const res = await fetch(path, { ...opts, headers });
+    if (res.status === 401) {
+      doLogout();
+      throw new Error('Session expired');
+    }
     const data = await res.json().catch(() => null);
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
     return data;
