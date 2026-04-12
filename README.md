@@ -1,6 +1,6 @@
 # Gatehouse
 
-A secrets vault built for AI agents, where credentials never touch the agent.
+A secrets vault built for AI agents, where credentials never leave the vault.
 
 Traditional secret managers assume the client is trusted once authenticated. AI agents break that assumption. Their context windows get logged, cached, and sent to cloud APIs. A credential that enters an agent's memory can end up anywhere.
 

@@ -10,7 +10,7 @@ interface Props {
   ogImage?: string;
 }
 
-const { title, description = "A self-hosted secrets vault built for AI agents. Credentials never touch the agent.", ogImage = "/gatehouse/og-image.png" } = Astro.props;
+const { title, description = "A self-hosted secrets vault built for AI agents. Credentials never leave the vault.", ogImage = "/gatehouse/og-image.png" } = Astro.props;
 const fullTitle = title === "Gatehouse" ? title : `${title} · Gatehouse`;
 const canonical = new URL(Astro.url.pathname, Astro.site).toString();
 ---
