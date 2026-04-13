@@ -64,10 +64,10 @@ function extractSecretRefs(req: ProxyRequest): string[] {
     scan(typeof req.body === "string" ? req.body : JSON.stringify(req.body));
   }
 
-  // Inject shorthand: values are secret paths directly
+  // Inject shorthand: values are secret paths (optionally prefixed with "basic:")
   if (req.inject) {
     for (const secretPath of Object.values(req.inject)) {
-      refs.add(secretPath);
+      refs.add(secretPath.replace(/^basic:/, ""));
     }
   }
 
@@ -155,7 +155,9 @@ export function proxyRouter(
    * }
    *
    * inject values are set as "Bearer <value>" for Authorization headers,
-   * or raw value for all other headers.
+   * or raw value for all other headers. Prefix with "basic:" for HTTP Basic
+   * auth: {"Authorization": "basic:infra/opnsense"} base64-encodes the
+   * secret value and sets "Basic <encoded>".
    *
    * Auto-inject (metadata-driven — agent doesn't need to know the header):
    * {
@@ -349,12 +351,17 @@ export function proxyRouter(
 
     // Apply inject shorthand: set headers from secret values
     if (req.inject) {
-      for (const [headerName, secretPath] of Object.entries(req.inject)) {
+      for (const [headerName, rawPath] of Object.entries(req.inject)) {
+        // "basic:path/to/secret" => base64-encode value as HTTP Basic auth
+        const isBasic = rawPath.startsWith("basic:");
+        const secretPath = isBasic ? rawPath.slice(6) : rawPath;
         const secretValue = resolved.get(secretPath);
         if (secretValue) {
-          // Auto-format Authorization headers as "Bearer <value>"
-          // unless the value already starts with a scheme
-          if (
+          if (isBasic) {
+            // Secret value should be "user:password" format
+            const encoded = btoa(secretValue);
+            upstreamHeaders[headerName] = `Basic ${encoded}`;
+          } else if (
             headerName.toLowerCase() === "authorization" &&
             !secretValue.match(/^(Bearer|Basic|Token|Digest)\s/i)
           ) {
@@ -404,12 +411,18 @@ export function proxyRouter(
       }
     }
 
+    // Check if any referenced secret has tls_allow_insecure metadata
+    const tlsInsecure = secretPaths.some(p => {
+      const meta = secrets.getMeta(p);
+      return meta?.metadata?.tls_allow_insecure === "true";
+    });
+
     // Make the upstream request
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const upstream = await fetch(upstreamUrl, {
+      const fetchOptions: any = {
         method,
         headers: upstreamHeaders,
         body: upstreamBody,
@@ -419,7 +432,14 @@ export function proxyRouter(
         // 3xx status and Location header and can choose to re-submit after
         // their own validation.
         redirect: "manual",
-      });
+      };
+
+      // Bun supports per-request TLS options via tls property
+      if (tlsInsecure) {
+        fetchOptions.tls = { rejectUnauthorized: false };
+      }
+
+      const upstream = await fetch(upstreamUrl, fetchOptions);
 
       clearTimeout(timer);
 
@@ -487,11 +507,15 @@ export function proxyRouter(
         body: tryParseJson(responseBody),
       };
 
-      // Include suggestions on 4xx/5xx responses
-      if (patterns && upstream.status >= 400) {
+      // Include pattern suggestions on error responses, and a hint on success
+      if (patterns) {
         const suggestions = patterns.suggest(secretPaths[0]);
-        if (suggestions.length > 0) {
+        if (upstream.status >= 400 && suggestions.length > 0) {
           responseJson.suggestions = suggestions;
+          responseJson.hint = "These are known-good patterns for this secret. Use the gatehouse_patterns MCP tool or GET /v1/proxy/patterns?secret=<path> to browse all patterns.";
+        } else if (upstream.status < 300) {
+          // On success, let agents know patterns are available
+          responseJson.patterns_available = true;
         }
       }
 
@@ -512,13 +536,18 @@ export function proxyRouter(
       });
 
       if (err.name === "AbortError") {
-        return c.json(
-          {
-            error: `Upstream request timed out after ${timeout}ms`,
-            request_id: c.get("requestId"),
-          },
-          504
-        );
+        const resp: any = {
+          error: `Upstream request timed out after ${timeout}ms`,
+          request_id: c.get("requestId"),
+        };
+        if (patterns) {
+          const suggestions = patterns.suggest(secretPaths[0]);
+          if (suggestions.length > 0) {
+            resp.suggestions = suggestions;
+            resp.hint = "Check known-good patterns with gatehouse_patterns MCP tool or GET /v1/proxy/patterns?secret=<path>";
+          }
+        }
+        return c.json(resp, 504);
       }
 
       if (err.code === "BODY_TOO_LARGE") {
@@ -531,13 +560,18 @@ export function proxyRouter(
         );
       }
 
-      return c.json(
-        {
-          error: `Upstream request failed: ${reason}`,
-          request_id: c.get("requestId"),
-        },
-        502
-      );
+      const resp: any = {
+        error: `Upstream request failed: ${reason}`,
+        request_id: c.get("requestId"),
+      };
+      if (patterns) {
+        const suggestions = patterns.suggest(secretPaths[0]);
+        if (suggestions.length > 0) {
+          resp.suggestions = suggestions;
+          resp.hint = "Check known-good patterns with gatehouse_patterns MCP tool or GET /v1/proxy/patterns?secret=<path>";
+        }
+      }
+      return c.json(resp, 502);
     }
   });
 

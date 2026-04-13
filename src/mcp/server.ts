@@ -160,7 +160,7 @@ const TOOLS: MCPTool[] = [
   {
     name: "gatehouse_proxy",
     description:
-      'Forward an HTTP request with secrets injected. You never see the raw credentials. Three styles: (1) Template: use {{secret:path}} in headers/URL/body. (2) Inject shorthand: {"inject": {"Authorization": "api-keys/openai"}} auto-sets headers. (3) Auto-inject: {"auto_inject": ["api-keys/openai"]} reads metadata.header_name to determine the header automatically. Secrets with allowed_domains metadata restrict which hosts they can be sent to.',
+      'Forward an HTTP request with secrets injected. You never see the raw credentials. Three styles: (1) Template: use {{secret:path}} in headers/URL/body. (2) Inject shorthand: {"inject": {"Authorization": "api-keys/openai"}} auto-sets headers. Use "basic:path" prefix for HTTP Basic auth. (3) Auto-inject: {"auto_inject": ["api-keys/openai"]} reads metadata.header_name to determine the header automatically. TIP: Before calling an unfamiliar API, use gatehouse_patterns to check if other agents have already learned the correct request format. Failed proxy calls include pattern suggestions automatically.',
     inputSchema: {
       type: "object",
       properties: {
@@ -181,7 +181,7 @@ const TOOLS: MCPTool[] = [
         inject: {
           type: "object",
           description:
-            'Shorthand: map header names to secret paths. Gatehouse sets the header value from the secret. Authorization headers auto-prefix "Bearer " unless the value already has a scheme. Example: {"Authorization": "api-keys/openai", "X-Custom-Key": "api-keys/custom"}',
+            'Shorthand: map header names to secret paths. Authorization headers auto-prefix "Bearer ". Use "basic:path" for HTTP Basic auth (secret value should be "user:password"). Example: {"Authorization": "api-keys/openai"} or {"Authorization": "basic:infra/opnsense"}',
         },
         auto_inject: {
           type: "array",

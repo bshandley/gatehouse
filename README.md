@@ -154,7 +154,7 @@ Set `GATEHOUSE_ROOT_TOKEN` in the environment for initial setup. Use it to creat
 
 Agents send HTTP requests through Gatehouse with secret placeholders. Gatehouse resolves them, makes the upstream call, and returns the response. The agent never sees the raw credential.
 
-Two injection styles:
+Three injection styles:
 
 ```bash
 # Template style: {{secret:path}} placeholders in headers/URL/body
@@ -182,7 +182,19 @@ curl -X POST http://localhost:3100/v1/proxy \
     "headers": {"Content-Type": "application/json"},
     "body": {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
   }'
+
+# Basic auth shorthand: prefix with "basic:" to base64-encode "user:password"
+curl -X POST http://localhost:3100/v1/proxy \
+  -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "GET",
+    "url": "https://router.local/api/config",
+    "inject": {"Authorization": "basic:infra/opnsense"}
+  }'
 ```
+
+**Self-signed certificates**: Set `tls_allow_insecure: "true"` in a secret's metadata to skip TLS certificate verification for proxy requests using that secret. Useful for internal services with self-signed certs.
 
 **Domain allowlisting**: Set `allowed_domains` in a secret's metadata (e.g. `"api.openai.com,openai.com"`) to restrict which hosts that secret can be sent to. Prevents compromised agents from exfiltrating credentials to unauthorized domains.
 
@@ -631,6 +643,17 @@ These are only used when running the MCP stdio transport directly (not the main 
 | `GATEHOUSE_TOKEN` | *(none)* | Pre-authenticated JWT or root token for the stdio MCP session. |
 | `GATEHOUSE_IDENTITY` | `mcp-agent` | Identity string used in audit logs for stdio MCP sessions. |
 | `GATEHOUSE_POLICIES` | `admin` | Comma-separated policy list for stdio MCP sessions. |
+
+### Secret metadata keys (proxy behavior)
+
+These are metadata key-value pairs you set on individual secrets to control proxy behavior. Set them via the web UI or `POST /v1/secrets/:path` with a `metadata` object.
+
+| Key | Value | Description |
+|---|---|---|
+| `allowed_domains` | Comma-separated hostnames | Restricts which hosts this secret can be sent to. Prevents credential exfiltration to unauthorized domains. Example: `api.openai.com,openai.com`. |
+| `allow_private` | `true` | Allows this specific secret to be used in proxy requests to private/LAN IPs, even when `GATEHOUSE_PROXY_ALLOW_PRIVATE` is `false` globally. More surgical than the global setting. |
+| `tls_allow_insecure` | `true` | Skips TLS certificate verification for proxy requests using this secret. Required for internal services with self-signed certificates. Only affects the proxy, not direct secret reads. |
+| `header_name` | Header name string | Used by the `auto_inject` proxy style. Tells Gatehouse which HTTP header to set when this secret is auto-injected. Example: `X-API-Key` or `Authorization`. |
 
 ### Homelab quick reference
 

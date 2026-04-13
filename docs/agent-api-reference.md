@@ -202,7 +202,28 @@ curl -X POST http://localhost:3100/v1/proxy \
   }'
 ```
 
+### Basic auth shorthand
+
+For services that use HTTP Basic authentication (user:password), prefix the secret path with `basic:`. The secret value should be in `user:password` format. Gatehouse base64-encodes it and sets the `Basic` scheme:
+
+```bash
+curl -X POST http://localhost:3100/v1/proxy \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "GET",
+    "url": "https://router.local/api/config",
+    "inject": {"Authorization": "basic:infra/opnsense"}
+  }'
+```
+
+This is equivalent to `Authorization: Basic base64(user:password)`.
+
 Requires `proxy` capability on each secret path used.
+
+### Self-signed certificates (TLS)
+
+If the upstream service uses a self-signed certificate, proxy requests will fail with a TLS error. To skip certificate verification for a specific secret, your operator can set `tls_allow_insecure: "true"` in the secret's metadata. This only affects proxy requests that use that secret.
 
 ### Common proxy mistakes
 
@@ -390,6 +411,7 @@ Most agent harnesses handle the MCP protocol automatically. See `docs/integratio
 2. `POST /v1/auth/approle/login` with both values to get a JWT
 3. Use the JWT as `Authorization: Bearer <token>` on all requests
 4. `GET /v1/secrets?prefix=` to discover all secrets you have access to
-5. `GET /v1/proxy/patterns?secret=<path>` to see known-good API call patterns for a secret
-6. `GET /v1/secrets/<path>/value` to read a secret, or `POST /v1/proxy` to use it without seeing it
+5. **Check patterns first:** `GET /v1/proxy/patterns?secret=<path>` (or `gatehouse_patterns` MCP tool) to see known-good API call patterns before making your first proxy call to an unfamiliar API
+6. `POST /v1/proxy` to call APIs without seeing raw credentials, or `GET /v1/secrets/<path>/value` to read directly
 7. Re-login when you get a 401
+8. If a proxy call fails, check the `suggestions` field in the error response for known-good patterns
