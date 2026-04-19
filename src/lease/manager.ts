@@ -27,7 +27,7 @@ export class LeaseManager {
 
   /**
    * Create a lease for a secret. Returns the lease ID and the decrypted value.
-   * The value is only available at checkout time — subsequent reads require a new lease.
+   * The value is only available at checkout time - subsequent reads require a new lease.
    */
   checkout(
     secretPath: string,
@@ -67,6 +67,32 @@ export class LeaseManager {
     });
 
     return { lease, value };
+  }
+
+  /**
+   * Extend a lease's expiry to now + ttlSeconds. Returns the updated lease,
+   * or null if the lease is missing, revoked, or already expired.
+   */
+  renew(leaseId: string, ttlSeconds: number, identity: string): Lease | null {
+    const existing = this.getLease(leaseId);
+    if (!existing) return null;
+    if (existing.revoked) return null;
+    if (new Date(existing.expires_at).getTime() <= Date.now()) return null;
+
+    const newExpiresAt = new Date(Date.now() + ttlSeconds * 1000);
+    this.db
+      .query("UPDATE leases SET expires_at = ?, ttl_seconds = ? WHERE id = ? AND revoked = 0")
+      .run(newExpiresAt.toISOString(), ttlSeconds, leaseId);
+
+    this.audit.log({
+      identity,
+      action: "lease.renew",
+      path: existing.secret_path,
+      lease_id: leaseId,
+      metadata: { ttl: ttlSeconds.toString() },
+    });
+
+    return { ...existing, ttl_seconds: ttlSeconds, expires_at: newExpiresAt.toISOString() };
   }
 
   revoke(leaseId: string, identity: string): boolean {
@@ -130,7 +156,7 @@ export class LeaseManager {
   }
 
   /**
-   * Reap expired leases — mark them as revoked.
+   * Reap expired leases - mark them as revoked.
    * Called periodically by the reaper interval.
    */
   reapExpired(): number {

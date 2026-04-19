@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
-import { secretsRouter } from "./api/secrets";
+import { secretsRouter, bulkSecretsRouter } from "./api/secrets";
 import { leaseRouter } from "./api/lease";
 import { authRouter } from "./api/auth";
 import { meRouter } from "./api/me";
@@ -22,10 +22,14 @@ import { SecretsEngine } from "./secrets/engine";
 import { PolicyEngine } from "./policy/engine";
 import { getConnInfo } from "hono/bun";
 import { loadConfig } from "./config";
+import { VERSION } from "./version";
+import { EventBus } from "./events/bus";
+import { hkdfSync } from "crypto";
 
 const config = loadConfig();
 const db = initDB(config.dataDir);
-const audit = new AuditLog(db);
+const eventBus = new EventBus();
+const audit = new AuditLog(db, eventBus);
 const secrets = new SecretsEngine(db, config.masterKey);
 const policies = new PolicyEngine(config.configDir, db);
 const leases = new LeaseManager(db, secrets, audit);
@@ -47,7 +51,7 @@ const auditPurgeInterval = setInterval(() => {
 const startTime = Date.now();
 const app = new Hono();
 
-// Request ID middleware — adds X-Request-Id to every response
+// Request ID middleware - adds X-Request-Id to every response
 app.use("*", async (c, next) => {
   const requestId = c.req.header("X-Request-Id") || crypto.randomUUID();
   c.set("requestId", requestId);
@@ -55,7 +59,7 @@ app.use("*", async (c, next) => {
   c.header("X-Request-Id", requestId);
 });
 
-// Source IP middleware — prefers x-forwarded-for (behind reverse proxy), falls back to connection IP
+// Source IP middleware - prefers x-forwarded-for (behind reverse proxy), falls back to connection IP
 app.use("*", async (c, next) => {
   const forwarded = c.req.header("x-forwarded-for");
   const realIp = c.req.header("x-real-ip");
@@ -78,7 +82,7 @@ if (logLevel !== "error") {
   app.use("*", logger());
 }
 
-// CORS — restrict to configured origins
+// CORS - restrict to configured origins
 const corsOrigins = process.env.GATEHOUSE_CORS_ORIGINS
   ? process.env.GATEHOUSE_CORS_ORIGINS.split(",").map((o) => o.trim())
   : [`http://localhost:${config.port}`];
@@ -117,7 +121,7 @@ app.use("*", async (c, next) => {
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
 });
 
-// Health check (no auth) — checks DB connectivity
+// Health check (no auth) - checks DB connectivity
 app.get("/health", (c) => {
   try {
     db.query("SELECT 1").get();
@@ -129,12 +133,12 @@ app.get("/health", (c) => {
   }
   return c.json({
     status: "ok",
-    version: "0.1.0",
+    version: VERSION,
     uptime_seconds: Math.floor((Date.now() - startTime) / 1000),
   });
 });
 
-// Web UI (no auth — the UI handles its own login)
+// Web UI (no auth - the UI handles its own login)
 app.get("/", async (c) => {
   const uiPath = new URL("./ui/index.html", import.meta.url).pathname;
   try {
@@ -149,7 +153,7 @@ app.get("/", async (c) => {
   }
 });
 
-// Auth routes (login, token exchange — no auth middleware)
+// Auth routes (login, token exchange - no auth middleware)
 app.route("/v1/auth", authRouter(db, config));
 
 // Protected routes
@@ -232,6 +236,19 @@ app.post("/v1/settings/sso", async (c) => {
   return c.json({ saved: true });
 });
 
+// Non-reversible fingerprint of the active master key. Useful for operators
+// to confirm which key a running instance has loaded without revealing it.
+app.get("/v1/admin/key-fingerprint", (c) => {
+  const auth = c.get("auth") as any;
+  if (!policies.check(auth.policies, "*", "admin")) {
+    return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
+  }
+  const fp = Buffer.from(
+    hkdfSync("sha256", config.masterKey, "gatehouse-v1", "gatehouse-fingerprint", 16)
+  ).toString("hex");
+  return c.json({ fingerprint: fp, algorithm: "HKDF-SHA256/gatehouse-fingerprint" });
+});
+
 // Key rotation ceremony (admin only)
 app.post("/v1/admin/rotate-key", async (c) => {
   const auth = c.get("auth") as any;
@@ -292,7 +309,63 @@ app.post("/v1/admin/rotate-key", async (c) => {
   }
 });
 
+// Server-Sent Events stream: audit fanout + heartbeat ticks.
+// Admins see all events; non-admins see only events whose identity matches theirs.
+app.get("/v1/events", (c) => {
+  const auth = c.get("auth") as any;
+  const isAdmin = policies.check(auth.policies, "*", "admin");
+  const self = auth.identity;
+
+  const stream = new ReadableStream({
+    start(controller) {
+      const enc = new TextEncoder();
+      const send = (data: string) => {
+        try { controller.enqueue(enc.encode(data)); } catch { /* closed */ }
+      };
+
+      send(`: gatehouse events v1\n\n`);
+      send(`event: ready\ndata: {"ok":true}\n\n`);
+
+      const unsub = eventBus.subscribe((e) => {
+        if (e.type === "audit") {
+          const rec = e.record as any;
+          // Non-admins only see their own events - broadcasting other
+          // identities' audit entries would be a privacy regression.
+          if (!isAdmin && rec.identity !== self) return;
+          send(`event: audit\ndata: ${JSON.stringify(rec)}\n\n`);
+        } else if (e.type === "heartbeat") {
+          send(`event: heartbeat\ndata: ${JSON.stringify(e)}\n\n`);
+        }
+      });
+
+      const heartbeat = setInterval(() => {
+        eventBus.emit({ type: "heartbeat", ts: Date.now() });
+      }, 20_000);
+
+      const close = () => {
+        clearInterval(heartbeat);
+        unsub();
+        try { controller.close(); } catch { /* already closed */ }
+      };
+
+      const signal = c.req.raw.signal;
+      if (signal.aborted) close();
+      else signal.addEventListener("abort", close, { once: true });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+});
+
 app.route("/v1/secrets", secretsRouter(secrets, policies, audit));
+app.route("/v1/secrets-bulk", bulkSecretsRouter(secrets, policies, audit));
 app.route("/v1/lease", leaseRouter(leases, policies, audit));
 app.route("/v1/policy", policyRouter(policies, audit));
 app.route("/v1/audit", auditRouter(audit, policies));

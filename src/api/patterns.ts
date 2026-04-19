@@ -6,7 +6,7 @@ import type { PolicyEngine } from "../policy/engine";
 export function patternsRouter(patterns: PatternEngine, policies: PolicyEngine) {
   const router = new Hono();
 
-  // GET / — query patterns by secret (agent) or list all (admin)
+  // GET / - query patterns by secret (agent) or list all (admin)
   router.get("/", (c) => {
     const auth = c.get("auth") as { identity: string; policies: string[] };
     const secret = c.req.query("secret");
@@ -29,7 +29,7 @@ export function patternsRouter(patterns: PatternEngine, policies: PolicyEngine) 
     return c.json({ patterns: patterns.listAll() });
   });
 
-  // DELETE /:id — delete a pattern (admin only)
+  // DELETE /:id - delete a pattern (admin only)
   router.delete("/:id", (c) => {
     const auth = c.get("auth") as { identity: string; policies: string[] };
     if (!policies.check(auth.policies, "*", "admin")) {
@@ -44,7 +44,7 @@ export function patternsRouter(patterns: PatternEngine, policies: PolicyEngine) 
     return c.json({ deleted: true });
   });
 
-  // PUT /:id/pin — toggle pin (admin only)
+  // PUT /:id/pin - toggle pin (admin only)
   router.put("/:id/pin", (c) => {
     const auth = c.get("auth") as { identity: string; policies: string[] };
     if (!policies.check(auth.policies, "*", "admin")) {

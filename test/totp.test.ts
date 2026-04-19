@@ -55,13 +55,11 @@ function buildApp(db: Database) {
   return app;
 }
 
-// ═══════════════════════════════════════════════════════════
 // TOTP library unit tests (RFC 6238 / RFC 4226 test vectors)
-// ═══════════════════════════════════════════════════════════
 
 describe("TOTP library", () => {
   // RFC 4226 Appendix D HOTP test vectors
-  // Secret: "12345678901234567890" (ASCII) — "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" in base32
+  // Secret: "12345678901234567890" (ASCII) - "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" in base32
   const RFC4226_SECRET = base32Encode(Buffer.from("12345678901234567890"));
 
   test("base32 encode/decode roundtrip", () => {
@@ -159,9 +157,7 @@ describe("TOTP library", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════
 // TOTP endpoint integration tests
-// ═══════════════════════════════════════════════════════════
 
 describe("TOTP endpoints", () => {
   let db: Database;
@@ -275,7 +271,7 @@ describe("TOTP endpoints", () => {
       body: JSON.stringify({ code: totp(setup.secret) }),
     });
 
-    // Now login again — should require TOTP
+    // Now login again - should require TOTP
     const loginRes = await app.request("/v1/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -383,7 +379,7 @@ describe("TOTP endpoints", () => {
     })).json();
     const recoveryCode = verifyBody.recovery_codes[0];
 
-    // First use — succeeds
+    // First use - succeeds
     const login1 = await (await app.request("/v1/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -398,7 +394,7 @@ describe("TOTP endpoints", () => {
     const body1 = await res1.json();
     expect(body1.recovery_code_consumed).toBe(true);
 
-    // Second use of same recovery code — fails
+    // Second use of same recovery code - fails
     const login2 = await (await app.request("/v1/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

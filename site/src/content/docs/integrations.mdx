@@ -134,7 +134,7 @@ Windsurf supports MCP via `~/.codeium/windsurf/mcp_config.json`.
 ```
 
 After adding, restart Windsurf. Gatehouse tools will appear in the MCP panel.
-Gatehouse exposes 8 tools — well under Windsurf's 100-tool limit.
+Gatehouse exposes 8 tools - well under Windsurf's 100-tool limit.
 
 ---
 
@@ -266,7 +266,7 @@ In `openclaw.json`:
 }
 ```
 
-This means OpenClaw never stores API keys locally — it fetches them from
+This means OpenClaw never stores API keys locally - it fetches them from
 Gatehouse at runtime, with full audit logging.
 
 ---
@@ -359,7 +359,7 @@ curl -X POST http://localhost:3100/v1/auth/approle \
     "policies": ["agent-readonly"]
   }'
 # Returns: { "role_id": "role-xxx", "secret_id": "yyy" }
-# Save the secret_id — it's shown only once.
+# Save the secret_id - it's shown only once.
 
 # Create a separate AppRole for Codex (coding agent with broader access)
 curl -X POST http://localhost:3100/v1/auth/approle \
@@ -386,7 +386,7 @@ agent accessed which secret, when.
 ## Proxy mode
 
 Instead of giving agents raw API keys, route their HTTP requests through Gatehouse.
-The agent constructs the request but never sees the credential — Gatehouse injects
+The agent constructs the request but never sees the credential - Gatehouse injects
 it server-side.
 
 ### MCP (recommended for agents)
@@ -399,7 +399,7 @@ Agents can call `gatehouse_proxy` directly:
 
 The tool supports two injection styles:
 
-**Template style** — `{{secret:path}}` placeholders in headers, URL, or body:
+**Template style** - `{{secret:path}}` placeholders in headers, URL, or body:
 ```json
 {
   "method": "POST",
@@ -412,7 +412,7 @@ The tool supports two injection styles:
 }
 ```
 
-**Inject shorthand** — map header names to secret paths:
+**Inject shorthand** - map header names to secret paths:
 ```json
 {
   "method": "POST",
@@ -471,7 +471,7 @@ If an agent tries to proxy this secret to `evil.com`, Gatehouse blocks it with a
 ## Dynamic secrets
 
 For databases and other backends that support programmatic credential creation,
-Gatehouse can create temporary credentials on demand — no static passwords needed.
+Gatehouse can create temporary credentials on demand - no static passwords needed.
 
 ### Setting up PostgreSQL dynamic secrets
 
@@ -620,7 +620,7 @@ curl -X POST http://gatehouse.local:3100/v1/dynamic \
   }'
 ```
 
-Generates an ephemeral ed25519 keypair and signs it with the CA key using `ssh-keygen`. Returns `private_key`, `public_key`, `certificate`, and usage instructions. Certs self-expire via the built-in validity window — no revocation needed.
+Generates an ephemeral ed25519 keypair and signs it with the CA key using `ssh-keygen`. Returns `private_key`, `public_key`, `certificate`, and usage instructions. Certs self-expire via the built-in validity window - no revocation needed.
 
 **Server-side setup:**
 1. Generate CA: `ssh-keygen -t ed25519 -f gatehouse_ca -N ""`
@@ -649,14 +649,14 @@ MCP (`gatehouse_scrub`) and REST API.
 ### REST API
 
 ```bash
-# Scrub text — returns redacted version + list of what was found
+# Scrub text - returns redacted version + list of what was found
 curl -X POST http://gatehouse.local:3100/v1/scrub \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"text": "My OpenAI key is sk-proj-abc123..."}'
 # Returns: { "scrubbed": "My OpenAI key is sk-pro***REDACTED***", "redactions": [...] }
 
-# Quick check — just returns whether credentials were detected
+# Quick check - just returns whether credentials were detected
 curl -X POST http://gatehouse.local:3100/v1/scrub/check \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Content-Type: application/json" \

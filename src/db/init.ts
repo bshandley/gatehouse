@@ -29,6 +29,21 @@ export function initDB(dataDir: string): Database {
     )
   `);
 
+  // Secret version history (append-only snapshot on every put/delete)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS secret_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      path TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      encrypted_value BLOB NOT NULL,
+      nonce BLOB NOT NULL,
+      encrypted_dek BLOB NOT NULL,
+      dek_nonce BLOB NOT NULL,
+      metadata TEXT DEFAULT '{}',
+      archived_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   // Leases table
   db.run(`
     CREATE TABLE IF NOT EXISTS leases (
@@ -179,10 +194,20 @@ export function initDB(dataDir: string): Database {
   if (appRoleColNames.length > 0 && !appRoleColNames.includes("suspended")) {
     db.run("ALTER TABLE app_roles ADD COLUMN suspended INTEGER DEFAULT 0");
   }
+  if (appRoleColNames.length > 0 && !appRoleColNames.includes("ip_allowlist")) {
+    // JSON-encoded array of CIDR strings. Empty/null = no restriction.
+    db.run("ALTER TABLE app_roles ADD COLUMN ip_allowlist TEXT");
+  }
 
   // Indexes
   db.run(
     "CREATE INDEX IF NOT EXISTS idx_leases_expires ON leases(expires_at) WHERE revoked = 0"
+  );
+  db.run(
+    "CREATE INDEX IF NOT EXISTS idx_secret_versions_path ON secret_versions(path, version DESC)"
+  );
+  db.run(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_secret_versions_unique ON secret_versions(path, version)"
   );
   db.run(
     "CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp)"

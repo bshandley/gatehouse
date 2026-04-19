@@ -21,7 +21,7 @@ export function auditRouter(audit: AuditLog, policies: PolicyEngine) {
     return c.json({ entries: audit.query(opts) });
   });
 
-  // GET /retention — view current retention policy
+  // GET /retention - view current retention policy
   router.get("/retention", (c) => {
     const auth = c.get("auth") as AuthContext;
     if (!policies.check(auth.policies, "*", "admin")) {
@@ -33,7 +33,7 @@ export function auditRouter(audit: AuditLog, policies: PolicyEngine) {
     return c.json({ ...retention, total_entries: count });
   });
 
-  // POST /retention — set retention policy
+  // POST /retention - set retention policy
   router.post("/retention", async (c) => {
     const auth = c.get("auth") as AuthContext;
     if (!policies.check(auth.policies, "*", "admin")) {
@@ -64,7 +64,7 @@ export function auditRouter(audit: AuditLog, policies: PolicyEngine) {
     return c.json({ retention_days: days, saved: true });
   });
 
-  // POST /purge — manually trigger purge of old entries
+  // POST /purge - manually trigger purge of old entries
   router.post("/purge", (c) => {
     const auth = c.get("auth") as AuthContext;
     if (!policies.check(auth.policies, "*", "admin")) {

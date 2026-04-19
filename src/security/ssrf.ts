@@ -159,11 +159,11 @@ export function isPrivateHost(hostname: string): boolean {
     return isPrivateIPv6(h);
   }
 
-  // IPv4 — try to normalize alternative encodings to dotted decimal
+  // IPv4 - try to normalize alternative encodings to dotted decimal
   const v4 = normalizeIPv4(h);
   if (v4) return isPrivateIPv4(v4);
 
-  // Couldn't parse as IP — assume it's a DNS name and allow (domain
+  // Couldn't parse as IP - assume it's a DNS name and allow (domain
   // allowlisting + DNS pinning is the next layer of defense).
   return false;
 }

@@ -4,6 +4,7 @@ import { Database } from "bun:sqlite";
 import type { GatehouseConfig } from "../config";
 import { safeEqual } from "../auth/middleware";
 import { verifyTotp, verifyRecoveryCode } from "../auth/totp";
+import { ipMatchesAllowlist, validateCIDRs } from "../auth/cidr";
 
 // Simple in-memory rate limiter: 5 failed attempts per IP per 60s window
 const failedAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -29,6 +30,14 @@ function checkRateLimit(ip: string): boolean {
   return entry.count < RATE_LIMIT_MAX;
 }
 
+/** Seconds remaining until the rate-limit window resets for this IP. */
+function retryAfterSeconds(ip: string): number {
+  const entry = failedAttempts.get(ip);
+  if (!entry) return 0;
+  const remaining = Math.ceil((entry.resetAt - Date.now()) / 1000);
+  return Math.max(1, remaining);
+}
+
 function recordFailure(ip: string) {
   const now = Date.now();
   const entry = failedAttempts.get(ip);
@@ -48,7 +57,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
    *
    * The /v1/auth/* router is mounted BEFORE the global auth middleware
    * (so login endpoints remain unauthenticated), which means c.get("auth")
-   * is never populated here — we have to verify the bearer token ourselves.
+   * is never populated here - we have to verify the bearer token ourselves.
    *
    * Accepts either the bootstrap root token or any valid JWT whose
    * policies include "admin". User logins always sign JWTs with
@@ -80,8 +89,10 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     const ip = c.get("sourceIp") || "unknown";
 
     if (!checkRateLimit(ip)) {
+      const retry = retryAfterSeconds(ip);
+      c.header("Retry-After", String(retry));
       return c.json(
-        { error: "Too many failed login attempts. Try again later.", request_id: c.get("requestId") },
+        { error: "Too many failed login attempts. Try again later.", retry_after: retry, request_id: c.get("requestId") },
         429
       );
     }
@@ -107,15 +118,25 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       return c.json({ error: "Invalid credentials", request_id: c.get("requestId") }, 401);
     }
 
-    if (role.suspended) {
-      return c.json({ error: "AppRole is suspended", request_id: c.get("requestId") }, 403);
-    }
-
     // Verify secret (using Bun's built-in password hashing)
     const valid = await Bun.password.verify(secret_id, role.secret_hash);
     if (!valid) {
       recordFailure(ip);
       return c.json({ error: "Invalid credentials", request_id: c.get("requestId") }, 401);
+    }
+
+    // Check suspension AFTER password verification so attackers who lack
+    // valid credentials can't enumerate which roles are suspended.
+    if (role.suspended) {
+      recordFailure(ip);
+      return c.json({ error: "AppRole is suspended", request_id: c.get("requestId") }, 403);
+    }
+
+    // Enforce IP allowlist at login. If set, source IP must match at least one CIDR.
+    const allowlist: string[] = role.ip_allowlist ? JSON.parse(role.ip_allowlist) : [];
+    if (allowlist.length > 0 && !ipMatchesAllowlist(ip, allowlist)) {
+      recordFailure(ip);
+      return c.json({ error: "Source IP not permitted for this AppRole", request_id: c.get("requestId") }, 403);
     }
 
     // Update last_used
@@ -126,7 +147,9 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     const policies = JSON.parse(role.policies);
     const token = await new SignJWT({
       sub: `approle:${role.display_name}`,
+      role_id,
       policies,
+      ip_allowlist: allowlist.length > 0 ? allowlist : undefined,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuer("gatehouse")
@@ -149,7 +172,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     }
 
     const roles = db
-      .query("SELECT role_id, display_name, policies, suspended, created_at, last_used FROM app_roles ORDER BY created_at DESC")
+      .query("SELECT role_id, display_name, policies, suspended, created_at, last_used, ip_allowlist FROM app_roles ORDER BY created_at DESC")
       .all() as any[];
 
     return c.json({
@@ -160,6 +183,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
         suspended: !!r.suspended,
         created_at: r.created_at,
         last_used: r.last_used,
+        ip_allowlist: r.ip_allowlist ? JSON.parse(r.ip_allowlist) : [],
       })),
     });
   });
@@ -176,7 +200,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       return c.json({ error: "AppRole not found", request_id: c.get("requestId") }, 404);
     }
 
-    let body: { display_name?: string; policies?: string[] };
+    let body: { display_name?: string; policies?: string[]; ip_allowlist?: string[] };
     try {
       body = await c.req.json();
     } catch {
@@ -193,13 +217,30 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       return c.json({ error: "At least one policy is required", request_id: c.get("requestId") }, 400);
     }
 
-    db.query("UPDATE app_roles SET display_name = ?, policies = ? WHERE role_id = ?")
-      .run(displayName, JSON.stringify(policies), roleId);
+    let allowlistJson: string | null | undefined = undefined;
+    if (body.ip_allowlist !== undefined) {
+      if (!Array.isArray(body.ip_allowlist)) {
+        return c.json({ error: "ip_allowlist must be an array of CIDR strings", request_id: c.get("requestId") }, 400);
+      }
+      const cleaned = body.ip_allowlist.map((s) => String(s).trim()).filter(Boolean);
+      const err = validateCIDRs(cleaned);
+      if (err) return c.json({ error: err, request_id: c.get("requestId") }, 400);
+      allowlistJson = cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+    }
+
+    if (allowlistJson !== undefined) {
+      db.query("UPDATE app_roles SET display_name = ?, policies = ?, ip_allowlist = ? WHERE role_id = ?")
+        .run(displayName, JSON.stringify(policies), allowlistJson, roleId);
+    } else {
+      db.query("UPDATE app_roles SET display_name = ?, policies = ? WHERE role_id = ?")
+        .run(displayName, JSON.stringify(policies), roleId);
+    }
 
     return c.json({
       role_id: roleId,
       display_name: displayName,
       policies,
+      ip_allowlist: allowlistJson ? JSON.parse(allowlistJson) : [],
     });
   });
 
@@ -249,15 +290,15 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     return c.json({ deleted: true });
   });
 
-  // ───────────────────────────────────────────────────────
   // User (human account) login: username + password → JWT
-  // ───────────────────────────────────────────────────────
   router.post("/login", async (c) => {
     const ip = c.get("sourceIp") || "unknown";
 
     if (!checkRateLimit(ip)) {
+      const retry = retryAfterSeconds(ip);
+      c.header("Retry-After", String(retry));
       return c.json(
-        { error: "Too many failed login attempts. Try again later.", request_id: c.get("requestId") },
+        { error: "Too many failed login attempts. Try again later.", retry_after: retry, request_id: c.get("requestId") },
         429
       );
     }
@@ -311,7 +352,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
 
     db.query("UPDATE users SET last_login = datetime('now') WHERE username = ?").run(username);
 
-    // All UI users are admins — policies are for AppRoles (agents), not humans
+    // All UI users are admins - policies are for AppRoles (agents), not humans
     const token = await new SignJWT({
       sub: `user:${user.username}`,
       policies: ["admin"],
@@ -332,16 +373,16 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     });
   });
 
-  // ───────────────────────────────────────────────────────
   // TOTP second-factor login
   // Exchange a totp-pending token + 6-digit code (or recovery code) for a full JWT
-  // ───────────────────────────────────────────────────────
   router.post("/login/totp", async (c) => {
     const ip = c.get("sourceIp") || "unknown";
 
     if (!checkRateLimit(ip)) {
+      const retry = retryAfterSeconds(ip);
+      c.header("Retry-After", String(retry));
       return c.json(
-        { error: "Too many failed login attempts. Try again later.", request_id: c.get("requestId") },
+        { error: "Too many failed login attempts. Try again later.", retry_after: retry, request_id: c.get("requestId") },
         429
       );
     }
@@ -436,10 +477,8 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     });
   });
 
-  // ───────────────────────────────────────────────────────
   // User CRUD (requires root token)
-  // Users are admin accounts for the UI — not tied to policies
-  // ───────────────────────────────────────────────────────
+  // Users are admin accounts for the UI - not tied to policies
 
   // List users
   router.get("/users", async (c) => {
@@ -583,7 +622,7 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
     }
 
-    let body: { display_name: string; policies: string[] };
+    let body: { display_name: string; policies: string[]; ip_allowlist?: string[] };
     try {
       body = await c.req.json();
     } catch {
@@ -599,21 +638,33 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       return c.json({ error: "policies must be an array of strings", request_id: c.get("requestId") }, 400);
     }
 
+    let allowlistJson: string | null = null;
+    if (body.ip_allowlist !== undefined) {
+      if (!Array.isArray(body.ip_allowlist)) {
+        return c.json({ error: "ip_allowlist must be an array of CIDR strings", request_id: c.get("requestId") }, 400);
+      }
+      const cleaned = body.ip_allowlist.map((s) => String(s).trim()).filter(Boolean);
+      const err = validateCIDRs(cleaned);
+      if (err) return c.json({ error: err, request_id: c.get("requestId") }, 400);
+      allowlistJson = cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+    }
+
     const role_id = `role-${crypto.randomUUID()}`;
     const secret_id = crypto.randomUUID();
     const secret_hash = await Bun.password.hash(secret_id);
 
     db.query(
-      "INSERT INTO app_roles (role_id, secret_hash, display_name, policies) VALUES (?, ?, ?, ?)"
-    ).run(role_id, secret_hash, display_name, JSON.stringify(policies));
+      "INSERT INTO app_roles (role_id, secret_hash, display_name, policies, ip_allowlist) VALUES (?, ?, ?, ?, ?)"
+    ).run(role_id, secret_hash, display_name, JSON.stringify(policies), allowlistJson);
 
     return c.json(
       {
         role_id,
-        secret_id, // Only shown once!
+        secret_id,
         display_name,
         policies,
-        warning: "Save the secret_id now — it cannot be retrieved later",
+        ip_allowlist: allowlistJson ? JSON.parse(allowlistJson) : [],
+        warning: "Save the secret_id now, it cannot be retrieved later",
       },
       201
     );

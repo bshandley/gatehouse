@@ -155,7 +155,7 @@ describe("SecretsEngine", () => {
     expect(result.updated_at).toBeTruthy();
   });
 
-  // ── Key rotation ───────────────────────────────────────────
+  // Key rotation
 
   test("rotateKEK re-wraps all DEKs and values are still readable", () => {
     engine.put("rot/s1", "secret-one");

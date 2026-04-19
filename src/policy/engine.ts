@@ -37,6 +37,7 @@ export interface PolicyDetailed extends Policy {
 export class PolicyEngine {
   private policies: Map<string, Policy> = new Map();
   private policySources: Map<string, "yaml" | "db"> = new Map();
+  private patternCache: Map<string, RegExp> = new Map();
   private configDir: string;
   private db: Database | null;
 
@@ -136,6 +137,7 @@ export class PolicyEngine {
   reload() {
     this.policies.clear();
     this.policySources.clear();
+    this.patternCache.clear();
     this.loadPolicies();
   }
 
@@ -248,13 +250,15 @@ export class PolicyEngine {
   private matchPath(pattern: string, path: string): boolean {
     if (pattern === "*") return true;
 
-    // Convert glob to regex: escape special regex chars first, then convert glob wildcards
-    const escaped = pattern
-      .replace(/[.+^${}()|[\]\\]/g, "\\$&")  // Escape regex specials (not * and ?)
-      .replace(/\*/g, ".*")                    // Glob * → regex .*
-      .replace(/\?/g, ".");                    // Glob ? → regex .
-
-    const regex = new RegExp("^" + escaped + "$");
+    let regex = this.patternCache.get(pattern);
+    if (!regex) {
+      const escaped = pattern
+        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+        .replace(/\*/g, ".*")
+        .replace(/\?/g, ".");
+      regex = new RegExp("^" + escaped + "$");
+      this.patternCache.set(pattern, regex);
+    }
     return regex.test(path);
   }
 }

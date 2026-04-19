@@ -28,7 +28,7 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 - **Encrypted KV store.** XSalsa20-Poly1305 envelope encryption, HKDF-SHA256 key derivation, SQLite at rest.
 - **Credential leasing.** Agents check out secrets with TTLs, auto-revoke on expiry.
 - **Proxy mode.** Agents send HTTP requests with secret references; Gatehouse injects credentials and forwards upstream. Agents never see raw keys. Domain allowlisting prevents exfiltration.
-- **Pattern learning.** Successful proxy calls are auto-recorded as normalized templates (URL with `:id`/`:num` placeholders, header names, body key/type schemas). Patterns are scored by a rolling confidence window and tagged with the agents that verified them. On proxy failure, Gatehouse returns suggested known-good patterns in the error response. Operators can pin or delete patterns through the web UI. No secret values are ever stored in a pattern.
+- **Pattern learning.** Successful proxy calls are auto-recorded as normalized templates. URL paths collapse UUIDs to `:id`, pure-digit segments to `:num`, and ISO dates (`YYYY-MM-DD`) to `:date`; query strings keep their (sorted) keys but drop the values; headers and body key/type schemas are captured. Patterns are scored by a rolling confidence window and tagged with the agents that verified them. On proxy failure, Gatehouse returns suggested known-good patterns in the error response. Operators can pin or delete patterns through the web UI. No secret values are ever stored in a pattern.
 - **Dynamic secrets.** Vault-style temporary credential generation with 5 built-in providers: PostgreSQL, MySQL/MariaDB, MongoDB, Redis, and SSH certificates. Pluggable provider interface for custom backends. Configs encrypted at rest.
 - **Key rotation.** Rotate the master key and re-wrap all DEKs + dynamic configs in one API call, zero downtime.
 - **YAML + DB policies.** Path-based ACLs with glob matching. YAML for version control, DB for UI management. Capabilities: read, write, delete, list, lease, proxy, admin.
@@ -39,7 +39,7 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 - **TOTP two-factor auth.** Optional RFC 6238 TOTP for user accounts with one-time recovery codes. Self-service enrollment via the web UI; admins can force-reset a user's 2FA.
 - **Security hardened.** HKDF key derivation, timing-safe token comparison, CORS restrictions, security headers (HSTS, X-Frame-Options, CSP).
 - **OAuth + AppRole auth.** SSO integration for humans, token-based AppRole for machines.
-- **Web UI.** Dark-themed control panel for managing secrets, leases, agents, policies, proxy, dynamic secrets, and audit logs.
+- **Web UI.** Dark-themed control panel for managing secrets, leases, AppRoles, users, policies, dynamic secrets, learned patterns, and audit logs. Cmd/Ctrl+K opens a command palette for fast navigation.
 
 ## Quick start
 

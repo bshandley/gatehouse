@@ -49,7 +49,16 @@ See [Dynamic secret providers](/docs/providers/) for per-provider setup.
 
 ## Pattern learning
 
-Because every proxy call flows through Gatehouse, the vault sees which requests succeeded. Successful calls are recorded as **normalized patterns**: method, URL template (with `:id`/`:num` placeholders), header names, request and response schemas. No secret values are ever stored in a pattern.
+Because every proxy call flows through Gatehouse, the vault sees which requests succeeded. Successful calls are recorded as **normalized patterns**: method, URL template, header names, request and response schemas. No secret values are ever stored in a pattern.
+
+URL normalization collapses the high-cardinality parts of a path so variants of the same call collide into a single pattern:
+
+- UUIDs → `:id`
+- Pure-digit segments → `:num`
+- ISO dates (`YYYY-MM-DD`) → `:date`
+- Query strings keep their (sorted) keys but drop the values
+
+So `GET /users/550e8400-e29b-41d4-a716-446655440000/orders/42?status=open` and `GET /users/9b2.../orders/99?status=closed` both land on `GET /users/:id/orders/:num?status=`.
 
 Each pattern has a confidence score computed from a rolling window of the last 20 outcomes. When an agent's proxy call fails, Gatehouse returns suggested known-good patterns in the error response. New agents can also query patterns directly via the `gatehouse_patterns` MCP tool to learn how to call an API before spending a single token guessing.
 

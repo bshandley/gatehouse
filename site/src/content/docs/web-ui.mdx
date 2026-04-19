@@ -9,6 +9,8 @@ sidebar_group: "USING GATEHOUSE"
 
 The Gatehouse web UI is a single-page app served from the same container as the API. It's dark by default, built with vanilla HTML, CSS, and JS (no framework), and loads JetBrains Mono for code and Instrument Sans for headings.
 
+Press **Cmd/Ctrl+K** anywhere in the UI to open a command palette that fuzzy-searches every page and common action.
+
 ## Dashboard
 
 The Dashboard shows the operational state of the vault at a glance:
@@ -29,17 +31,13 @@ Active leases are shown first, with live TTL countdowns updated every second. Le
 
 Policies are displayed as cards listing the rules and which AppRoles reference each one. Policies defined in YAML files and policies stored in the database are shown together, with their source indicated. Use **Reload** to pick up YAML changes without restarting the container.
 
-## Agents
+## AppRoles
 
-The Agents tab manages AppRoles. Creating an AppRole opens a one-time modal showing the `role_id` and `secret_id`. This modal cannot be dismissed accidentally, because the `secret_id` is only visible once.
+The AppRoles tab manages machine credentials for agent harnesses. Creating an AppRole opens a one-time modal showing the `role_id` and `secret_id` — this modal cannot be dismissed accidentally, because the `secret_id` is only visible once. The same modal also generates a copy-ready **Agent System Prompt** containing the base URL, login endpoint, MCP endpoint, credentials, and a cheatsheet of the MCP tools — paste it straight into your agent's system prompt or harness config.
 
 ## Users
 
 Human admin accounts for the web UI. Users have a username, display name, optional email, and a password. Each user can enable TOTP two-factor auth for themselves. Admins can force-reset another user's 2FA if they lose their authenticator.
-
-## Proxy
-
-View recent proxy requests with their injected secret paths, upstream URLs, response codes, and durations. Use this to debug proxy configurations or verify that credentials are being resolved correctly.
 
 ## Dynamic Secrets
 
@@ -55,4 +53,8 @@ Full audit log with filtering by identity, action, path, and date range. Live ta
 
 ## Settings
 
-Server version, uptime, database size, last master key rotation date, and a Danger Zone for rotating the master key, purging expired leases, and clearing old audit entries.
+Server version, uptime, database size, and last master key rotation date. The Danger Zone at the bottom has three wired actions:
+
+- **Purge Expired Leases** — drop lease rows whose TTL has elapsed.
+- **Purge Old Audit Entries** — trim the audit log past a chosen retention cutoff (`POST /v1/audit/purge`).
+- **Rotate Encryption Key** — swap the master key and re-wrap every DEK and dynamic config in one atomic operation (`POST /v1/admin/rotate-key`). Back up the old key before running this.

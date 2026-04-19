@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import type { EventBus } from "../events/bus";
 
 export interface AuditEntry {
   identity: string;
@@ -17,9 +18,15 @@ export interface AuditRecord extends AuditEntry {
 
 export class AuditLog {
   private db: Database;
+  private bus?: EventBus;
 
-  constructor(db: Database) {
+  constructor(db: Database, bus?: EventBus) {
     this.db = db;
+    this.bus = bus;
+  }
+
+  attachBus(bus: EventBus) {
+    this.bus = bus;
   }
 
   log(entry: AuditEntry) {
@@ -48,14 +55,30 @@ export class AuditLog {
         record.success
       );
 
+    const timestamp = new Date().toISOString();
+
     // Also emit to stdout for container log aggregation
     console.log(
       JSON.stringify({
         type: "audit",
         ...record,
-        timestamp: new Date().toISOString(),
+        timestamp,
       })
     );
+
+    // Fan out to SSE subscribers. metadata is re-parsed so consumers get
+    // an object (matching the /v1/audit query response shape).
+    if (this.bus) {
+      this.bus.emit({
+        type: "audit",
+        record: {
+          ...record,
+          metadata: JSON.parse(record.metadata),
+          success: record.success === 1,
+          timestamp,
+        },
+      });
+    }
   }
 
   query(opts: {

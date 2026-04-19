@@ -71,7 +71,7 @@ describe("Proxy Router", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  // ── Validation tests ──────────────────────────────────────────
+  // Validation tests
 
   test("rejects missing url", async () => {
     const res = await app.request("/v1/proxy", {
@@ -132,7 +132,7 @@ describe("Proxy Router", () => {
     expect(res.status).toBe(400);
   });
 
-  // ── Policy enforcement tests ──────────────────────────────────
+  // Policy enforcement tests
 
   test("denies proxy when policy lacks proxy capability", async () => {
     const res = await app.request("/v1/proxy", {
@@ -188,11 +188,11 @@ describe("Proxy Router", () => {
         },
       }),
     });
-    // Should not be 403 — it'll either succeed or fail on the upstream call
+    // Should not be 403 - it'll either succeed or fail on the upstream call
     expect(res.status).not.toBe(403);
   });
 
-  // ── Secret resolution tests ───────────────────────────────────
+  // Secret resolution tests
 
   test("returns 404 for nonexistent secret", async () => {
     // Save a policy that grants proxy on the path
@@ -217,7 +217,7 @@ describe("Proxy Router", () => {
     expect(body.error).toContain("Secret not found");
   });
 
-  // ── Domain allowlist tests ────────────────────────────────────
+  // Domain allowlist tests
 
   test("blocks request to disallowed domain", async () => {
     const res = await app.request("/v1/proxy", {
@@ -251,7 +251,7 @@ describe("Proxy Router", () => {
         timeout: 2000,
       }),
     });
-    // Could be 200 (unlikely without real key), 502, or 504 — but NOT 403
+    // Could be 200 (unlikely without real key), 502, or 504 - but NOT 403
     expect(res.status).not.toBe(403);
   });
 
@@ -273,7 +273,7 @@ describe("Proxy Router", () => {
     expect(res.status).not.toBe(403);
   });
 
-  // ── Audit logging tests ───────────────────────────────────────
+  // Audit logging tests
 
   test("logs proxy attempts to audit log", async () => {
     // This will try to hit the network and probably fail, but should still audit
@@ -335,7 +335,7 @@ describe("Proxy Router", () => {
     expect(blocked).toBeDefined();
   });
 
-  // ── Multiple secret refs ──────────────────────────────────────
+  // Multiple secret refs
 
   test("resolves multiple secret references", async () => {
     // Both secrets need proxy capability
@@ -359,12 +359,12 @@ describe("Proxy Router", () => {
         timeout: 2000,
       }),
     });
-    // Should resolve both secrets — not a 404 or 403
+    // Should resolve both secrets - not a 404 or 403
     expect(res.status).not.toBe(403);
     expect(res.status).not.toBe(404);
   });
 
-  // ── Secret ref in body ────────────────────────────────────────
+  // Secret ref in body
 
   test("resolves secret references in string body", async () => {
     secrets.put("api-keys/openai", "sk-test-openai-key-123");
@@ -401,7 +401,7 @@ describe("Proxy Router", () => {
     expect(res.status).not.toBe(404);
   });
 
-  // ── Inject shorthand ──────────────────────────────────────────
+  // Inject shorthand
 
   test("inject shorthand resolves secrets into headers", async () => {
     // Remove domain restriction for this test
@@ -520,7 +520,7 @@ describe("Proxy Router", () => {
     expect(res.status).not.toBe(404);
   });
 
-  // ── Auto-inject tests ──────────────────────────────────────────
+  // Auto-inject tests
 
   test("auto_inject uses metadata.header_name to set header", async () => {
     // Set up a secret with header_name metadata
@@ -558,7 +558,7 @@ describe("Proxy Router", () => {
     expect(body.error).toContain("header_name");
   });
 
-  // ── Private network allow tests ──────────────────────────────────
+  // Private network allow tests
 
   test("private network blocked by default", async () => {
     secrets.put("api-keys/internal", "internal-key", {});
@@ -595,7 +595,7 @@ describe("Proxy Router", () => {
         method: "GET",
         url: "http://192.168.1.100/api",
         inject: { Authorization: "api-keys/homelab" },
-        timeout: 500, // short timeout — host won't exist in test env
+        timeout: 500, // short timeout - host won't exist in test env
       }),
     });
     // Should pass SSRF check (502/504 from connection failure, NOT 403)

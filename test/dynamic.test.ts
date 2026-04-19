@@ -93,7 +93,7 @@ describe("DynamicSecretsManager", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  // ── Provider registration ─────────────────────────────────────
+  // Provider registration
 
   test("lists registered provider types", () => {
     const types = manager.getProviderTypes();
@@ -106,7 +106,7 @@ describe("DynamicSecretsManager", () => {
     expect(manager.getProvider("nonexistent")).toBeUndefined();
   });
 
-  // ── Config CRUD ───────────────────────────────────────────────
+  // Config CRUD
 
   test("saveConfig creates a new config", () => {
     const config = manager.saveConfig("db/test-pg", "mock", {
@@ -170,7 +170,7 @@ describe("DynamicSecretsManager", () => {
     expect(await manager.deleteConfig("nonexistent")).toBe(false);
   });
 
-  // ── Checkout (create dynamic credential) ──────────────────────
+  // Checkout (create dynamic credential)
 
   test("checkout creates a lease with credential", async () => {
     manager.saveConfig("db/test", "mock", { host: "localhost" });
@@ -222,7 +222,7 @@ describe("DynamicSecretsManager", () => {
     ).rejects.toThrow("simulated creation failure");
   });
 
-  // ── Lease management ──────────────────────────────────────────
+  // Lease management
 
   test("getLease returns active lease", async () => {
     manager.saveConfig("db/test", "mock", { host: "localhost" });
@@ -257,7 +257,7 @@ describe("DynamicSecretsManager", () => {
     expect(pg1Leases[0].path).toBe("db/pg1");
   });
 
-  // ── Revocation ────────────────────────────────────────────────
+  // Revocation
 
   test("revokeLease calls provider.revoke and marks as revoked", async () => {
     manager.saveConfig("db/test", "mock", { host: "localhost" });
@@ -285,7 +285,7 @@ describe("DynamicSecretsManager", () => {
 
     mockProvider.shouldFail = true;
 
-    // Should not throw — should still mark as revoked
+    // Should not throw - should still mark as revoked
     const result = await manager.revokeLease(lease!.lease_id, "agent-1");
     expect(result).toBe(true);
     expect(manager.getLease(lease!.lease_id)).toBeNull();
@@ -302,7 +302,7 @@ describe("DynamicSecretsManager", () => {
     expect(logs[0].lease_id).toBe(lease!.lease_id);
   });
 
-  // ── Reaper ────────────────────────────────────────────────────
+  // Reaper
 
   test("reapExpired revokes expired leases", async () => {
     manager.saveConfig("db/test", "mock", { host: "localhost" });
@@ -335,7 +335,7 @@ describe("DynamicSecretsManager", () => {
     expect(logs[0].metadata.expired_count).toBe("1");
   });
 
-  // ── Config deletion cascades to leases ────────────────────────
+  // Config deletion cascades to leases
 
   test("deleteConfig revokes active leases first", async () => {
     manager.saveConfig("db/test", "mock", { host: "localhost" });
@@ -348,7 +348,7 @@ describe("DynamicSecretsManager", () => {
     expect(mockProvider.revoked.has(handle)).toBe(true);
   });
 
-  // ── Validation ────────────────────────────────────────────────
+  // Validation
 
   test("validateConfig returns ok for valid config", async () => {
     manager.saveConfig("db/test", "mock", { host: "localhost" });
@@ -370,7 +370,7 @@ describe("DynamicSecretsManager", () => {
     expect(result.ok).toBe(false);
   });
 
-  // ── Built-in providers are registered ──────────────────────────
+  // Built-in providers are registered
 
   test("all built-in providers are registered by default", () => {
     const fresh = new DynamicSecretsManager(db, audit, Buffer.from("a".repeat(64), "hex"));
@@ -440,7 +440,7 @@ describe("DynamicSecretsManager", () => {
     ).toThrow("Missing required config keys");
   });
 
-  // ── Config key rotation ──────────────────────────────────
+  // Config key rotation
 
   test("rotateConfigKey re-encrypts configs and they remain readable", () => {
     manager.saveConfig("db/rot1", "mock", { host: "host1" });

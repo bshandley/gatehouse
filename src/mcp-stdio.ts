@@ -37,7 +37,7 @@ let auth: AuthContext;
 if (rootToken && token && token.length === rootToken.length && safeEqual(token, rootToken)) {
   auth = { identity: "root", policies: ["admin"], source: "root" };
 } else {
-  // Look up AppRole by token (simplified for stdio — in production, verify JWT)
+  // Look up AppRole by token (simplified for stdio - in production, verify JWT)
   const identity = process.env.GATEHOUSE_IDENTITY || "mcp-agent";
   const policyList = (process.env.GATEHOUSE_POLICIES || "admin").split(",");
   auth = { identity, policies: policyList, source: "approle" };

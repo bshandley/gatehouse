@@ -2,11 +2,12 @@ import type { Context, Next } from "hono";
 import { jwtVerify } from "jose";
 import { timingSafeEqual } from "crypto";
 import type { GatehouseConfig } from "../config";
+import { ipMatchesAllowlist } from "./cidr";
 
 export interface AuthContext {
   identity: string;
   policies: string[];
-  source: "jwt" | "approle" | "root";
+  source: "user" | "approle" | "root";
 }
 
 /**
@@ -38,7 +39,7 @@ export function authMiddleware(config: GatehouseConfig) {
 
     const token = authHeader.slice(7);
 
-    // Check root token first (for bootstrapping) — timing-safe comparison
+    // Check root token first (for bootstrapping) - timing-safe comparison
     if (rootToken && token.length === rootToken.length && safeEqual(token, rootToken)) {
       c.set("auth", {
         identity: "root",
@@ -61,10 +62,23 @@ export function authMiddleware(config: GatehouseConfig) {
         return c.json({ error: "TOTP verification required", request_id: c.get("requestId") }, 401);
       }
 
+      // If the token was minted with an IP allowlist, reject requests whose
+      // source IP has drifted outside it since login - a stolen token must
+      // not be usable from a different network.
+      const tokenAllowlist = payload.ip_allowlist as string[] | undefined;
+      if (Array.isArray(tokenAllowlist) && tokenAllowlist.length > 0) {
+        const ip = c.get("sourceIp") || "unknown";
+        if (!ipMatchesAllowlist(ip, tokenAllowlist)) {
+          return c.json({ error: "Source IP not permitted for this token", request_id: c.get("requestId") }, 403);
+        }
+      }
+
+      // AppRole JWTs carry role_id in the payload; user JWTs do not.
+      const isApprole = typeof payload.role_id === "string";
       c.set("auth", {
         identity: payload.sub || "unknown",
         policies: (payload.policies as string[]) || [],
-        source: "jwt",
+        source: isApprole ? "approle" : "user",
       } satisfies AuthContext);
 
       return next();

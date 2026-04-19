@@ -11,7 +11,7 @@ import type { DynamicProvider, DynamicCredential } from "./provider";
  * The agent receives a signed cert + ephemeral keypair valid for the requested TTL.
  *
  * On revoke, the cert is simply expired (SSH certs have built-in validity windows).
- * No remote state to clean up — the cert becomes worthless after TTL.
+ * No remote state to clean up - the cert becomes worthless after TTL.
  *
  * Required config:
  *   ca_private_key - PEM-encoded CA private key (the signing authority)
@@ -113,7 +113,7 @@ export class SSHCertProvider implements DynamicProvider {
     _config: Record<string, string>,
     _revocationHandle: string
   ): Promise<void> {
-    // SSH certs are self-expiring — no remote state to clean up.
+    // SSH certs are self-expiring - no remote state to clean up.
     // The cert's validity window is baked in at signing time.
     // For extra security, a KRL (Key Revocation List) could be maintained,
     // but that's overkill for homelab use where TTLs are short.
@@ -129,7 +129,7 @@ export class SSHCertProvider implements DynamicProvider {
       try {
         execSync("which ssh-keygen", { timeout: 5_000 });
       } catch {
-        return { ok: false, error: "ssh-keygen not found in PATH — install openssh (e.g. apt install openssh-client / pacman -S openssh)" };
+        return { ok: false, error: "ssh-keygen not found in PATH - install openssh (e.g. apt install openssh-client / pacman -S openssh)" };
       }
 
       // Normalize the CA key: strip \r (CRLF from browser paste breaks libcrypto), ensure trailing \n

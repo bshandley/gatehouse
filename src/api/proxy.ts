@@ -6,7 +6,7 @@ import type { PatternEngine } from "../patterns/engine";
 import { isPrivateHost, scrubResponseBody, readCappedText, MAX_UPSTREAM_BODY_BYTES } from "../security/ssrf";
 
 /**
- * Proxy request format — three injection styles supported:
+ * Proxy request format - three injection styles supported:
  *
  * 1. Template style (Vault-like):
  *    Headers/URL/body contain {{secret:path}} placeholders that get resolved.
@@ -28,7 +28,7 @@ interface ProxyRequest {
   headers?: Record<string, string>;
   body?: any;
   timeout?: number;
-  /** Shorthand: { "Header-Name": "secret-path" } — Gatehouse sets the header to the secret value */
+  /** Shorthand: { "Header-Name": "secret-path" } - Gatehouse sets the header to the secret value */
   inject?: Record<string, string>;
   /** Auto-inject: secret paths whose metadata.header_name determines the header */
   auto_inject?: string[];
@@ -127,7 +127,7 @@ export function proxyRouter(
    * POST /v1/proxy
    *
    * Forward an HTTP request with secrets injected. The agent never sees
-   * the raw credential — Gatehouse resolves references, makes the upstream
+   * the raw credential - Gatehouse resolves references, makes the upstream
    * call, and returns the response.
    *
    * Two injection styles:
@@ -159,7 +159,7 @@ export function proxyRouter(
    * auth: {"Authorization": "basic:infra/opnsense"} base64-encodes the
    * secret value and sets "Basic <encoded>".
    *
-   * Auto-inject (metadata-driven — agent doesn't need to know the header):
+   * Auto-inject (metadata-driven - agent doesn't need to know the header):
    * {
    *   "method": "POST",
    *   "url": "https://api.anthropic.com/v1/messages",
@@ -403,7 +403,7 @@ export function proxyRouter(
       if (typeof req.body === "string") {
         upstreamBody = injectSecrets(req.body, resolved);
       } else {
-        // JSON body — serialize, inject, done
+        // JSON body - serialize, inject, done
         upstreamBody = injectSecrets(JSON.stringify(req.body), resolved);
         if (!upstreamHeaders["content-type"] && !upstreamHeaders["Content-Type"]) {
           upstreamHeaders["Content-Type"] = "application/json";
@@ -443,7 +443,7 @@ export function proxyRouter(
 
       clearTimeout(timer);
 
-      // Log success (never log the resolved URL — it might contain secrets in path)
+      // Log success (never log the resolved URL - it might contain secrets in path)
       audit.log({
         identity: auth.identity,
         action: "proxy.forward",

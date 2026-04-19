@@ -11,12 +11,42 @@ export function leaseRouter(
 ) {
   const router = new Hono();
 
-  // Checkout: create a lease and get the secret value
+  // Checkout (POST /v1/lease/<secret/path>) vs. Renew (POST /v1/lease/<leaseId>/renew)
+  // share a greedy matcher; disambiguate by /renew suffix on a known lease ID.
   router.post("/:path{.+}", async (c) => {
     const auth = c.get("auth") as AuthContext;
-    const path = c.req.param("path");
+    const rawPath = c.req.param("path");
 
-    if (!policies.check(auth.policies, path, "lease")) {
+    if (rawPath.endsWith("/renew")) {
+      const leaseId = rawPath.slice(0, -6);
+      const lease = leases.getLease(leaseId);
+      if (lease) {
+        const isAdmin = policies.check(auth.policies, "*", "admin");
+        if (lease.identity !== auth.identity && !isAdmin) {
+          return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
+        }
+        const body = await c.req.json<{ ttl?: number }>().catch(() => ({}));
+        const ttl = body.ttl || lease.ttl_seconds || 300;
+        if (typeof ttl !== "number" || ttl < 10 || ttl > 86400) {
+          return c.json(
+            { error: "TTL must be between 10 and 86400 seconds", request_id: c.get("requestId") },
+            400
+          );
+        }
+        const renewed = leases.renew(leaseId, ttl, auth.identity);
+        if (!renewed) {
+          return c.json({ error: "Lease is revoked or expired", request_id: c.get("requestId") }, 409);
+        }
+        return c.json({ lease: renewed });
+      }
+      // Lease IDs are always "lease-"-prefixed; a miss here is definitively not-found,
+      // not a secret path that happens to end in /renew.
+      if (leaseId.startsWith("lease-")) {
+        return c.json({ error: "Lease not found", request_id: c.get("requestId") }, 404);
+      }
+    }
+
+    if (!policies.check(auth.policies, rawPath, "lease")) {
       return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
     }
 
@@ -27,7 +57,7 @@ export function leaseRouter(
       return c.json({ error: "TTL must be between 10 and 86400 seconds", request_id: c.get("requestId") }, 400);
     }
 
-    const result = leases.checkout(path, auth.identity, ttl);
+    const result = leases.checkout(rawPath, auth.identity, ttl);
     if (!result) {
       return c.json({ error: "Secret not found", request_id: c.get("requestId") }, 404);
     }

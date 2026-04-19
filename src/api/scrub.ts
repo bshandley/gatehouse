@@ -5,7 +5,7 @@ import type { AuthContext } from "../auth/middleware";
 export function scrubRouter() {
   const router = new Hono();
 
-  // POST /v1/scrub — redact credentials from text
+  // POST /v1/scrub - redact credentials from text
   router.post("/", async (c) => {
     let body: { text: string };
     try {
@@ -22,7 +22,7 @@ export function scrubRouter() {
     return c.json(result);
   });
 
-  // POST /v1/scrub/check — quick boolean check for credential patterns
+  // POST /v1/scrub/check - quick boolean check for credential patterns
   router.post("/check", async (c) => {
     let body: { text: string };
     try {

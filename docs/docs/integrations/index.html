@@ -103,7 +103,7 @@ can connect to at least one of them. Pick the method that fits your setup.</p>
 <span class="line"><span style="color:#ABB2BF">  }</span></span>
 <span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
 <p>After adding, restart Windsurf. Gatehouse tools will appear in the MCP panel.
-Gatehouse exposes 8 tools — well under Windsurf’s 100-tool limit.</p>
+Gatehouse exposes 8 tools - well under Windsurf’s 100-tool limit.</p>
 <hr/>
 <h2 id="4-cursor">4. Cursor<a class="heading-anchor" aria-label="Link to this heading" href="#4-cursor">#</a></h2>
 <p>Add to <code>.cursor/mcp.json</code> (project-level) or <code>~/.cursor/mcp.json</code> (global):</p>
@@ -205,7 +205,7 @@ both an MCP tool provider AND a secrets backend.</p>
 <span class="line"><span style="color:#ABB2BF">    }</span></span>
 <span class="line"><span style="color:#ABB2BF">  }</span></span>
 <span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
-<p>This means OpenClaw never stores API keys locally — it fetches them from
+<p>This means OpenClaw never stores API keys locally - it fetches them from
 Gatehouse at runtime, with full audit logging.</p>
 <hr/>
 <h2 id="7-hermes-agent">7. Hermes Agent<a class="heading-anchor" aria-label="Link to this heading" href="#7-hermes-agent">#</a></h2>
@@ -274,7 +274,7 @@ The pattern is identical to Cursor:</p>
 <span class="line"><span style="color:#98C379">    &quot;policies&quot;: [&quot;agent-readonly&quot;]</span></span>
 <span class="line"><span style="color:#98C379">  }&#39;</span></span>
 <span class="line"><span style="color:#7F848E;font-style:italic"># Returns: { &quot;role_id&quot;: &quot;role-xxx&quot;, &quot;secret_id&quot;: &quot;yyy&quot; }</span></span>
-<span class="line"><span style="color:#7F848E;font-style:italic"># Save the secret_id — it&#39;s shown only once.</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Save the secret_id - it&#39;s shown only once.</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#7F848E;font-style:italic"># Create a separate AppRole for Codex (coding agent with broader access)</span></span>
 <span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/auth/approle</span><span style="color:#56B6C2"> \</span></span>
@@ -296,13 +296,13 @@ agent accessed which secret, when.</p>
 <hr/>
 <h2 id="proxy-mode">Proxy mode<a class="heading-anchor" aria-label="Link to this heading" href="#proxy-mode">#</a></h2>
 <p>Instead of giving agents raw API keys, route their HTTP requests through Gatehouse.
-The agent constructs the request but never sees the credential — Gatehouse injects
+The agent constructs the request but never sees the credential - Gatehouse injects
 it server-side.</p>
 <h3 id="mcp-recommended-for-agents">MCP (recommended for agents)<a class="heading-anchor" aria-label="Link to this heading" href="#mcp-recommended-for-agents">#</a></h3>
 <p>Agents can call <code>gatehouse_proxy</code> directly:</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="plaintext"><code><span class="line"><span>&gt; Use gatehouse_proxy to call the OpenAI chat completions API with api-keys/openai</span></span></code></pre>
 <p>The tool supports two injection styles:</p>
-<p><strong>Template style</strong> — <code>{{secret:path}}</code> placeholders in headers, URL, or body:</p>
+<p><strong>Template style</strong> - <code>{{secret:path}}</code> placeholders in headers, URL, or body:</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;method&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;POST&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;https://api.openai.com/v1/chat/completions&quot;</span><span style="color:#ABB2BF">,</span></span>
@@ -312,7 +312,7 @@ it server-side.</p>
 <span class="line"><span style="color:#ABB2BF">  },</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;body&quot;</span><span style="color:#ABB2BF">: {</span><span style="color:#E06C75">&quot;model&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;gpt-4&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;messages&quot;</span><span style="color:#ABB2BF">: [{</span><span style="color:#E06C75">&quot;role&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;user&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;content&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;hello&quot;</span><span style="color:#ABB2BF">}]}</span></span>
 <span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
-<p><strong>Inject shorthand</strong> — map header names to secret paths:</p>
+<p><strong>Inject shorthand</strong> - map header names to secret paths:</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;method&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;POST&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;https://api.openai.com/v1/chat/completions&quot;</span><span style="color:#ABB2BF">,</span></span>
@@ -349,7 +349,7 @@ can be forwarded to:</p>
 <hr/>
 <h2 id="dynamic-secrets">Dynamic secrets<a class="heading-anchor" aria-label="Link to this heading" href="#dynamic-secrets">#</a></h2>
 <p>For databases and other backends that support programmatic credential creation,
-Gatehouse can create temporary credentials on demand — no static passwords needed.</p>
+Gatehouse can create temporary credentials on demand - no static passwords needed.</p>
 <h3 id="setting-up-postgresql-dynamic-secrets">Setting up PostgreSQL dynamic secrets<a class="heading-anchor" aria-label="Link to this heading" href="#setting-up-postgresql-dynamic-secrets">#</a></h3>
 <ol>
 <li><strong>Configure the connection</strong> (admin):</li>
@@ -466,7 +466,7 @@ Or revoke early:</li>
 <span class="line"><span style="color:#98C379">      &quot;extensions&quot;: &quot;permit-pty,permit-port-forwarding&quot;</span></span>
 <span class="line"><span style="color:#98C379">    }</span></span>
 <span class="line"><span style="color:#98C379">  }&#39;</span></span></code></pre>
-<p>Generates an ephemeral ed25519 keypair and signs it with the CA key using <code>ssh-keygen</code>. Returns <code>private_key</code>, <code>public_key</code>, <code>certificate</code>, and usage instructions. Certs self-expire via the built-in validity window — no revocation needed.</p>
+<p>Generates an ephemeral ed25519 keypair and signs it with the CA key using <code>ssh-keygen</code>. Returns <code>private_key</code>, <code>public_key</code>, <code>certificate</code>, and usage instructions. Certs self-expire via the built-in validity window - no revocation needed.</p>
 <p><strong>Server-side setup:</strong></p>
 <ol>
 <li>Generate CA: <code>ssh-keygen -t ed25519 -f gatehouse_ca -N &quot;&quot;</code></li>
@@ -485,14 +485,14 @@ Or revoke early:</li>
 <p>Gatehouse can scan text for leaked credentials and redact them. Available via
 MCP (<code>gatehouse_scrub</code>) and REST API.</p>
 <h3 id="rest-api-1">REST API<a class="heading-anchor" aria-label="Link to this heading" href="#rest-api-1">#</a></h3>
-<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Scrub text — returns redacted version + list of what was found</span></span>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Scrub text - returns redacted version + list of what was found</span></span>
 <span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/scrub</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;text&quot;: &quot;My OpenAI key is sk-proj-abc123...&quot;}&#39;</span></span>
 <span class="line"><span style="color:#7F848E;font-style:italic"># Returns: { &quot;scrubbed&quot;: &quot;My OpenAI key is sk-pro***REDACTED***&quot;, &quot;redactions&quot;: [...] }</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#7F848E;font-style:italic"># Quick check — just returns whether credentials were detected</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Quick check - just returns whether credentials were detected</span></span>
 <span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/scrub/check</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>

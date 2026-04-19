@@ -55,7 +55,7 @@ export class DynamicSecretsManager {
     if (masterKey) {
       this.configKey = deriveKey(masterKey, "gatehouse-dynamic-config");
     } else {
-      // Test / ephemeral mode — use a random per-instance key.
+      // Test / ephemeral mode - use a random per-instance key.
       // This was previously a hardcoded zero key, which meant a caller who
       // forgot to pass masterKey in production would get a predictable,
       // attacker-reproducible key and an empty audit trail. Failing at
@@ -99,20 +99,20 @@ export class DynamicSecretsManager {
       const bytes = new Uint8Array(row.config);
       // Envelope blobs are always > nonce length + poly1305 tag = 40 bytes
       if (bytes.length <= nacl.secretbox.nonceLength + 16) continue;
-      // Try parsing as JSON — if it round-trips and decrypt-with-current-key
+      // Try parsing as JSON - if it round-trips and decrypt-with-current-key
       // fails, treat it as legacy plaintext and re-encrypt.
       let parsed: any = null;
       try {
         const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
         parsed = JSON.parse(text);
       } catch {
-        continue; // Not plaintext JSON — assume valid envelope blob.
+        continue; // Not plaintext JSON - assume valid envelope blob.
       }
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) continue;
 
       // Belt-and-braces: verify the blob does NOT decrypt with current key.
       // If it does decrypt, some adversary could have crafted a plaintext
-      // that happens to decrypt validly — extremely unlikely but skip.
+      // that happens to decrypt validly - extremely unlikely but skip.
       const nonce = bytes.slice(0, nacl.secretbox.nonceLength);
       const ct = bytes.slice(nacl.secretbox.nonceLength);
       const opened = nacl.secretbox.open(ct, nonce, this.configKey);
@@ -379,7 +379,7 @@ export class DynamicSecretsManager {
   }
 
   /**
-   * Revoke a dynamic lease — calls the provider to destroy the credential.
+   * Revoke a dynamic lease - calls the provider to destroy the credential.
    */
   async revokeLease(leaseId: string, identity: string): Promise<boolean> {
     const lease = this.getLease(leaseId);
@@ -425,7 +425,7 @@ export class DynamicSecretsManager {
   }
 
   /**
-   * Reap expired dynamic leases — calls providers to clean up credentials.
+   * Reap expired dynamic leases - calls providers to clean up credentials.
    */
   async reapExpired(): Promise<number> {
     const expired = this.db

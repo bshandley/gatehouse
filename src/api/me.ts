@@ -11,7 +11,7 @@ import {
 } from "../auth/totp";
 
 /**
- * Self-service user routes — operate on the currently-authenticated user.
+ * Self-service user routes - operate on the currently-authenticated user.
  * All endpoints here require a full access JWT (the auth middleware is
  * applied at the /v1 mount, so it rejects totp-pending tokens and AppRoles
  * via the identity check below).
@@ -21,7 +21,7 @@ export function meRouter(db: Database, audit: AuditLog) {
 
   /**
    * Only human user accounts (not AppRoles) can manage their own TOTP here.
-   * AppRoles authenticate with role_id + secret_id, not passwords — no 2FA.
+   * AppRoles authenticate with role_id + secret_id, not passwords - no 2FA.
    */
   function requireUser(c: any): { username: string } | null {
     const auth = c.get("auth") as { identity: string };

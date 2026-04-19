@@ -9,6 +9,7 @@ import { scrubValue } from "../scrub/scrubber";
 import { v4 as uuid } from "uuid";
 import type { PatternEngine } from "../patterns/engine";
 import { isPrivateHost, scrubResponseBody, readCappedText, MAX_UPSTREAM_BODY_BYTES } from "../security/ssrf";
+import { VERSION } from "../version";
 
 /**
  * Gatehouse MCP Server
@@ -187,7 +188,7 @@ const TOOLS: MCPTool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            'Array of secret paths. Gatehouse reads metadata.header_name from each secret to determine which header to set. The simplest option — you just provide secret paths, Gatehouse handles the rest.',
+            'Array of secret paths. Gatehouse reads metadata.header_name from each secret to determine which header to set. The simplest option - you just provide secret paths, Gatehouse handles the rest.',
         },
         body: {
           type: "object",
@@ -497,7 +498,7 @@ export function createMCPHandler(
               headers: upstreamHeaders,
               body: upstreamBody,
               signal: controller.signal,
-              // Never auto-follow redirects — would bypass SSRF pre-flight
+              // Never auto-follow redirects - would bypass SSRF pre-flight
               redirect: "manual",
             });
             clearTimeout(timer);
@@ -543,7 +544,7 @@ export function createMCPHandler(
             JSON.stringify(
               {
                 status: "ok",
-                version: "0.1.0",
+                version: VERSION,
                 identity: auth.identity,
                 policies: auth.policies,
                 active_leases: active.length,
@@ -601,7 +602,7 @@ export function createMCPHandler(
             capabilities: { tools: {} },
             serverInfo: {
               name: "gatehouse",
-              version: "0.1.0",
+              version: VERSION,
             },
           },
         };

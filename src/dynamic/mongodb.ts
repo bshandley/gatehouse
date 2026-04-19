@@ -36,7 +36,7 @@ export class MongoDBProvider implements DynamicProvider {
       const password = crypto.randomUUID() + crypto.randomUUID().slice(0, 8);
       const database = config.database;
 
-      // Parse roles — each role is scoped to the target database
+      // Parse roles - each role is scoped to the target database
       const roleNames = (config.roles || "read")
         .split(",")
         .map((r) => r.trim())
@@ -100,7 +100,7 @@ export class MongoDBProvider implements DynamicProvider {
           }
         }
       } catch {
-        // Non-critical — session cleanup is best-effort
+        // Non-critical - session cleanup is best-effort
       }
 
       await db.command({ dropUser: username });

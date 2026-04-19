@@ -25,7 +25,7 @@ describe("MCP Server", () => {
   const readonlyAuth: AuthContext = {
     identity: "readonly-agent",
     policies: ["readonly"],
-    source: "jwt",
+    source: "user",
   };
 
   beforeEach(() => {
@@ -60,7 +60,8 @@ rules:
       adminAuth
     );
     expect(res.result.serverInfo.name).toBe("gatehouse");
-    expect(res.result.serverInfo.version).toBe("0.1.0");
+    const { VERSION } = await import("../src/version");
+    expect(res.result.serverInfo.version).toBe(VERSION);
     expect(res.result.protocolVersion).toBe("2024-11-05");
     expect(res.result.capabilities.tools).toBeDefined();
   });

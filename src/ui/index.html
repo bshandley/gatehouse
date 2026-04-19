@@ -12,7 +12,7 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* ═══ Dark theme (default) ═══ */
+    /* Dark theme (default) */
     :root {
       --bg-primary: #0a0a0f;
       --bg-secondary: #12121a;
@@ -41,7 +41,7 @@
       --radius-lg: 12px;
     }
 
-    /* ═══ Light theme ═══ */
+    /* Light theme */
     html.light {
       --bg-primary: #f4f4f7;
       --bg-secondary: #ffffff;
@@ -75,7 +75,7 @@
       transition: background 0.3s, color 0.3s;
     }
 
-    /* ═══ Atmosphere ═══ */
+    /* Atmosphere */
     body::before {
       content: '';
       position: fixed;
@@ -95,13 +95,13 @@
       opacity: var(--noise-opacity);
     }
 
-    /* ═══ Scrollbar ═══ */
+    /* Scrollbar */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.3); }
 
-    /* ═══ Layout ═══ */
+    /* Layout */
     .app { display: flex; min-height: 100vh; position: relative; z-index: 1; }
     .sidebar {
       width: 232px;
@@ -125,7 +125,7 @@
       z-index: 1;
     }
 
-    /* ═══ Sidebar ═══ */
+    /* Sidebar */
     .sidebar-header {
       padding: 22px 18px;
       border-bottom: 1px solid var(--border);
@@ -274,14 +274,16 @@
     .theme-toggle:hover { border-color: var(--border-hover); color: var(--text-primary); }
     .theme-toggle svg { width: 14px; height: 14px; }
 
-    /* ═══ Page header ═══ */
+    /* Page header */
     .page-header {
       padding: 22px 32px;
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 60%, transparent), transparent);
+      background: color-mix(in srgb, var(--bg-secondary) 40%, transparent);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
       position: sticky;
       top: 0;
       z-index: 50;
@@ -299,7 +301,7 @@
     }
     .page-content { padding: 24px 32px; flex: 1; }
 
-    /* ═══ Stat cards ═══ */
+    /* Stat cards */
     .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
     .stat-card {
       background: var(--bg-card);
@@ -342,7 +344,7 @@
       line-height: 1;
     }
 
-    /* ═══ Cards ═══ */
+    /* Cards */
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -367,7 +369,7 @@
     .card-body { padding: 0; }
     .card-body-padded { padding: 20px; }
 
-    /* ═══ Tables ═══ */
+    /* Tables */
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     thead { position: sticky; top: 0; z-index: 1; }
@@ -395,7 +397,7 @@
     tr:hover td { background: rgba(128,128,128,0.04); }
     .mono { font-family: var(--font-mono); font-size: 12px; }
 
-    /* ═══ Badges ═══ */
+    /* Badges */
     .badge {
       display: inline-flex;
       align-items: center;
@@ -418,7 +420,7 @@
       background: currentColor;
     }
 
-    /* ═══ Buttons ═══ */
+    /* Buttons */
     .btn {
       font-family: var(--font-body);
       font-size: 13px;
@@ -453,7 +455,7 @@
     .btn-sm { padding: 5px 10px; font-size: 12px; }
     .btn:active { transform: scale(0.97); }
 
-    /* ═══ Forms ═══ */
+    /* Forms */
     .form-group { margin-bottom: 16px; }
     .form-label {
       display: block;
@@ -493,7 +495,7 @@
     textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); font-size: 12px; }
     select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a95' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
 
-    /* ═══ Modal ═══ */
+    /* Modal */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -518,6 +520,7 @@
       animation: modalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       box-shadow: 0 24px 80px var(--shadow-color);
     }
+    .modal.modal-wide { max-width: 720px; }
     .modal-header {
       display: flex;
       align-items: center;
@@ -546,7 +549,7 @@
     }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
 
-    /* ═══ Confirm dialog ═══ */
+    /* Confirm dialog */
     .confirm-dialog {
       text-align: center;
       padding: 8px 0;
@@ -578,7 +581,7 @@
     }
     .confirm-actions .btn { min-width: 110px; justify-content: center; }
 
-    /* ═══ Toast ═══ */
+    /* Toast */
     .toast-container { position: fixed; top: 16px; right: 16px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
     .toast {
       padding: 12px 16px;
@@ -599,7 +602,7 @@
     .toast-error { border-left: 3px solid var(--danger); }
     .toast-error::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 8px rgba(248,113,113,0.5); flex-shrink: 0; }
 
-    /* ═══ Animations ═══ */
+    /* Animations */
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes modalIn {
       from { opacity: 0; transform: translateY(-8px) scale(0.98); }
@@ -624,7 +627,7 @@
     .stagger-3 { animation: staggerIn 0.3s ease both; animation-delay: 0.15s; }
     .stagger-4 { animation: staggerIn 0.3s ease both; animation-delay: 0.2s; }
 
-    /* ═══ Login ═══ */
+    /* Login */
     .login-wrap {
       display: flex;
       align-items: center;
@@ -745,18 +748,9 @@
       color: var(--text-tertiary);
       line-height: 1.5;
     }
+    .login-totp-hint { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
 
-    /* Proxy grid layout */
-    .proxy-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-    .proxy-grid > .card:last-child {
-      grid-column: 1 / -1;
-    }
-
-    /* ═══ Secrets tree ═══ */
+    /* Secrets tree */
     .secrets-layout { display: grid; grid-template-columns: 300px 1fr; gap: 16px; min-height: 500px; }
     .secret-tree {
       background: var(--bg-card);
@@ -871,9 +865,10 @@
     }
     .detail-field-value { font-size: 13px; color: var(--text-secondary); }
 
-    .meta-table { width: 100%; margin-bottom: 16px; }
+    .meta-table { width: 100%; margin-bottom: 16px; table-layout: fixed; }
+    .meta-table th:first-child, .meta-table td:first-child { width: 35%; }
     .meta-table th { font-size: 10px; padding: 6px 10px; }
-    .meta-table td { padding: 6px 10px; font-size: 12px; }
+    .meta-table td { padding: 6px 10px; font-size: 12px; word-break: break-word; }
 
     .reveal-box {
       background: var(--bg-primary);
@@ -903,16 +898,16 @@
       line-height: 1.6;
     }
 
-    /* ═══ TTL ═══ */
+    /* TTL */
     .ttl-expiring { color: var(--danger); font-weight: 600; }
     .ttl-warning { color: var(--warning); font-weight: 500; }
     .ttl-ok { color: var(--success); }
 
-    /* ═══ KV editor ═══ */
+    /* KV editor */
     .kv-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
     .kv-row input { flex: 1; }
 
-    /* ═══ Filter bar ═══ */
+    /* Filter bar */
     .filter-bar {
       display: flex;
       gap: 8px;
@@ -923,7 +918,7 @@
     .filter-bar input, .filter-bar select { width: auto; min-width: 150px; font-size: 12px; padding: 7px 10px; }
     .filter-bar select { padding-right: 28px; }
 
-    /* ═══ Multi-select ═══ */
+    /* Multi-select */
     .multi-select { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-primary); padding: 8px; min-height: 42px; }
     .multi-select-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
     .multi-tag {
@@ -967,7 +962,7 @@
     .multi-option:hover { border-color: var(--accent); color: var(--accent); }
     .multi-option.selected { display: none; }
 
-    /* ═══ Settings ═══ */
+    /* Settings */
     .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
     .settings-item {
       padding: 16px;
@@ -1014,7 +1009,7 @@
     .danger-item-info h4 { font-size: 14px; margin-bottom: 3px; }
     .danger-item-info p { font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
 
-    /* ═══ Policy cards ═══ */
+    /* Policy cards */
     .policy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
     .policy-card {
       background: var(--bg-card);
@@ -1054,7 +1049,7 @@
       display: flex; gap: 8px; margin-top: 12px;
     }
 
-    /* ═══ Policy editor ═══ */
+    /* Policy editor */
     .policy-editor {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -1153,7 +1148,7 @@
     }
     .rule-remove:hover { color: var(--danger); }
 
-    /* ═══ SSO form ═══ */
+    /* SSO form */
     .sso-form .form-row {
       display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: center; margin-bottom: 12px;
     }
@@ -1164,8 +1159,10 @@
       display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
       padding-bottom: 16px; border-bottom: 1px solid var(--border);
     }
+    .sso-enable-label { font-size: 13px; font-weight: 500; }
+    .sso-save-row { display: flex; justify-content: flex-end; margin-top: 16px; }
 
-    /* ═══ Capability badges ═══ */
+    /* Capability badges */
     .cap-badge {
       display: inline-flex;
       align-items: center;
@@ -1185,7 +1182,7 @@
     .cap-lease { background: rgba(139, 92, 246, 0.12); color: #a78bfa; }
     .cap-admin { background: rgba(244, 114, 182, 0.12); color: #f472b6; }
 
-    /* ═══ Toggle ═══ */
+    /* Toggle */
     .toggle-wrap { display: flex; align-items: center; gap: 8px; }
     .toggle {
       width: 36px; height: 20px;
@@ -1221,7 +1218,139 @@
     }
     .collapsed { display: none !important; }
 
-    /* ═══ Patterns ═══ */
+    /* Utility tokens */
+    .meta-xs { font-size: 10px; color: var(--text-tertiary); }
+    .meta-sm { font-size: 11px; color: var(--text-tertiary); }
+    .meta-sm-secondary { font-size: 11px; color: var(--text-secondary); }
+    .muted-12 { font-size: 12px; color: var(--text-secondary); }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .header-actions-tight { display: flex; gap: 10px; align-items: center; }
+    .row-gap-sm { display: flex; gap: 8px; align-items: center; }
+    .row-gap-md { display: flex; gap: 10px; align-items: center; }
+    .col-gap-md { display: flex; flex-direction: column; gap: 10px; }
+    .mb-md { margin-bottom: 14px; }
+    .mb-lg { margin-bottom: 20px; }
+    .mt-md { margin-top: 14px; }
+    .mt-sm { margin-top: 8px; }
+    .flex-1 { flex: 1; }
+    .w-auto { width: auto !important; }
+    .card-spaced { margin-bottom: 20px; }
+    .card-spaced-sm { margin-bottom: 14px; }
+
+    .compact-select {
+      width: auto; min-width: 120px;
+      font-size: 11px; padding: 5px 26px 5px 8px;
+      background: var(--bg-primary); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text-secondary);
+    }
+
+    /* Page tabs (sub-navigation within a page) */
+    .page-tabs {
+      display: flex;
+      gap: 2px;
+      padding: 4px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+      width: fit-content;
+    }
+    .page-tab {
+      padding: 7px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      background: transparent;
+      color: var(--text-secondary);
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      font-family: var(--font-body);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .page-tab:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+    .page-tab.active {
+      background: var(--accent-subtle);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(108, 99, 255, 0.18);
+    }
+    .page-tab svg { width: 13px; height: 13px; opacity: 0.85; }
+
+    .inline-code {
+      background: var(--bg-tertiary);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+    }
+
+    /* Danger zone, quarantined */
+    .danger-zone {
+      border: 1px solid rgba(248, 113, 113, 0.25);
+      border-radius: var(--radius-lg);
+      padding: 0;
+      margin-top: 32px;
+      background:
+        linear-gradient(180deg, rgba(248,113,113,0.04), transparent 60%),
+        var(--bg-card);
+      position: relative;
+      overflow: hidden;
+    }
+    .danger-zone::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(248,113,113,0.5), transparent);
+    }
+    .danger-zone-header {
+      font-family: var(--font-heading);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--danger);
+      padding: 18px 22px 14px;
+      border-bottom: 1px solid rgba(248, 113, 113, 0.12);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.01em;
+    }
+    .danger-zone-body { padding: 4px 22px; }
+    .danger-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      gap: 16px;
+    }
+    .danger-item:last-child { border-bottom: none; }
+    .danger-item-info h4 {
+      font-size: 14px; margin-bottom: 3px;
+      font-family: var(--font-body); font-weight: 600;
+    }
+    .danger-item-info p {
+      font-size: 12px; color: var(--text-secondary); line-height: 1.45;
+      max-width: 480px;
+    }
+
+    /* Secrets tree quick-add on hover */
+    .tree-group-wrap { position: relative; }
+    .tree-group-add {
+      position: absolute;
+      right: 10px; top: 8px;
+      width: 18px; height: 18px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s, background 0.15s;
+    }
+    .tree-group-wrap:hover .tree-group-add { opacity: 1; }
+    .tree-group-add:hover { color: var(--accent); background: var(--accent-subtle); }
+
+    /* Patterns */
     .patterns-filter-bar {
       display: flex;
       gap: 10px;
@@ -1441,7 +1570,7 @@
 </head>
 <body>
 
-<!-- ═══ Login Screen ═══ -->
+<!-- Login Screen -->
 <div id="login-screen" class="login-wrap">
   <div class="login-container">
     <div class="login-glow"></div>
@@ -1483,10 +1612,10 @@
         <div class="form-group">
           <label class="form-label" for="login-totp-code">Authenticator code</label>
           <input type="text" id="login-totp-code" placeholder="123456 or recovery code" autocomplete="one-time-code" inputmode="numeric" maxlength="20" spellcheck="false">
-          <p style="font-size:11px;color:var(--text-secondary);margin-top:6px">Enter the 6-digit code from your authenticator app, or one of your recovery codes.</p>
+          <p class="login-totp-hint">Enter the 6-digit code from your authenticator app, or one of your recovery codes.</p>
         </div>
         <button class="btn btn-primary login-btn-full" onclick="submitTotpCode()">Verify</button>
-        <button class="btn btn-ghost login-btn-full" style="margin-top:8px" onclick="cancelTotpLogin()">Back</button>
+        <button class="btn btn-ghost login-btn-full mt-sm" onclick="cancelTotpLogin()">Back</button>
       </div>
 
       <p id="login-error" class="login-error hidden"></p>
@@ -1496,13 +1625,13 @@
   </div>
 </div>
 
-<!-- ═══ App Shell ═══ -->
+<!-- App Shell -->
 <div id="app-shell" class="app hidden">
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-logo"><svg viewBox="190 50 220 230" width="32" height="32" preserveAspectRatio="xMidYMid meet"><g transform="translate(0,328) scale(0.1,-0.1)"><path fill="#6c63ff" d="M2490 2696 l-485 -122 0 -519 c0 -471 2 -528 19 -605 73 -333 278 -607 608 -812 134 -83 327 -172 373 -172 48 0 282 114 411 199 257 171 449 412 528 661 52 167 51 156 51 719 l0 529 -485 123 c-267 67 -496 122 -510 122 -14 0 -243 -55 -510 -123z"/><path fill="#ffffff" d="M2935 2303 c-278 -41 -485 -277 -485 -553 0 -259 188 -492 439 -545 89 -19 137 -19 224 0 105 22 192 70 272 150 107 106 165 235 165 366 0 89 1 89 -242 89 -192 0 -206 1 -223 20 -31 34 -86 45 -127 26 -85 -40 -92 -154 -12 -207 48 -32 119 -19 147 28 6 10 47 13 169 13 l160 0 -7 -37 c-32 -172 -206 -321 -386 -331 -323 -19 -548 312 -413 607 115 254 444 331 654 155 57 -48 120 -29 120 36 0 46 -102 121 -219 159 -60 20 -183 32 -236 24z"/></g></svg></div>
       <span class="sidebar-title">Gatehouse</span>
-      <span class="sidebar-version" id="sidebar-version">v0.1</span>
+      <span class="sidebar-version" id="sidebar-version">v0.2.1</span>
     </div>
     <nav class="sidebar-nav">
       <div class="sidebar-section">Overview</div>
@@ -1530,10 +1659,6 @@
       <button class="nav-item" data-page="users" onclick="showPage('users')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Users
-      </button>
-      <button class="nav-item" data-page="proxy" onclick="showPage('proxy')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-        Proxy
       </button>
       <button class="nav-item" data-page="dynamic" onclick="showPage('dynamic')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
@@ -1570,7 +1695,7 @@
   </aside>
 
   <div class="main">
-    <!-- ═══ Dashboard ═══ -->
+    <!-- Dashboard -->
     <div class="page active" data-page="dashboard">
       <div class="page-header">
         <div>
@@ -1586,10 +1711,10 @@
           <div class="stat-card stagger-4"><div class="stat-label">Policies</div><div class="stat-value" id="stat-policies">-</div></div>
         </div>
 
-        <div class="card stagger-2" style="margin-bottom:20px">
+        <div class="card stagger-2 card-spaced">
           <div class="card-header">
             <span class="card-title">Active Leases</span>
-            <span style="font-size:11px;color:var(--text-tertiary)">Live TTL countdown</span>
+            <span class="meta-sm">Live TTL countdown</span>
           </div>
           <div class="card-body">
             <div class="table-wrap">
@@ -1604,9 +1729,10 @@
         <div class="card stagger-3">
           <div class="card-header">
             <span class="card-title">Recent Audit Events</span>
-            <select id="dash-audit-filter" onchange="loadDashboard()" style="width:auto;min-width:120px;font-size:11px;padding:5px 26px 5px 8px;background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary)">
+            <select id="dash-audit-filter" class="compact-select" onchange="loadDashboard()">
               <option value="">All actions</option>
-              <option value="secret.read">Read</option>
+              <option value="secret.reveal_value">Reveal value</option>
+              <option value="secret.read_metadata">Read metadata</option>
               <option value="secret.write">Write</option>
               <option value="lease.checkout">Lease</option>
               <option value="secret.delete">Delete</option>
@@ -1625,7 +1751,7 @@
       </div>
     </div>
 
-    <!-- ═══ Secrets ═══ -->
+    <!-- Secrets -->
     <div class="page" data-page="secrets">
       <div class="page-header">
         <div>
@@ -1653,7 +1779,7 @@
       </div>
     </div>
 
-    <!-- ═══ Leases ═══ -->
+    <!-- Leases -->
     <div class="page" data-page="leases">
       <div class="page-header">
         <div>
@@ -1665,7 +1791,7 @@
         <div class="card">
           <div class="card-header">
             <span class="card-title">Active Leases</span>
-            <span style="font-size:11px;color:var(--text-tertiary)" id="lease-count">-</span>
+            <span class="meta-sm" id="lease-count">-</span>
           </div>
           <div class="card-body">
             <div class="table-wrap">
@@ -1679,14 +1805,14 @@
       </div>
     </div>
 
-    <!-- ═══ Policies ═══ -->
+    <!-- Policies -->
     <div class="page" data-page="policies">
       <div class="page-header">
         <div>
           <h1 class="page-title">Policies</h1>
           <p class="page-subtitle">Access control definitions</p>
         </div>
-        <div style="display:flex;gap:8px">
+        <div class="header-actions">
           <button class="btn btn-ghost" onclick="reloadPolicies()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             Import from YAML
@@ -1703,7 +1829,7 @@
       </div>
     </div>
 
-    <!-- ═══ AppRoles ═══ -->
+    <!-- AppRoles -->
     <div class="page" data-page="agents">
       <div class="page-header">
         <div>
@@ -1732,7 +1858,7 @@
       </div>
     </div>
 
-    <!-- ═══ Users ═══ -->
+    <!-- Users -->
     <div class="page" data-page="users">
       <div class="page-header">
         <div>
@@ -1754,16 +1880,16 @@
       </div>
     </div>
 
-    <!-- ═══ Audit Log ═══ -->
+    <!-- Audit Log -->
     <div class="page" data-page="audit">
       <div class="page-header">
         <div>
           <h1 class="page-title">Audit Log</h1>
           <p class="page-subtitle">Every operation is recorded</p>
         </div>
-        <div style="display:flex;gap:10px;align-items:center">
+        <div class="header-actions-tight">
           <div class="toggle-wrap">
-            <span style="font-size:11px;color:var(--text-secondary)">Live tail</span>
+            <span class="meta-sm-secondary">Live tail</span>
             <div class="toggle" id="audit-live-toggle" onclick="toggleAuditLive()"></div>
           </div>
           <button class="btn btn-ghost btn-sm" onclick="exportAuditLog()">
@@ -1777,7 +1903,8 @@
           <input type="text" id="audit-filter-identity" placeholder="Identity">
           <select id="audit-filter-action">
             <option value="">All actions</option>
-            <option value="secret.read">Read</option>
+            <option value="secret.reveal_value">Reveal value</option>
+            <option value="secret.read_metadata">Read metadata</option>
             <option value="secret.write">Write</option>
             <option value="secret.delete">Delete</option>
             <option value="secret.list">List</option>
@@ -1802,111 +1929,13 @@
       </div>
     </div>
 
-    <!-- ═══ Proxy ═══ -->
-    <div class="page" data-page="proxy">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Proxy</h1>
-          <p class="page-subtitle">Forward HTTP requests with secret injection — agents never see raw credentials</p>
-        </div>
-      </div>
-      <div class="page-content proxy-grid">
-        <!-- Request builder -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">Request Builder</span></div>
-          <div class="card-body-padded">
-            <div style="display:flex;gap:10px;margin-bottom:14px;">
-              <select class="input" id="proxy-method" style="width:120px;flex-shrink:0;">
-                <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
-              </select>
-              <input class="input" id="proxy-url" placeholder="https://api.example.com/v1/endpoint" style="flex:1;">
-            </div>
 
-            <div style="margin-bottom:14px;">
-              <label class="detail-field-label" style="margin-bottom:6px;display:block;">Headers</label>
-              <div id="proxy-headers">
-                <div class="proxy-kv-row" style="display:flex;gap:8px;margin-bottom:6px;">
-                  <input class="input proxy-header-key" placeholder="Key (e.g. Authorization)" style="flex:1;">
-                  <input class="input proxy-header-val" placeholder="Value (e.g. Bearer {{secret:api-keys/openai}})" style="flex:2;">
-                  <button class="btn btn-ghost" onclick="this.parentElement.remove()" title="Remove" style="padding:4px 8px;color:var(--danger);">&times;</button>
-                </div>
-              </div>
-              <button class="btn btn-ghost" onclick="addProxyHeader()" style="font-size:12px;padding:4px 10px;margin-top:2px;">+ Add Header</button>
-            </div>
-
-            <div style="margin-bottom:14px;">
-              <label class="detail-field-label" style="margin-bottom:6px;display:block;">Body <span style="color:var(--text-tertiary);font-weight:400;">(JSON)</span></label>
-              <textarea class="input" id="proxy-body" rows="8" placeholder='{"model":"gpt-4","messages":[{"role":"user","content":"hello"}]}' style="font-family:var(--font-mono);font-size:12px;resize:vertical;"></textarea>
-            </div>
-
-            <div style="display:flex;gap:10px;align-items:center;">
-              <button class="btn btn-primary" onclick="sendProxyRequest()" id="proxy-send-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                Send
-              </button>
-              <label class="detail-field-label" style="margin:0;">
-                Timeout:
-                <input class="input" id="proxy-timeout" type="number" value="30" min="1" max="120" style="width:60px;display:inline-block;margin-left:4px;"> s
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- Response viewer -->
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Response</span>
-            <span class="badge" id="proxy-status-badge" style="display:none;"></span>
-          </div>
-          <div class="card-body-padded">
-            <div id="proxy-response-empty" class="empty-state" style="padding:60px 20px;text-align:center;">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5" style="margin-bottom:12px;"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-              <div>Send a request to see the response</div>
-              <div style="font-size:11px;color:var(--text-tertiary);margin-top:6px;">Use <code style="background:var(--bg-tertiary);padding:1px 5px;border-radius:3px;font-family:var(--font-mono);">{{secret:path}}</code> to inject secrets</div>
-            </div>
-            <div id="proxy-response-content" style="display:none;">
-              <div style="display:flex;gap:12px;margin-bottom:14px;">
-                <div class="settings-item" style="flex:1;">
-                  <div class="detail-field-label">Status</div>
-                  <div class="detail-field-value" id="proxy-res-status" style="font-family:var(--font-mono);">-</div>
-                </div>
-                <div class="settings-item" style="flex:1;">
-                  <div class="detail-field-label">Content-Type</div>
-                  <div class="detail-field-value" id="proxy-res-type" style="font-family:var(--font-mono);">-</div>
-                </div>
-                <div class="settings-item" style="flex:1;">
-                  <div class="detail-field-label">Time</div>
-                  <div class="detail-field-value" id="proxy-res-time" style="font-family:var(--font-mono);">-</div>
-                </div>
-              </div>
-              <div class="detail-field-label" style="margin-bottom:6px;">Response Headers</div>
-              <pre id="proxy-res-headers" style="background:var(--bg-tertiary);padding:10px 14px;border-radius:8px;font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);overflow-x:auto;margin-bottom:14px;max-height:80px;"></pre>
-              <div class="detail-field-label" style="margin-bottom:6px;">Body</div>
-              <pre id="proxy-res-body" style="background:var(--bg-tertiary);padding:14px;border-radius:8px;font-family:var(--font-mono);font-size:12px;color:var(--text-primary);overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-word;"></pre>
-            </div>
-          </div>
-        </div>
-
-        <!-- History -->
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Recent Proxy Calls</span>
-            <button class="btn btn-ghost" onclick="loadProxyHistory()" style="font-size:12px;">Refresh</button>
-          </div>
-          <table class="table">
-            <thead><tr><th>Time</th><th>Identity</th><th>Method</th><th>Host</th><th>Secrets</th><th>Status</th><th>Result</th></tr></thead>
-            <tbody id="proxy-history-body"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══ Dynamic Secrets ═══ -->
+    <!-- Dynamic Secrets -->
     <div class="page" data-page="dynamic">
       <div class="page-header">
         <div>
           <h1 class="page-title">Dynamic Secrets</h1>
-          <p class="page-subtitle">Temporary credentials created on-demand at upstream providers — auto-revoked on lease expiry</p>
+          <p class="page-subtitle">Temporary credentials created on-demand at upstream providers - auto-revoked on lease expiry</p>
         </div>
         <button class="btn btn-primary" onclick="openDynamicConfigModal()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1924,10 +1953,10 @@
         </div>
 
         <!-- Active dynamic leases -->
-        <div class="card" style="margin-top:20px;">
+        <div class="card card-spaced" style="margin-top:20px">
           <div class="card-header">
             <span class="card-title">Active Dynamic Leases</span>
-            <button class="btn btn-ghost" onclick="loadDynamic()" style="font-size:12px;">Refresh</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadDynamic()">Refresh</button>
           </div>
           <table class="table">
             <thead><tr><th>Lease ID</th><th>Path</th><th>Identity</th><th>Username</th><th>Provider</th><th>Expires</th><th></th></tr></thead>
@@ -1937,16 +1966,16 @@
       </div>
     </div>
 
-    <!-- ═══ Patterns ═══ -->
+    <!-- Patterns -->
     <div class="page" data-page="patterns">
       <div class="page-header">
         <div>
           <h1 class="page-title">Learned Patterns</h1>
-          <p class="page-subtitle">API call patterns learned from proxy traffic — agents query these to discover how to use an API</p>
+          <p class="page-subtitle">API call patterns learned from proxy traffic - agents query these to discover how to use an API</p>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <span id="patterns-count" style="font-size:11px;color:var(--text-tertiary)"></span>
-          <button class="btn btn-ghost" onclick="loadPatterns()" style="font-size:12px;">
+        <div class="header-actions-tight">
+          <span id="patterns-count" class="meta-sm"></span>
+          <button class="btn btn-ghost btn-sm" onclick="loadPatterns()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
             Refresh
           </button>
@@ -1954,7 +1983,7 @@
       </div>
       <div class="page-content">
         <div class="patterns-filter-bar stagger-1">
-          <input type="text" id="patterns-filter-secret" placeholder="Filter by secret path..." class="input" style="flex:1;min-width:200px" oninput="filterPatterns()">
+          <input type="text" id="patterns-filter-secret" placeholder="Filter by secret path..." class="input flex-1" style="min-width:200px" oninput="filterPatterns()">
           <select id="patterns-filter-method" class="input" style="width:120px" onchange="filterPatterns()">
             <option value="">All methods</option>
             <option value="GET">GET</option>
@@ -1974,7 +2003,7 @@
       </div>
     </div>
 
-    <!-- ═══ Settings ═══ -->
+    <!-- Settings -->
     <div class="page" data-page="settings">
       <div class="page-header">
         <div>
@@ -1993,7 +2022,7 @@
             <div class="settings-grid">
               <div class="settings-item">
                 <div class="detail-field-label">Server Version</div>
-                <div class="detail-field-value" id="settings-version" style="font-family:var(--font-mono)">-</div>
+                <div class="detail-field-value mono" id="settings-version">-</div>
               </div>
               <div class="settings-item">
                 <div class="detail-field-label">Uptime</div>
@@ -2018,9 +2047,9 @@
           </div>
           <div class="card-body-padded">
             <div class="config-row">
-              <div><div class="config-key">Theme</div><div style="font-size:12px;color:var(--text-secondary)">Switch between dark and light mode</div></div>
+              <div><div class="config-key">Theme</div><div class="muted-12">Switch between dark and light mode</div></div>
               <div class="toggle-wrap">
-                <span style="font-size:11px;color:var(--text-secondary)" id="theme-label">Dark</span>
+                <span class="meta-sm-secondary" id="theme-label">Dark</span>
                 <div class="toggle" id="settings-theme-toggle" onclick="toggleTheme()"></div>
               </div>
             </div>
@@ -2031,10 +2060,10 @@
         <div class="card config-section">
           <div class="card-header">
             <span class="card-title">Server Configuration</span>
-            <span class="badge badge-neutral" style="font-size:9px">Read-only</span>
+            <span class="badge badge-neutral">Read-only</span>
           </div>
           <div class="card-body-padded" id="settings-config-body">
-            <div style="color:var(--text-tertiary);font-size:13px">Loading configuration...</div>
+            <div class="empty-state" style="padding:12px 0;text-align:left">Loading configuration...</div>
           </div>
         </div>
 
@@ -2042,10 +2071,10 @@
         <div class="card config-section">
           <div class="card-header">
             <span class="card-title">Authentication</span>
-            <span class="badge badge-neutral" style="font-size:9px">Read-only</span>
+            <span class="badge badge-neutral">Read-only</span>
           </div>
           <div class="card-body-padded" id="settings-auth-body">
-            <div style="color:var(--text-tertiary);font-size:13px">Loading...</div>
+            <div class="empty-state" style="padding:12px 0;text-align:left">Loading...</div>
           </div>
         </div>
 
@@ -2056,10 +2085,10 @@
           </div>
           <div class="card-body-padded sso-form" id="sso-form">
             <div class="sso-toggle-row">
-              <label style="font-size:13px;font-weight:500">Enable SSO</label>
+              <label class="sso-enable-label">Enable SSO</label>
               <div class="toggle" id="sso-enabled-toggle" onclick="toggleSSOEnabled()"></div>
             </div>
-            <div id="sso-fields" style="display:none">
+            <div id="sso-fields" class="hidden">
               <div class="form-row">
                 <label>Issuer URL</label>
                 <input type="url" class="input" id="sso-issuer" placeholder="https://accounts.google.com">
@@ -2080,7 +2109,7 @@
                 <label>Scopes</label>
                 <input type="text" class="input" id="sso-scopes" placeholder="openid profile email">
               </div>
-              <div style="display:flex;justify-content:flex-end;margin-top:16px">
+              <div class="sso-save-row">
                 <button class="btn btn-primary" onclick="saveSSOSettings()">Save SSO Settings</button>
               </div>
             </div>
@@ -2088,13 +2117,13 @@
         </div>
 
         <!-- Two-Factor Authentication -->
-        <div class="card config-section" id="settings-totp-card" style="display:none">
+        <div class="card config-section hidden" id="settings-totp-card">
           <div class="card-header">
             <span class="card-title">Two-Factor Authentication</span>
             <span class="badge" id="settings-totp-badge">...</span>
           </div>
           <div class="card-body-padded" id="settings-totp-body">
-            <div style="color:var(--text-tertiary);font-size:13px">Loading...</div>
+            <div class="empty-state" style="padding:12px 0;text-align:left">Loading...</div>
           </div>
         </div>
 
@@ -2103,12 +2132,28 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             Danger Zone
           </div>
-          <div class="danger-item">
-            <div class="danger-item-info">
-              <h4>Purge Expired Leases</h4>
-              <p>Remove all expired lease records from the database</p>
+          <div class="danger-zone-body">
+            <div class="danger-item">
+              <div class="danger-item-info">
+                <h4>Purge Expired Leases</h4>
+                <p>Remove all expired lease records from the database.</p>
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="purgeExpiredLeases()">Purge</button>
             </div>
-            <button class="btn btn-danger btn-sm" onclick="purgeExpiredLeases()">Purge</button>
+            <div class="danger-item">
+              <div class="danger-item-info">
+                <h4>Purge Old Audit Entries</h4>
+                <p>Delete audit log entries older than the configured retention window. Cannot be undone.</p>
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="purgeAuditLog()">Purge</button>
+            </div>
+            <div class="danger-item">
+              <div class="danger-item-info">
+                <h4>Rotate Encryption Key</h4>
+                <p>Re-wrap every secret with a new master key. All existing tokens remain valid. Keep a backup of the old key in case of rollback.</p>
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="openRotateKeyModal()">Rotate</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2122,7 +2167,7 @@
 <div id="modal-container"></div>
 
 <script type="module">
-  // ─── State ──────────────────────────────────────────
+  // State
   let token = localStorage.getItem('gatehouseToken');
   let currentPage = 'dashboard';
   let auditLiveInterval = null;
@@ -2131,7 +2176,7 @@
   let selectedSecretPath = null;
   let pendingTotpToken = null;
 
-  // ─── Theme ──────────────────────────────────────────
+  // Theme
   const savedTheme = localStorage.getItem('gatehouseTheme') || 'dark';
   applyTheme(savedTheme);
 
@@ -2167,7 +2212,7 @@
     applyTheme(newTheme);
   }
 
-  // ─── Init ───────────────────────────────────────────
+  // Init
   // Enter key submits login
   document.getElementById('login-screen').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') doLogin();
@@ -2188,14 +2233,14 @@
     doLogin, doLogout, showPage, filterSecretTree,
     openCreateSecretModal, openCreateAgentModal,
     reloadPolicies, toggleAuditLive, exportAuditLog,
-    loadDashboard, loadAuditLog, purgeExpiredLeases, toast, toggleTheme,
+    loadDashboard, loadAuditLog, purgeExpiredLeases, purgeAuditLog, openRotateKeyModal, toast, toggleTheme,
     openPolicyEditor, saveSSOSettings, toggleSSOEnabled,
     switchLoginTab, openCreateUserModal,
     submitTotpCode, cancelTotpLogin,
     startTotpSetup, disableTotp, regenerateRecoveryCodes
   });
 
-  // ─── API helper ─────────────────────────────────────
+  // API helper
   async function api(path, opts = {}) {
     const headers = { 'Authorization': `Bearer ${token}`, ...opts.headers };
     if (opts.body && typeof opts.body === 'object') {
@@ -2212,7 +2257,7 @@
     return data;
   }
 
-  // ─── Auth ───────────────────────────────────────────
+  // Auth
   let loginMode = 'user'; // 'user' or 'token'
 
   function switchLoginTab(mode) {
@@ -2305,7 +2350,7 @@
     history.replaceState(null, '', '/');
   }
 
-  // ─── TOTP second-factor login helpers ────────────────
+  // TOTP second-factor login helpers
   async function submitTotpCode() {
     const err = document.getElementById('login-error');
     const codeEl = document.getElementById('login-totp-code');
@@ -2355,7 +2400,7 @@
     document.getElementById('login-error').classList.add('hidden');
   }
 
-  // ─── TOTP settings panel ─────────────────────────────
+  // TOTP settings panel
   // Render the 2FA card inside the Settings page. Only shown for user-account
   // sessions (not root tokens or AppRoles).
   async function loadTotpSettings() {
@@ -2592,13 +2637,15 @@
     showPage(targetPage);
   }
 
-  // ─── Page routing ───────────────────────────────────
+  // Page routing
   function showPage(page, fromHash = false) {
     currentPage = page;
     // Update URL hash without triggering hashchange again
     if (!fromHash) {
       history.replaceState(null, '', '#' + page);
     }
+    // Legacy #proxy hash redirects to patterns (proxy page removed)
+    if (page === 'proxy') page = 'patterns';
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelector(`.page[data-page="${page}"]`).classList.add('active');
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -2612,12 +2659,12 @@
 
     const loaders = {
       dashboard: loadDashboard, secrets: loadSecrets, leases: loadLeases,
-      policies: loadPolicies, agents: loadAgents, users: loadUsers, proxy: loadProxy, dynamic: loadDynamic, patterns: loadPatterns, audit: loadAuditLog, settings: loadSettings
+      policies: loadPolicies, agents: loadAgents, users: loadUsers, dynamic: loadDynamic, patterns: loadPatterns, audit: loadAuditLog, settings: loadSettings
     };
     loaders[page]?.();
   }
 
-  // ─── Dashboard ──────────────────────────────────────
+  // Dashboard
   async function loadDashboard() {
     try {
       const [secretsData, leasesData, auditData, policiesData] = await Promise.all([
@@ -2649,9 +2696,9 @@
     }
   }
 
-  // ─── Secrets ────────────────────────────────────────
+  // Secrets
   async function loadSecrets() {
-    // Always start fresh — don't reopen whatever was last selected.
+    // Always start fresh - don't reopen whatever was last selected.
     selectedSecretPath = null;
     const detail = document.getElementById('secret-detail');
     if (detail) {
@@ -2888,7 +2935,7 @@
     };
   }
 
-  // ─── Leases ─────────────────────────────────────────
+  // Leases
   async function loadLeases() {
     try {
       const data = await api('/v1/lease');
@@ -2947,7 +2994,7 @@
     }, 1000);
   }
 
-  // ─── Policies ───────────────────────────────────────
+  // Policies
   const ALL_CAPS = ['read', 'write', 'delete', 'list', 'lease', 'proxy', 'admin'];
   const DYNAMIC_CAPS = ['lease', 'admin'];
   let editingPolicy = null; // null = new, string = editing name
@@ -3000,7 +3047,7 @@
   }
 
   async function loadPolicies() {
-    // Always start fresh — don't reopen whatever was last being edited.
+    // Always start fresh - don't reopen whatever was last being edited.
     editingPolicy = null;
     const editor = document.getElementById('policy-editor-container');
     if (editor) editor.innerHTML = '';
@@ -3113,7 +3160,7 @@
   // A rule is "static-exposing" if it has any path that isn't dynamic-only.
   // read/lease on those paths return plaintext credentials in the response.
   function ruleExposesPlaintext(paths) {
-    if (paths.length === 0) return true; // no paths yet — assume worst case
+    if (paths.length === 0) return true; // no paths yet - assume worst case
     return paths.some(p => !isDynamicPath(p));
   }
 
@@ -3433,7 +3480,7 @@
     }
   }
 
-  // ─── Agents ─────────────────────────────────────────
+  // Agents
   async function loadAgents() {
     const tbody = document.getElementById('agents-body');
     try {
@@ -3564,9 +3611,17 @@
 
       try {
         const data = await api('/v1/auth/approle', { method: 'POST', body: { display_name: name, policies: selectedPolicies } });
+        const origin = window.location.origin;
+        const agentPrompt = buildAgentPrompt({
+          origin,
+          displayName: name,
+          roleId: data.role_id,
+          secretId: data.secret_id,
+          policies: selectedPolicies,
+        });
         document.getElementById('modal-container').innerHTML = `
           <div class="modal-overlay">
-            <div class="modal" style="border-color:rgba(251,191,36,0.3)">
+            <div class="modal modal-wide" style="border-color:rgba(251,191,36,0.3)">
               <h2 class="modal-title" style="display:flex;align-items:center;gap:10px">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 Save These Credentials
@@ -3586,6 +3641,14 @@
                   <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('cred-secret-id')">Copy</button>
                 </div>
               </div>
+              <div class="form-group">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                  <label class="form-label" style="margin:0">Agent System Prompt</label>
+                  <button class="btn btn-ghost btn-sm" onclick="copyAgentPrompt()">Copy Prompt</button>
+                </div>
+                <p style="font-size:11px;color:var(--text-tertiary);margin:0 0 8px 0">Paste into the agent's system prompt or config. Includes endpoints, credentials, and MCP tool cheatsheet.</p>
+                <textarea id="cred-agent-prompt" readonly class="input" style="width:100%;min-height:260px;font-family:var(--font-mono);font-size:11px;line-height:1.5;white-space:pre">${esc(agentPrompt)}</textarea>
+              </div>
               <div class="modal-actions">
                 <button class="btn btn-primary" onclick="dismissCredentialModal(this)">I've Saved These</button>
               </div>
@@ -3597,6 +3660,74 @@
       }
     };
   }
+
+  function buildAgentPrompt({ origin, displayName, roleId, secretId, policies }) {
+    const policyLine = (policies && policies.length)
+      ? policies.join(', ')
+      : '(none assigned yet - ask the operator to attach a policy)';
+    return `You have credentials to a Gatehouse secrets vault. Gatehouse lets you use
+API keys and other credentials without ever seeing the raw value: call the
+proxy and Gatehouse injects the secret into the outbound request for you.
+
+# Identity
+  Display name: ${displayName}
+  Role ID:      ${roleId}
+  Secret ID:    ${secretId}
+  Policies:     ${policyLine}
+
+# Endpoints
+  Base URL:     ${origin}
+  Login:        POST ${origin}/v1/auth/approle/login
+                body: {"role_id":"...","secret_id":"..."}
+                returns: {"token":"<jwt>","ttl_seconds":...}
+  MCP (HTTP):   ${origin}/v1/mcp
+                (use the streamable HTTP MCP transport)
+
+# Authentication
+Send the JWT from /v1/auth/approle/login as "Authorization: Bearer <jwt>"
+on every subsequent request, including MCP calls. Tokens expire; re-login
+when they do.
+
+# Start here
+1. Call gatehouse_status to confirm identity and policies.
+2. Call gatehouse_list to see which secret paths you can access.
+3. Prefer gatehouse_proxy over gatehouse_get - the proxy injects the
+   credential into the outbound HTTP call, so you never handle it.
+
+# MCP tools you have
+  gatehouse_status   Health + your identity, policies, active lease count
+  gatehouse_list     List secret paths visible to you (metadata only)
+  gatehouse_proxy    Make an HTTP call with secrets auto-injected (PREFERRED)
+                     Reference secrets in headers/body as {{secret:path}}
+  gatehouse_patterns Query learned API call patterns for a secret path
+  gatehouse_lease    Check out a secret with a bounded TTL (use when proxy
+                     is not possible - e.g. a library requires the raw key)
+  gatehouse_revoke   Revoke a lease early
+  gatehouse_get      Read a secret value directly (avoid if proxy works)
+  gatehouse_put      Write a secret (requires write policy)
+  gatehouse_scrub    Redact credentials from text before logging
+
+# Rules
+- Never paste the raw Role ID / Secret ID into code, logs, or commit them.
+  Store them in an environment variable or a local credential file outside
+  the repo.
+- Scrub outbound log lines with gatehouse_scrub if you're unsure.
+- If gatehouse_proxy returns 403, check gatehouse_status - your policies
+  may not cover the secret path, or your token may have expired.`;
+  }
+
+  window.copyAgentPrompt = function() {
+    const el = document.getElementById('cred-agent-prompt');
+    if (!el) return;
+    const text = el.value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => toast('Prompt copied', 'success')).catch(() => {
+        el.select(); document.execCommand('copy'); toast('Prompt copied', 'success');
+      });
+    } else {
+      el.select(); document.execCommand('copy'); toast('Prompt copied', 'success');
+    }
+  };
 
   window.copyCredField = function(id) {
     const el = document.getElementById(id);
@@ -3715,7 +3846,7 @@
     };
   }
 
-  // ─── Users ──────────────────────────────────────────
+  // Users
   async function loadUsers() {
     const tbody = document.getElementById('users-body');
     try {
@@ -3871,7 +4002,7 @@
     }
   };
 
-  // ─── Audit Log ──────────────────────────────────────
+  // Audit Log
   let auditEntries = [];
 
   async function loadAuditLog() {
@@ -3941,147 +4072,8 @@
     URL.revokeObjectURL(a.href);
   }
 
-  // ─── Proxy ──────────────────────────────────────────
-  function addProxyHeader() {
-    const container = document.getElementById('proxy-headers');
-    const row = document.createElement('div');
-    row.className = 'proxy-kv-row';
-    row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;';
-    row.innerHTML = `
-      <input class="input proxy-header-key" placeholder="Key" style="flex:1;">
-      <input class="input proxy-header-val" placeholder="Value" style="flex:2;">
-      <button class="btn btn-ghost" onclick="this.parentElement.remove()" title="Remove" style="padding:4px 8px;color:var(--danger);">&times;</button>
-    `;
-    container.appendChild(row);
-  }
 
-  async function sendProxyRequest() {
-    const btn = document.getElementById('proxy-send-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Sending...';
-
-    const method = document.getElementById('proxy-method').value;
-    const url = document.getElementById('proxy-url').value;
-    const timeoutSec = parseInt(document.getElementById('proxy-timeout').value) || 30;
-
-    if (!url) {
-      toast('Enter a URL', 'error');
-      btn.disabled = false;
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send';
-      return;
-    }
-
-    // Collect headers
-    const headers = {};
-    document.querySelectorAll('.proxy-kv-row').forEach(row => {
-      const key = row.querySelector('.proxy-header-key')?.value?.trim();
-      const val = row.querySelector('.proxy-header-val')?.value;
-      if (key) headers[key] = val || '';
-    });
-
-    // Parse body
-    let body;
-    const bodyText = document.getElementById('proxy-body').value.trim();
-    if (bodyText) {
-      try {
-        body = JSON.parse(bodyText);
-      } catch {
-        body = bodyText; // send as string if not valid JSON
-      }
-    }
-
-    const payload = { method, url, headers, timeout: timeoutSec * 1000 };
-    if (body !== undefined) payload.body = body;
-
-    const startTime = performance.now();
-
-    try {
-      const res = await api('/v1/proxy', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-
-      const elapsed = Math.round(performance.now() - startTime);
-      showProxyResponse(res, elapsed);
-    } catch (err) {
-      const elapsed = Math.round(performance.now() - startTime);
-      showProxyResponse({ status: 0, headers: {}, body: err.message || 'Request failed' }, elapsed, true);
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send';
-    }
-  }
-
-  function showProxyResponse(data, elapsed, isError = false) {
-    document.getElementById('proxy-response-empty').style.display = 'none';
-    document.getElementById('proxy-response-content').style.display = 'block';
-
-    const status = data.status || 0;
-    document.getElementById('proxy-res-status').textContent = status;
-    document.getElementById('proxy-res-type').textContent = data.headers?.['content-type'] || '-';
-    document.getElementById('proxy-res-time').textContent = elapsed + 'ms';
-
-    const badge = document.getElementById('proxy-status-badge');
-    badge.style.display = 'inline-flex';
-    if (isError || status >= 500) {
-      badge.className = 'badge badge-danger';
-      badge.textContent = status || 'Error';
-    } else if (status >= 400) {
-      badge.className = 'badge badge-warning';
-      badge.textContent = status;
-    } else {
-      badge.className = 'badge badge-success';
-      badge.textContent = status;
-    }
-
-    const hdrs = data.headers || {};
-    document.getElementById('proxy-res-headers').textContent = Object.entries(hdrs).map(([k,v]) => `${k}: ${v}`).join('\n') || '(none)';
-
-    const body = typeof data.body === 'object' ? JSON.stringify(data.body, null, 2) : String(data.body || '');
-    document.getElementById('proxy-res-body').textContent = body;
-  }
-
-  async function loadProxy() {
-    loadProxyHistory();
-  }
-
-  async function loadProxyHistory() {
-    try {
-      const data = await api('/v1/audit?action=proxy.forward&limit=25');
-      const entries = data.entries || [];
-      const tbody = document.getElementById('proxy-history-body');
-
-      if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No proxy calls yet</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = entries.map(e => {
-        const meta = e.metadata || {};
-        const statusCode = meta.status || '-';
-        const host = meta.target_host || meta.hostname || '-';
-        const method = meta.method || '-';
-        const reason = meta.reason || '';
-        const successBadge = e.success
-          ? `<span class="badge badge-success" style="font-size:10px;"><span class="badge-dot"></span> ${esc(statusCode)}</span>`
-          : `<span class="badge badge-danger" style="font-size:10px;"><span class="badge-dot"></span> ${esc(reason || 'Failed')}</span>`;
-
-        return `<tr>
-          <td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap;">${fmtTime(e.timestamp)}</td>
-          <td>${esc(e.identity)}</td>
-          <td><span class="badge" style="font-size:10px;background:var(--bg-tertiary);color:var(--text-secondary);">${esc(method)}</span></td>
-          <td style="font-family:var(--font-mono);font-size:12px;">${esc(host)}</td>
-          <td style="font-family:var(--font-mono);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${esc(e.path || '-')}</td>
-          <td>${esc(statusCode)}</td>
-          <td>${successBadge}</td>
-        </tr>`;
-      }).join('');
-    } catch {
-      document.getElementById('proxy-history-body').innerHTML = '<tr><td colspan="7" class="empty-state">Failed to load history</td></tr>';
-    }
-  }
-
-  // ─── Dynamic Secrets ────────────────────────────────
+  // Dynamic Secrets
   async function loadDynamic() {
     try {
       const data = await api('/v1/dynamic');
@@ -4294,7 +4286,7 @@
 
       // Show the public key and host setup commands
       showCAPubkey(data.public_key);
-      toast('CA keypair generated — save the public key!');
+      toast('CA keypair generated - save the public key!');
     } catch (err) {
       toast(err.message || 'Failed to generate keypair', 'error');
     }
@@ -4342,7 +4334,7 @@
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `<div class="modal" style="max-width:600px;">
-        <div class="modal-header"><h3>Host Setup — ${esc(path)}</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
+        <div class="modal-header"><h3>Host Setup - ${esc(path)}</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
         <div class="modal-body">
           <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;">Add the CA public key to each target host so it trusts certificates signed by Gatehouse.</p>
           <div style="margin-bottom:16px;">
@@ -4521,9 +4513,6 @@
   window.loadAuditLog = loadAuditLog;
   window.toggleAuditLive = toggleAuditLive;
   window.exportAuditLog = exportAuditLog;
-  window.addProxyHeader = addProxyHeader;
-  window.sendProxyRequest = sendProxyRequest;
-  window.loadProxyHistory = loadProxyHistory;
   window.loadDynamic = loadDynamic;
   window.openDynamicConfigModal = openDynamicConfigModal;
   window.saveDynamicConfig = saveDynamicConfig;
@@ -4531,7 +4520,7 @@
   window.deleteDynamicConfig = deleteDynamicConfig;
   window.revokeDynamicLease = revokeDynamicLease;
 
-  // ── Patterns ──────────────────────────────────────────
+  // Patterns
   let _allPatterns = [];
 
   async function loadPatterns() {
@@ -4711,7 +4700,7 @@
   window.togglePatternPin = togglePatternPin;
   window.deletePattern = deletePattern;
 
-  // ─── Settings ───────────────────────────────────────
+  // Settings
   async function loadSettings() {
     // Health
     try {
@@ -4733,7 +4722,7 @@
         <div class="config-row"><span class="config-key">JWT Expiry</span><span class="config-val">${esc(cfg.jwt_expiry)}</span></div>
         <div class="config-row"><span class="config-key">OAuth Enabled</span><span class="config-val">${cfg.oauth_enabled ? 'Yes' : 'No'}</span></div>
         <div class="config-row"><span class="config-key">Lease Reaper Interval</span><span class="config-val">${cfg.lease_reaper_interval}s</span></div>
-        <div class="config-row"><span class="config-key">Lease TTL Range</span><span class="config-val">${cfg.min_lease_ttl}s – ${cfg.max_lease_ttl}s</span></div>
+        <div class="config-row"><span class="config-key">Lease TTL Range</span><span class="config-val">${cfg.min_lease_ttl}s - ${cfg.max_lease_ttl}s</span></div>
       `;
       document.getElementById('settings-auth-body').innerHTML = `
         <div class="config-row"><span class="config-key">JWT Expiry</span><span class="config-val">${esc(cfg.jwt_expiry)}</span></div>
@@ -4756,10 +4745,10 @@
       const fields = document.getElementById('sso-fields');
       if (sso.enabled) {
         toggle.classList.add('on');
-        fields.style.display = 'block';
+        fields.classList.remove('hidden');
       } else {
         toggle.classList.remove('on');
-        fields.style.display = 'none';
+        fields.classList.add('hidden');
       }
       document.getElementById('sso-issuer').value = sso.issuer || '';
       document.getElementById('sso-client-id').value = sso.client_id || '';
@@ -4779,7 +4768,7 @@
     const toggle = document.getElementById('sso-enabled-toggle');
     const fields = document.getElementById('sso-fields');
     toggle.classList.toggle('on');
-    fields.style.display = toggle.classList.contains('on') ? 'block' : 'none';
+    fields.classList.toggle('hidden', !toggle.classList.contains('on'));
   }
 
   async function saveSSOSettings() {
@@ -4813,7 +4802,71 @@
     toast('Purge requested (handled by reaper)', 'success');
   }
 
-  // ─── Utilities ──────────────────────────────────────
+  async function purgeAuditLog() {
+    if (!await ghConfirm({
+      title: 'Purge Old Audit Entries',
+      message: 'Delete audit log entries older than the configured retention window. This cannot be undone.',
+      confirmText: 'Purge',
+      type: 'danger',
+    })) return;
+    try {
+      const res = await api('/v1/audit/purge', { method: 'POST' });
+      toast(`Purged ${res.purged ?? 0} entries`, 'success');
+    } catch (e) {
+      toast('Failed: ' + e.message, 'error');
+    }
+  }
+
+  async function openRotateKeyModal() {
+    const container = document.getElementById('modal-container');
+    container.innerHTML = `
+      <div class="modal-overlay" onclick="event.target===this && (this.parentElement.innerHTML='')">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title">Rotate Encryption Key</h3>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').parentElement.innerHTML=''">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p class="muted-12 mb-md">Paste a new 64+ char hex master key (e.g. <code class="inline-code">openssl rand -hex 32</code>). Every secret DEK will be re-wrapped. Back up the old key before rotating.</p>
+            <div class="form-group">
+              <label class="form-label">New Master Key (hex)</label>
+              <input type="password" class="input mono" id="rotate-new-key" placeholder="64+ hex characters" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirm New Key</label>
+              <input type="password" class="input mono" id="rotate-new-key-confirm" placeholder="Paste again to confirm" autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').parentElement.innerHTML=''">Cancel</button>
+            <button class="btn btn-danger" onclick="submitRotateKey()">Rotate Key</button>
+          </div>
+        </div>
+      </div>`;
+    setTimeout(() => document.getElementById('rotate-new-key')?.focus(), 30);
+  }
+
+  window.submitRotateKey = async function() {
+    const k1 = document.getElementById('rotate-new-key').value.trim();
+    const k2 = document.getElementById('rotate-new-key-confirm').value.trim();
+    if (!k1 || k1 !== k2) { toast('Keys must match', 'error'); return; }
+    if (!/^[0-9a-fA-F]+$/.test(k1) || k1.length < 64) { toast('Key must be 64+ hex chars', 'error'); return; }
+    if (!await ghConfirm({
+      title: 'Rotate now?',
+      message: 'Every secret will be re-wrapped. Make sure you have a backup of the old key.',
+      confirmText: 'Rotate',
+      type: 'danger',
+    })) return;
+    try {
+      const res = await api('/v1/admin/rotate-key', { method: 'POST', body: { new_master_key: k1 } });
+      toast(`Rotated ${res.rotated_secrets ?? res.secrets_rotated ?? 0} secrets`, 'success');
+      document.getElementById('modal-container').innerHTML = '';
+    } catch (e) {
+      toast('Failed: ' + e.message, 'error');
+    }
+  };
+
+  // Utilities
   function esc(s) {
     const d = document.createElement('div');
     d.textContent = s;
@@ -4858,7 +4911,7 @@
   }
 
   /**
-   * Custom confirm dialog — returns a Promise<boolean>.
+   * Custom confirm dialog - returns a Promise<boolean>.
    * Usage: if (await ghConfirm({ title, message, confirmText, type })) { ... }
    */
   window.ghConfirm = ghConfirm;
@@ -4901,7 +4954,7 @@
   }
 
   /**
-   * Custom prompt dialog — returns a Promise<string|null>.
+   * Custom prompt dialog - returns a Promise<string|null>.
    * Usage: const val = await ghPrompt({ title, message, label, defaultValue, ... });
    */
   window.ghPrompt = ghPrompt;
@@ -4961,6 +5014,8 @@
   window.toggleSSOEnabled = toggleSSOEnabled;
   window.saveSSOSettings = saveSSOSettings;
   window.purgeExpiredLeases = purgeExpiredLeases;
+  window.purgeAuditLog = purgeAuditLog;
+  window.openRotateKeyModal = openRotateKeyModal;
 </script>
 </body>
 </html>

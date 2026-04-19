@@ -4,7 +4,7 @@ import { createHmac, randomBytes } from "node:crypto";
  * TOTP (RFC 6238) implementation using HMAC-SHA1, 30-second step, 6 digits.
  * Compatible with Google Authenticator, Authy, 1Password, Bitwarden, etc.
  *
- * No external dependencies — just node:crypto primitives that ship with Bun.
+ * No external dependencies - just node:crypto primitives that ship with Bun.
  */
 
 const STEP_SECONDS = 30;
@@ -14,7 +14,7 @@ const ALGO = "sha1";
 // RFC 4648 base32 alphabet
 const B32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
-/** Encode raw bytes as RFC 4648 base32 (no padding — authenticators don't care). */
+/** Encode raw bytes as RFC 4648 base32 (no padding - authenticators don't care). */
 export function base32Encode(bytes: Uint8Array): string {
   let bits = 0;
   let value = 0;

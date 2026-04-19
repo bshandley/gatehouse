@@ -29,7 +29,7 @@ export function deriveKey(masterKey: Buffer, purpose: string): Uint8Array {
  * 4. Both ciphertexts + nonces are stored in SQLite
  *
  * To decrypt: unwrap the DEK with the KEK, then decrypt the value with the DEK.
- * If the master key rotates, only DEKs need re-wrapping — values stay untouched.
+ * If the master key rotates, only DEKs need re-wrapping - values stay untouched.
  */
 export class SecretsEngine {
   private db: Database;
@@ -65,10 +65,37 @@ export class SecretsEngine {
     // version N+1, clobbering each other's DEK/metadata.
     const putTxn = this.db.transaction(() => {
       const existing = this.db
-        .query("SELECT version FROM secrets WHERE path = ?")
-        .get(path) as { version: number } | null;
+        .query(
+          "SELECT version, encrypted_value, nonce, encrypted_dek, dek_nonce, metadata FROM secrets WHERE path = ?"
+        )
+        .get(path) as {
+        version: number;
+        encrypted_value: Buffer;
+        nonce: Buffer;
+        encrypted_dek: Buffer;
+        dek_nonce: Buffer;
+        metadata: string;
+      } | null;
 
       const version = existing ? existing.version + 1 : 1;
+
+      if (existing) {
+        this.db
+          .query(
+            `INSERT OR IGNORE INTO secret_versions
+             (path, version, encrypted_value, nonce, encrypted_dek, dek_nonce, metadata)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            path,
+            existing.version,
+            existing.encrypted_value,
+            existing.nonce,
+            existing.encrypted_dek,
+            existing.dek_nonce,
+            existing.metadata
+          );
+      }
 
       this.db
         .query(
@@ -120,7 +147,7 @@ export class SecretsEngine {
     );
 
     if (!dek) {
-      // Never leak the path in an error — it's caller-provided and the
+      // Never leak the path in an error - it's caller-provided and the
       // response lands in the audit log / HTTP error body.
       throw new Error("Failed to decrypt DEK");
     }
@@ -181,12 +208,94 @@ export class SecretsEngine {
       this.db
         .query("DELETE FROM leases WHERE secret_path = ?")
         .run(path);
+      this.db
+        .query("DELETE FROM secret_versions WHERE path = ?")
+        .run(path);
       return this.db
         .query("DELETE FROM secrets WHERE path = ?")
         .run(path);
     });
     const result = deleteTxn();
     return result.changes > 0;
+  }
+
+  listVersions(path: string): Array<{
+    version: number;
+    metadata: Record<string, string>;
+    archived_at: string;
+    current: boolean;
+  }> {
+    const cur = this.db
+      .query("SELECT version, metadata, updated_at FROM secrets WHERE path = ?")
+      .get(path) as { version: number; metadata: string; updated_at: string } | null;
+    const history = this.db
+      .query(
+        "SELECT version, metadata, archived_at FROM secret_versions WHERE path = ? ORDER BY version DESC"
+      )
+      .all(path) as { version: number; metadata: string; archived_at: string }[];
+
+    const out: Array<{
+      version: number;
+      metadata: Record<string, string>;
+      archived_at: string;
+      current: boolean;
+    }> = [];
+    if (cur) {
+      out.push({
+        version: cur.version,
+        metadata: JSON.parse(cur.metadata),
+        archived_at: cur.updated_at,
+        current: true,
+      });
+    }
+    for (const h of history) {
+      out.push({
+        version: h.version,
+        metadata: JSON.parse(h.metadata),
+        archived_at: h.archived_at,
+        current: false,
+      });
+    }
+    return out;
+  }
+
+  getVersion(path: string, version: number): string | null {
+    const row = this.db
+      .query(
+        "SELECT encrypted_value, nonce, encrypted_dek, dek_nonce FROM secret_versions WHERE path = ? AND version = ?"
+      )
+      .get(path, version) as {
+      encrypted_value: Buffer;
+      nonce: Buffer;
+      encrypted_dek: Buffer;
+      dek_nonce: Buffer;
+    } | null;
+    if (!row) return null;
+
+    const dek = nacl.secretbox.open(
+      new Uint8Array(row.encrypted_dek),
+      new Uint8Array(row.dek_nonce),
+      this.kek
+    );
+    if (!dek) throw new Error("Failed to decrypt DEK");
+
+    const value = nacl.secretbox.open(
+      new Uint8Array(row.encrypted_value),
+      new Uint8Array(row.nonce),
+      dek
+    );
+    if (!value) throw new Error("Failed to decrypt secret value");
+    return new TextDecoder().decode(value);
+  }
+
+  rollback(path: string, targetVersion: number): StoredSecret | null {
+    const value = this.getVersion(path, targetVersion);
+    if (value === null) return null;
+    const archived = this.db
+      .query("SELECT metadata FROM secret_versions WHERE path = ? AND version = ?")
+      .get(path, targetVersion) as { metadata: string } | null;
+    const metadata = archived ? JSON.parse(archived.metadata) : {};
+    return this.put(path, value, metadata);
   }
 
   exists(path: string): boolean {
@@ -198,7 +307,7 @@ export class SecretsEngine {
 
   /**
    * Rotate the KEK: re-wrap all DEKs with a new key derived from the new master key.
-   * Secret values are NOT re-encrypted — only the DEK wrapping changes.
+   * Secret values are NOT re-encrypted - only the DEK wrapping changes.
    * Returns the number of secrets re-wrapped.
    *
    * The entire rotation runs inside a SQLite transaction. If any row fails
@@ -241,6 +350,24 @@ export class SecretsEngine {
 
         count++;
       }
+
+      const vrows = this.db
+        .query("SELECT id, encrypted_dek, dek_nonce FROM secret_versions")
+        .all() as { id: number; encrypted_dek: Buffer; dek_nonce: Buffer }[];
+      for (const row of vrows) {
+        const dek = nacl.secretbox.open(
+          new Uint8Array(row.encrypted_dek),
+          new Uint8Array(row.dek_nonce),
+          this.kek
+        );
+        if (!dek) throw new Error("Failed to decrypt archived DEK during rotation");
+        const newDekNonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+        const newEncryptedDek = nacl.secretbox(dek, newDekNonce, newKek);
+        this.db
+          .query("UPDATE secret_versions SET encrypted_dek = ?, dek_nonce = ? WHERE id = ?")
+          .run(Buffer.from(newEncryptedDek), Buffer.from(newDekNonce), row.id);
+      }
+
       return count;
     });
 

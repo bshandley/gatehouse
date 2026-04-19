@@ -158,7 +158,7 @@ export function dynamicRouter(
       return c.json({ error: "Dynamic secret not found", request_id: c.get("requestId") }, 404);
     }
 
-    // Redact sensitive values — only show host/database/port, not password
+    // Redact sensitive values - only show host/database/port, not password
     const safeConfig: Record<string, string> = {};
     for (const [key, value] of Object.entries(config.config)) {
       if (key === "password" || key === "secret" || key === "private_key" || key === "ca_private_key") {
@@ -293,7 +293,7 @@ export function dynamicRouter(
     try {
       body = await c.req.json();
     } catch {
-      // Body is optional — use defaults
+      // Body is optional - use defaults
     }
 
     const ttl = Math.max(10, Math.min(86400, body.ttl || 300));

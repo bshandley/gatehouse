@@ -30,7 +30,7 @@ export class MySQLProvider implements DynamicProvider {
   ): Promise<DynamicCredential> {
     const conn = await this.connect(config);
 
-    // Validate grants BEFORE touching the database — only allowlisted
+    // Validate grants BEFORE touching the database - only allowlisted
     // privilege keywords may reach a GRANT statement.
     const validatedPrivileges = validateMySQLGrants(config.grants || "SELECT");
     const privList = validatedPrivileges.join(", ");
@@ -42,7 +42,7 @@ export class MySQLProvider implements DynamicProvider {
       const database = config.database;
       const host = validateAllowedHost(config.allowed_host);
 
-      // Create user — MySQL/MariaDB don't support parameterized placeholders
+      // Create user - MySQL/MariaDB don't support parameterized placeholders
       // for user@host in DDL statements, so we use quoted identifiers.
       // Username is generated from sanitize() + UUID, host is validated.
       await conn.execute(
@@ -99,7 +99,7 @@ export class MySQLProvider implements DynamicProvider {
     try {
 
       // Kill active connections. KILL takes a numeric thread id and does
-      // not accept placeholders on many MySQL versions — coerce to integer
+      // not accept placeholders on many MySQL versions - coerce to integer
       // defensively so nothing but digits ever touches the query string.
       const [rows] = await conn.execute(
         "SELECT ID FROM information_schema.processlist WHERE USER = ?",

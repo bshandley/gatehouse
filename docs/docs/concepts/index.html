@@ -28,7 +28,15 @@ GitHub <span aria-hidden="true" data-astro-cid-dmqpwcec>↗</span> </a> </nav> <
 </ul>
 <p>See <a href="/docs/providers/">Dynamic secret providers</a> for per-provider setup.</p>
 <h2 id="pattern-learning">Pattern learning<a class="heading-anchor" aria-label="Link to this heading" href="#pattern-learning">#</a></h2>
-<p>Because every proxy call flows through Gatehouse, the vault sees which requests succeeded. Successful calls are recorded as <strong>normalized patterns</strong>: method, URL template (with <code>:id</code>/<code>:num</code> placeholders), header names, request and response schemas. No secret values are ever stored in a pattern.</p>
+<p>Because every proxy call flows through Gatehouse, the vault sees which requests succeeded. Successful calls are recorded as <strong>normalized patterns</strong>: method, URL template, header names, request and response schemas. No secret values are ever stored in a pattern.</p>
+<p>URL normalization collapses the high-cardinality parts of a path so variants of the same call collide into a single pattern:</p>
+<ul>
+<li>UUIDs → <code>:id</code></li>
+<li>Pure-digit segments → <code>:num</code></li>
+<li>ISO dates (<code>YYYY-MM-DD</code>) → <code>:date</code></li>
+<li>Query strings keep their (sorted) keys but drop the values</li>
+</ul>
+<p>So <code>GET /users/550e8400-e29b-41d4-a716-446655440000/orders/42?status=open</code> and <code>GET /users/9b2.../orders/99?status=closed</code> both land on <code>GET /users/:id/orders/:num?status=</code>.</p>
 <p>Each pattern has a confidence score computed from a rolling window of the last 20 outcomes. When an agent’s proxy call fails, Gatehouse returns suggested known-good patterns in the error response. New agents can also query patterns directly via the <code>gatehouse_patterns</code> MCP tool to learn how to call an API before spending a single token guessing.</p>
 <p>Operators can pin patterns (to prevent deletion) or delete them through the web UI.</p>
 <h2 id="policies--capabilities">Policies &amp; capabilities<a class="heading-anchor" aria-label="Link to this heading" href="#policies--capabilities">#</a></h2>

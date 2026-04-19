@@ -64,7 +64,7 @@ describe("Auth API", () => {
     delete process.env.GATEHOUSE_ROOT_TOKEN;
   });
 
-  // ── AppRole creation ──────────────────────────────────────
+  // AppRole creation
 
   test("POST /approle creates an AppRole with root token", async () => {
     const res = await app.request("/v1/auth/approle", {
@@ -127,7 +127,7 @@ describe("Auth API", () => {
     expect(res.status).toBe(400);
   });
 
-  // ── AppRole login ─────────────────────────────────────────
+  // AppRole login
 
   test("POST /approle/login returns JWT for valid credentials", async () => {
     // Create an AppRole first
@@ -229,7 +229,7 @@ describe("Auth API", () => {
     expect(body.policies).toEqual(["admin"]);
   });
 
-  // ── AppRole list / delete ─────────────────────────────────
+  // AppRole list / delete
 
   test("GET /approle lists roles with root token", async () => {
     // Create two roles
@@ -290,7 +290,7 @@ describe("Auth API", () => {
     expect(res.status).toBe(404);
   });
 
-  // ── Rate limiting ─────────────────────────────────────────
+  // Rate limiting
 
   test("rate limits after 5 failed login attempts", async () => {
     // Create a role so we have a valid role_id
@@ -329,7 +329,7 @@ describe("Auth API", () => {
     expect(res.status).toBe(429);
   });
 
-  // ── User login ────────────────────────────────────────────
+  // User login
 
   test("POST /login returns JWT for valid user credentials", async () => {
     // Create a user first
@@ -404,7 +404,7 @@ describe("Auth API", () => {
     expect(res.status).toBe(400);
   });
 
-  // ── User CRUD ─────────────────────────────────────────────
+  // User CRUD
 
   test("POST /users creates a user", async () => {
     const res = await app.request("/v1/auth/users", {
@@ -614,7 +614,7 @@ describe("Auth API", () => {
     expect(res.status).toBe(404);
   });
 
-  // ── Root token protection ─────────────────────────────────
+  // Root token protection
 
   test("protected route rejects invalid token", async () => {
     const res = await app.request("/v1/whoami", {

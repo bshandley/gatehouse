@@ -143,4 +143,24 @@ describe("LeaseManager", () => {
     const l2Check = leases.getLease(l2.lease.id);
     expect(l2Check!.revoked).toBe(false);
   });
+
+  test("renew extends expires_at and updates ttl_seconds", async () => {
+    const result = leases.checkout("test/key", "test-agent", 300)!;
+    const originalExpiry = new Date(result.lease.expires_at).getTime();
+    await new Promise((r) => setTimeout(r, 15));
+    const renewed = leases.renew(result.lease.id, 600, "test-agent");
+    expect(renewed).not.toBeNull();
+    expect(renewed!.ttl_seconds).toBe(600);
+    expect(new Date(renewed!.expires_at).getTime()).toBeGreaterThan(originalExpiry);
+  });
+
+  test("renew returns null for revoked lease", () => {
+    const result = leases.checkout("test/key", "test-agent", 300)!;
+    leases.revoke(result.lease.id, "test-agent");
+    expect(leases.renew(result.lease.id, 600, "test-agent")).toBeNull();
+  });
+
+  test("renew returns null for unknown lease", () => {
+    expect(leases.renew("lease-does-not-exist", 600, "test-agent")).toBeNull();
+  });
 });
