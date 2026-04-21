@@ -16,9 +16,12 @@ import { isPrivateHost, scrubResponseBody, readCappedText, MAX_UPSTREAM_BODY_BYT
  *    without the agent needing to know the template syntax.
  *
  * 3. Auto-inject (metadata-driven):
- *    An "auto_inject" array of secret paths. Gatehouse reads the secret's
- *    metadata.header_name to determine which header to set. The agent
- *    doesn't need to know the API's auth header at all.
+ *    An "auto_inject" array of secret paths. Gatehouse sets the target
+ *    header for you - defaults to Authorization: Bearer <value>, and
+ *    can be overridden per-secret via metadata.header_name (e.g.
+ *    "X-API-Key") and metadata.auth_scheme (empty string disables the
+ *    Bearer prefix). The agent doesn't need to know the API's auth
+ *    header at all.
  *
  * All styles can be combined in the same request.
  */
@@ -34,8 +37,83 @@ interface ProxyRequest {
   auto_inject?: string[];
 }
 
-/** Whether private network proxying is globally allowed */
-const ALLOW_PRIVATE = (process.env.GATEHOUSE_PROXY_ALLOW_PRIVATE || "").toLowerCase() === "true";
+/**
+ * Whether private network proxying is globally allowed. Default true:
+ * Gatehouse's primary audience is homelabbers whose services live on
+ * private IPs, so the proxy is useless out of the box if these are
+ * blocked. Set GATEHOUSE_PROXY_ALLOW_PRIVATE=false to re-enable SSRF
+ * blocking (e.g. when exposing Gatehouse on the public internet).
+ */
+export function allowPrivateGlobally(): boolean {
+  const v = (process.env.GATEHOUSE_PROXY_ALLOW_PRIVATE ?? "").toLowerCase();
+  return v !== "false";
+}
+
+/**
+ * Shared SSRF decision for both the HTTP proxy and the MCP gatehouse_proxy
+ * tool. Returns { allowed: true } when the call may proceed, or
+ * { allowed: false, reason } when it must be blocked. Both the per-secret
+ * override (metadata.allow_private=true) and per-secret force-block
+ * (metadata.allow_private=false) are honored.
+ */
+/**
+ * Resolve an auto_inject request to a concrete (header, value) pair.
+ *
+ * Secret metadata can specify:
+ *   - header_name: the header Gatehouse should set (default: "Authorization")
+ *   - auth_scheme: the scheme prefix for Authorization values (default: "Bearer")
+ *
+ * When `header_name` is missing we default to Authorization because that's
+ * what the overwhelming majority of bearer-token APIs want, and requiring
+ * every secret to carry the metadata creates friction that surprises
+ * homelabbers. Operators can set `header_name` to override (e.g. "X-API-Key"
+ * with auth_scheme="" for raw-token-in-a-custom-header APIs).
+ *
+ * For the Authorization header, if the secret's value does not already start
+ * with a known scheme, Gatehouse prepends one. Pass auth_scheme="" to disable.
+ */
+export function resolveAutoInject(
+  secretValue: string,
+  meta: { metadata?: Record<string, string> } | null
+): { headerName: string; headerValue: string } {
+  const headerName = meta?.metadata?.header_name || "Authorization";
+  const rawSchemeMeta = meta?.metadata?.auth_scheme;
+  // Distinguish "unset" (use default) from "explicit empty string" (no scheme).
+  const scheme =
+    rawSchemeMeta === undefined
+      ? headerName.toLowerCase() === "authorization"
+        ? "Bearer"
+        : ""
+      : rawSchemeMeta;
+  const hasScheme = /^(Bearer|Basic|Token|Digest|ApiKey)\s/i.test(secretValue);
+  const headerValue = scheme && !hasScheme ? `${scheme} ${secretValue}` : secretValue;
+  return { headerName, headerValue };
+}
+
+export function checkPrivateNetworkPolicy(
+  hostname: string,
+  secretPaths: string[],
+  getMeta: (path: string) => { metadata?: Record<string, string> } | null
+): { allowed: true } | { allowed: false; reason: string } {
+  if (!isPrivateHost(hostname)) return { allowed: true };
+  const blocks = secretPaths.some(
+    (p) => getMeta(p)?.metadata?.allow_private === "false"
+  );
+  if (blocks) {
+    return {
+      allowed: false,
+      reason: "This secret has metadata allow_private=false and cannot proxy to private networks. Remove that key or set allow_private=true to allow.",
+    };
+  }
+  const allows = secretPaths.some(
+    (p) => getMeta(p)?.metadata?.allow_private === "true"
+  );
+  if (allowPrivateGlobally() || allows) return { allowed: true };
+  return {
+    allowed: false,
+    reason: "Private network proxying is disabled on this Gatehouse (GATEHOUSE_PROXY_ALLOW_PRIVATE=false). Set metadata allow_private=true on the secret to override, or enable globally.",
+  };
+}
 
 // Match {{secret:path/to/secret}} in strings
 const SECRET_REF_PATTERN = /\{\{secret:([a-zA-Z0-9/_-]+)\}\}/g;
@@ -170,8 +248,9 @@ export function proxyRouter(
    *
    * All styles can be combined. Requires "proxy" capability on each secret.
    * Domain allowlisting via secret metadata key "allowed_domains".
-   * Private network proxying via GATEHOUSE_PROXY_ALLOW_PRIVATE=true or
-   * per-secret metadata key "allow_private"="true".
+   * Private network proxying is allowed by default (homelab-friendly).
+   * Disable globally with GATEHOUSE_PROXY_ALLOW_PRIVATE=false, or block
+   * a specific secret by setting its metadata allow_private=false.
    */
   router.post("/", async (c) => {
     const auth = c.get("auth") as { identity: string; policies: string[] };
@@ -304,31 +383,27 @@ export function proxyRouter(
       }
     }
 
-    // SSRF protection: block requests to private/internal networks
-    // Can be bypassed globally via GATEHOUSE_PROXY_ALLOW_PRIVATE=true
-    // or per-secret via metadata.allow_private=true
+    // SSRF protection: private/internal networks are allowed by default
+    // (homelab-friendly). Block globally via GATEHOUSE_PROXY_ALLOW_PRIVATE=false,
+    // or block a specific secret via its metadata allow_private=false.
     const upstreamUrl = injectSecrets(req.url, resolved);
     try {
       const parsedUpstream = new URL(upstreamUrl);
-      if (isPrivateHost(parsedUpstream.hostname)) {
-        const anySecretAllowsPrivate = secretPaths.some(p => {
-          const meta = secrets.getMeta(p);
-          return meta?.metadata?.allow_private === "true";
+      const ssrf = checkPrivateNetworkPolicy(
+        parsedUpstream.hostname,
+        secretPaths,
+        (p) => secrets.getMeta(p)
+      );
+      if (!ssrf.allowed) {
+        audit.log({
+          identity: auth.identity,
+          action: "proxy.forward",
+          path: secretPaths.join(","),
+          source_ip: sourceIp,
+          metadata: { target_host: parsedUpstream.hostname, reason: "ssrf_blocked" },
+          success: false,
         });
-        if (!ALLOW_PRIVATE && !anySecretAllowsPrivate) {
-          audit.log({
-            identity: auth.identity,
-            action: "proxy.forward",
-            path: secretPaths.join(","),
-            source_ip: sourceIp,
-            metadata: { target_host: parsedUpstream.hostname, reason: "ssrf_blocked" },
-            success: false,
-          });
-          return c.json(
-            { error: "Requests to private/internal networks are blocked. Set secret metadata allow_private=true or GATEHOUSE_PROXY_ALLOW_PRIVATE=true to allow.", request_id: c.get("requestId") },
-            403
-          );
-        }
+        return c.json({ error: ssrf.reason, request_id: c.get("requestId") }, 403);
       }
       // Block non-HTTP(S) schemes
       if (!["http:", "https:"].includes(parsedUpstream.protocol)) {
@@ -373,28 +448,18 @@ export function proxyRouter(
       }
     }
 
-    // Apply auto-inject: use secret metadata.header_name to determine the header
+    // Apply auto-inject. Defaults: Authorization + Bearer if the secret's
+    // metadata does not declare header_name/auth_scheme (handled inside
+    // resolveAutoInject).
     if (req.auto_inject) {
       for (const secretPath of req.auto_inject) {
         const secretValue = resolved.get(secretPath);
         if (!secretValue) continue;
-        const meta = secrets.getMeta(secretPath);
-        const headerName = meta?.metadata?.header_name;
-        if (!headerName) {
-          return c.json(
-            { error: `Secret "${secretPath}" has no header_name in metadata. Set it to use auto_inject.`, request_id: c.get("requestId") },
-            400
-          );
-        }
-        // Same auto-Bearer logic as inject shorthand
-        if (
-          headerName.toLowerCase() === "authorization" &&
-          !secretValue.match(/^(Bearer|Basic|Token|Digest)\s/i)
-        ) {
-          upstreamHeaders[headerName] = `Bearer ${secretValue}`;
-        } else {
-          upstreamHeaders[headerName] = secretValue;
-        }
+        const { headerName, headerValue } = resolveAutoInject(
+          secretValue,
+          secrets.getMeta(secretPath)
+        );
+        upstreamHeaders[headerName] = headerValue;
       }
     }
 

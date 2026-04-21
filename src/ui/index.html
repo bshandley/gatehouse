@@ -1130,6 +1130,12 @@
     .cap-chip.warn.active::before {
       content: "⚠"; font-size: 10px; margin-right: 2px;
     }
+    .cap-chip.advanced {
+      border-style: dashed; opacity: 0.85;
+    }
+    .cap-chip.advanced.active {
+      background: rgba(167, 139, 250, 0.1); border-color: rgba(167, 139, 250, 0.6); color: rgb(196, 181, 253);
+    }
     .policy-cap-note {
       margin-top: 12px; padding: 10px 14px; border-radius: var(--radius);
       background: rgba(251, 191, 36, 0.06); border: 1px solid rgba(251, 191, 36, 0.25);
@@ -2995,8 +3001,16 @@
   }
 
   // Policies
-  const ALL_CAPS = ['read', 'write', 'delete', 'list', 'lease', 'proxy', 'admin'];
-  const DYNAMIC_CAPS = ['lease', 'admin'];
+  // Picker capabilities are a UI-curated subset, ordered by how often
+  // they are the right answer for agents: proxy (preferred) > lease
+  // (library needs raw value) > read (raw value, last resort) > write
+  // > delete. "list" is omitted because gatehouse_list auto-filters by
+  // any usable cap, making a standalone list cap redundant. "admin" is
+  // omitted because the built-in admin policy already grants it; exposing
+  // it on the custom-policy picker is a footgun. Both remain valid in the
+  // engine and in hand-edited YAML.
+  const ALL_CAPS = ['proxy', 'lease', 'read', 'write', 'delete'];
+  const DYNAMIC_CAPS = ['lease'];
   let editingPolicy = null; // null = new, string = editing name
 
   // Path suggestions for the tag-input autocomplete in rule editor
@@ -3083,7 +3097,7 @@
     editingPolicy = name || null;
     await fetchPathSuggestions();
 
-    let rules = [{ paths: [], capabilities: ['read'] }];
+    let rules = [{ paths: [], capabilities: ['proxy'] }];
     let isReadonly = false;
 
     if (name) {
@@ -3174,26 +3188,40 @@
     if (!row) return;
     const paths = Array.from(row.querySelectorAll('.tag-token')).map(t => t.dataset.path);
     const activeCaps = new Set(Array.from(row.querySelectorAll('.cap-chip.active')).map(el => el.textContent.trim()));
-    const visibleCaps = getCapsForPaths(paths);
+    const pickerCaps = getCapsForPaths(paths);
+    const extras = Array.from(activeCaps).filter(c => !pickerCaps.includes(c));
+    const visibleCaps = [...pickerCaps, ...extras];
     const capsContainer = row.querySelector('.rule-caps');
     if (!capsContainer) return;
     capsContainer.innerHTML = visibleCaps.map(cap => {
       const active = activeCaps.has(cap);
       const warn = isExposingCap(cap, paths);
-      return `<span class="cap-chip ${warn ? 'warn' : ''} ${active ? 'active' : ''}" onclick="toggleCap(${ruleIndex}, '${cap}')" ${warn ? 'title="Returns plaintext credentials to the agent. Prefer proxy where possible."' : ''}>${cap}</span>`;
+      const advanced = extras.includes(cap);
+      const title = advanced
+        ? 'title="Advanced capability. Removing cannot be re-added from the UI."'
+        : (warn ? 'title="Returns plaintext credentials to the agent. Prefer proxy where possible."' : '');
+      return `<span class="cap-chip ${warn ? 'warn' : ''} ${advanced ? 'advanced' : ''} ${active ? 'active' : ''}" onclick="toggleCap(${ruleIndex}, '${cap}')" ${title}>${cap}</span>`;
     }).join('');
   }
 
   function renderRuleRow(rule, index, readonly) {
     // Support both paths (array) and legacy path (string)
     const paths = rule.paths || (rule.path ? [rule.path] : []);
-    const visibleCaps = getCapsForPaths(paths);
+    const pickerCaps = getCapsForPaths(paths);
+    // Preserve any caps the rule already has that the picker omits
+    // (e.g. "list" or "admin" from hand-edited YAML). Render them so
+    // saving does not silently strip them.
+    const extras = (rule.capabilities || []).filter(c => !pickerCaps.includes(c));
+    const visibleCaps = [...pickerCaps, ...extras];
 
     const capsHtml = visibleCaps.map(cap => {
       const active = rule.capabilities?.includes(cap);
       const warn = isExposingCap(cap, paths);
-      const title = warn ? 'title="Returns plaintext credentials to the agent. Prefer proxy where possible."' : '';
-      return `<span class="cap-chip ${warn ? 'warn' : ''} ${active ? 'active' : ''}" ${!readonly ? `onclick="toggleCap(${index}, '${cap}')"` : ''} ${title}>${cap}</span>`;
+      const advanced = extras.includes(cap);
+      const title = advanced
+        ? 'title="Advanced capability not shown in the picker by default. Click to toggle; removing cannot be re-added from the UI."'
+        : (warn ? 'title="Returns plaintext credentials to the agent. Prefer proxy where possible."' : '');
+      return `<span class="cap-chip ${warn ? 'warn' : ''} ${advanced ? 'advanced' : ''} ${active ? 'active' : ''}" ${!readonly ? `onclick="toggleCap(${index}, '${cap}')"` : ''} ${title}>${cap}</span>`;
     }).join('');
 
     const tagsHtml = paths.map((p, pi) =>
@@ -3665,9 +3693,10 @@
     const policyLine = (policies && policies.length)
       ? policies.join(', ')
       : '(none assigned yet - ask the operator to attach a policy)';
-    return `You have credentials to a Gatehouse secrets vault. Gatehouse lets you use
-API keys and other credentials without ever seeing the raw value: call the
-proxy and Gatehouse injects the secret into the outbound request for you.
+    return `You have credentials to a Gatehouse secrets vault. Gatehouse lets
+you use API keys and other credentials without ever seeing the raw
+value: you describe an HTTP request with {{secret:path}} placeholders,
+and Gatehouse injects the real credential into the outbound call.
 
 # Identity
   Display name: ${displayName}
@@ -3681,7 +3710,7 @@ proxy and Gatehouse injects the secret into the outbound request for you.
                 body: {"role_id":"...","secret_id":"..."}
                 returns: {"token":"<jwt>","ttl_seconds":...}
   MCP (HTTP):   ${origin}/v1/mcp
-                (use the streamable HTTP MCP transport)
+                (streamable HTTP MCP transport)
 
 # Authentication
 Send the JWT from /v1/auth/approle/login as "Authorization: Bearer <jwt>"
@@ -3689,31 +3718,65 @@ on every subsequent request, including MCP calls. Tokens expire; re-login
 when they do.
 
 # Start here
-1. Call gatehouse_status to confirm identity and policies.
-2. Call gatehouse_list to see which secret paths you can access.
-3. Prefer gatehouse_proxy over gatehouse_get - the proxy injects the
-   credential into the outbound HTTP call, so you never handle it.
+1. gatehouse_status - confirm identity and policies.
+2. gatehouse_list - returns every secret you can use (read, proxy, or
+   lease). No arguments needed; takes an optional prefix filter.
+3. For an interesting secret, gatehouse_patterns reveals known-good
+   request shapes other agents have used. Use this before guessing URLs.
+4. Call the upstream API via gatehouse_proxy, referencing the secret
+   with {{secret:path}}.
+
+# gatehouse_proxy - the main tool
+You construct the full HTTP request (method, url, headers, body) and
+embed {{secret:path/to/secret}} anywhere a credential would appear.
+Gatehouse substitutes it server-side, so the raw value never reaches
+your context.
+
+Example:
+  {
+    "method": "POST",
+    "url": "https://api.example.com/v1/things",
+    "headers": {
+      "Authorization": "Bearer {{secret:providers/example-key}}",
+      "Content-Type": "application/json"
+    },
+    "body": {"name": "hello"}
+  }
+
+Shorthand: "inject": {"Authorization": "path/to/secret"} sets the
+header to the secret's raw value (Authorization auto-prefixes
+"Bearer "). Even simpler: "auto_inject": ["path/to/secret"] defaults
+to Authorization: Bearer <value>. Operators can override per-secret
+via metadata.header_name (e.g. "X-API-Key") and metadata.auth_scheme
+(empty string to skip the Bearer prefix).
 
 # MCP tools you have
   gatehouse_status   Health + your identity, policies, active lease count
-  gatehouse_list     List secret paths visible to you (metadata only)
+  gatehouse_list     Secrets you can access (metadata only, no values)
+  gatehouse_patterns Known-good request patterns for a secret path
   gatehouse_proxy    Make an HTTP call with secrets auto-injected (PREFERRED)
-                     Reference secrets in headers/body as {{secret:path}}
-  gatehouse_patterns Query learned API call patterns for a secret path
-  gatehouse_lease    Check out a secret with a bounded TTL (use when proxy
-                     is not possible - e.g. a library requires the raw key)
+  gatehouse_lease    Check out a raw secret with a bounded TTL (fallback
+                     when a library insists on holding the key itself)
   gatehouse_revoke   Revoke a lease early
   gatehouse_get      Read a secret value directly (avoid if proxy works)
   gatehouse_put      Write a secret (requires write policy)
   gatehouse_scrub    Redact credentials from text before logging
 
+# Troubleshooting
+- 401 or expired token: re-login via /v1/auth/approle/login.
+- 403 on gatehouse_proxy: your policy does not grant "proxy" on that
+  secret path, or the target domain is not in the secret's
+  allowed_domains metadata. gatehouse_status shows your policies;
+  gatehouse_list shows each secret's metadata.
+- If a secret you expect is missing from gatehouse_list, ask the
+  operator to extend your policy. Do not guess paths.
+
 # Rules
-- Never paste the raw Role ID / Secret ID into code, logs, or commit them.
-  Store them in an environment variable or a local credential file outside
-  the repo.
-- Scrub outbound log lines with gatehouse_scrub if you're unsure.
-- If gatehouse_proxy returns 403, check gatehouse_status - your policies
-  may not cover the secret path, or your token may have expired.`;
+- Never paste the raw Role ID / Secret ID into code, logs, or commits.
+  Keep them in an env var or a local credential file outside the repo.
+- Prefer gatehouse_proxy over gatehouse_get / gatehouse_lease. The
+  proxy keeps the credential out of your context window entirely.
+- Scrub outbound log lines with gatehouse_scrub if unsure.`;
   }
 
   window.copyAgentPrompt = function() {

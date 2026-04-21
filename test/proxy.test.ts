@@ -542,7 +542,7 @@ describe("Proxy Router", () => {
     expect(res.status).not.toBe(400);
   });
 
-  test("auto_inject rejects secret without header_name metadata", async () => {
+  test("auto_inject defaults to Authorization: Bearer when header_name is absent", async () => {
     // api-keys/openai has allowed_domains but no header_name
     const res = await app.request("/v1/proxy", {
       method: "POST",
@@ -553,15 +553,69 @@ describe("Proxy Router", () => {
         auto_inject: ["api-keys/openai"],
       }),
     });
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toContain("header_name");
+    // No more 400 for missing header_name; call goes through to upstream.
+    expect(res.status).not.toBe(400);
+  });
+
+  test("resolveAutoInject defaults and overrides", async () => {
+    const { resolveAutoInject } = await import("../src/api/proxy");
+    // Default: Authorization + Bearer when no metadata
+    expect(resolveAutoInject("raw-token", null)).toEqual({
+      headerName: "Authorization",
+      headerValue: "Bearer raw-token",
+    });
+    // Existing scheme is preserved
+    expect(resolveAutoInject("Bearer already", null)).toEqual({
+      headerName: "Authorization",
+      headerValue: "Bearer already",
+    });
+    // Custom header_name, no auth_scheme → no prefix
+    expect(
+      resolveAutoInject("k123", { metadata: { header_name: "X-API-Key" } })
+    ).toEqual({ headerName: "X-API-Key", headerValue: "k123" });
+    // Custom header with explicit scheme
+    expect(
+      resolveAutoInject("k123", {
+        metadata: { header_name: "X-Auth", auth_scheme: "Token" },
+      })
+    ).toEqual({ headerName: "X-Auth", headerValue: "Token k123" });
+    // Explicit empty auth_scheme disables the default Bearer prefix on Authorization
+    expect(
+      resolveAutoInject("raw", { metadata: { auth_scheme: "" } })
+    ).toEqual({ headerName: "Authorization", headerValue: "raw" });
   });
 
   // Private network allow tests
 
-  test("private network blocked by default", async () => {
-    secrets.put("api-keys/internal", "internal-key", {});
+  test("private network blocked when GATEHOUSE_PROXY_ALLOW_PRIVATE=false", async () => {
+    const prev = process.env.GATEHOUSE_PROXY_ALLOW_PRIVATE;
+    process.env.GATEHOUSE_PROXY_ALLOW_PRIVATE = "false";
+    try {
+      secrets.put("api-keys/internal", "internal-key", {});
+      policies.savePolicy("proxy-agent", [
+        { paths: ["api-keys/*"], capabilities: ["proxy"] },
+      ]);
+
+      const res = await app.request("/v1/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          method: "GET",
+          url: "http://192.168.1.100/api",
+          inject: { Authorization: "api-keys/internal" },
+        }),
+      });
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error).toContain("private");
+    } finally {
+      if (prev === undefined) delete process.env.GATEHOUSE_PROXY_ALLOW_PRIVATE;
+      else process.env.GATEHOUSE_PROXY_ALLOW_PRIVATE = prev;
+    }
+  });
+
+  test("private network forced-blocked via per-secret allow_private=false", async () => {
+    secrets.put("api-keys/locked", "locked-key", { allow_private: "false" });
     policies.savePolicy("proxy-agent", [
       { paths: ["api-keys/*"], capabilities: ["proxy"] },
     ]);
@@ -572,12 +626,32 @@ describe("Proxy Router", () => {
       body: JSON.stringify({
         method: "GET",
         url: "http://192.168.1.100/api",
-        inject: { Authorization: "api-keys/internal" },
+        inject: { Authorization: "api-keys/locked" },
       }),
     });
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toContain("private");
+    expect(body.error).toContain("allow_private=false");
+  });
+
+  test("private network allowed by default (homelab)", async () => {
+    secrets.put("api-keys/default", "default-key", {});
+    policies.savePolicy("proxy-agent", [
+      { paths: ["api-keys/*"], capabilities: ["proxy"] },
+    ]);
+
+    const res = await app.request("/v1/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "GET",
+        url: "http://192.168.1.100/api",
+        inject: { Authorization: "api-keys/default" },
+        timeout: 500,
+      }),
+    });
+    expect(res.status).not.toBe(403);
+    expect([502, 504]).toContain(res.status);
   });
 
   test("private network allowed via secret metadata allow_private=true", async () => {

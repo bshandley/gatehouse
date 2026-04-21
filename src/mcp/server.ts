@@ -9,6 +9,7 @@ import { scrubValue } from "../scrub/scrubber";
 import { v4 as uuid } from "uuid";
 import type { PatternEngine } from "../patterns/engine";
 import { isPrivateHost, scrubResponseBody, readCappedText, MAX_UPSTREAM_BODY_BYTES } from "../security/ssrf";
+import { checkPrivateNetworkPolicy, resolveAutoInject } from "../api/proxy";
 import { VERSION } from "../version";
 
 /**
@@ -188,7 +189,7 @@ const TOOLS: MCPTool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            'Array of secret paths. Gatehouse reads metadata.header_name from each secret to determine which header to set. The simplest option - you just provide secret paths, Gatehouse handles the rest.',
+            'Array of secret paths. Gatehouse sets the target header for you. Defaults to Authorization: Bearer <value>; override per-secret with metadata.header_name (e.g. "X-API-Key") and metadata.auth_scheme (empty string disables the Bearer prefix). The simplest option when the upstream expects a bearer token.',
         },
         body: {
           type: "object",
@@ -239,7 +240,8 @@ export function createMCPHandler(
   async function handleToolCall(
     toolName: string,
     args: Record<string, any>,
-    auth: AuthContext
+    auth: AuthContext,
+    sourceIp: string | null = null
   ): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
     try {
       switch (toolName) {
@@ -254,6 +256,7 @@ export function createMCPHandler(
             identity: auth.identity,
             action: "secret.read.mcp",
             path: args.path,
+            source_ip: sourceIp,
           });
           return text(value);
         }
@@ -296,14 +299,20 @@ export function createMCPHandler(
         }
 
         case "gatehouse_list": {
-          if (!policies.check(auth.policies, args.prefix || "*", "list")) {
-            return error("Access denied: no list permission");
-          }
-          const items = secrets.list(args.prefix || "");
+          // Show the caller every secret they can actually use via any
+          // capability (list / read / proxy / lease). No separate "list"
+          // cap gate - discovery is table stakes for agents.
+          const USABLE_CAPS = ["list", "read", "proxy", "lease"] as const;
+          const items = secrets
+            .list(args.prefix || "")
+            .filter((s) =>
+              USABLE_CAPS.some((cap) => policies.check(auth.policies, s.path, cap))
+            );
           audit.log({
             identity: auth.identity,
             action: "secret.list.mcp",
             path: args.prefix || "*",
+            source_ip: sourceIp,
           });
           return text(
             JSON.stringify(
@@ -330,6 +339,7 @@ export function createMCPHandler(
             identity: auth.identity,
             action: "secret.write.mcp",
             path: args.path,
+            source_ip: sourceIp,
           });
           return text(
             `Secret stored at "${stored.path}" (version ${stored.version})`
@@ -393,7 +403,7 @@ export function createMCPHandler(
           const resolved = new Map<string, string>();
           for (const path of refs) {
             if (!policies.check(auth.policies, path, "proxy")) {
-              audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, success: false });
+              audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, success: false });
               return error(`Access denied: no proxy permission on "${path}"`);
             }
             const val = secrets.get(path);
@@ -409,7 +419,7 @@ export function createMCPHandler(
                 try {
                   const hostname = new URL(resolvedUrl).hostname;
                   if (!domains.some((d: string) => hostname === d || hostname.endsWith(`.${d}`))) {
-                    audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, success: false });
+                    audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, success: false });
                     return error(`Domain ${hostname} not in allowed domains for secret "${path}"`);
                   }
                 } catch {
@@ -423,20 +433,24 @@ export function createMCPHandler(
           const inject = (s: string) => s.replace(refPattern, (_, p) => resolved.get(p) ?? `{{secret:${p}}}`);
           const upstreamUrl = inject(args.url);
 
-          // SSRF protection: block private/internal networks
+          // SSRF protection: private-network policy is shared with HTTP proxy.
           try {
             const parsedUrl = new URL(upstreamUrl);
-            const h = parsedUrl.hostname;
-            if (isPrivateHost(h)) {
-              const allowPrivateEnv = (process.env.GATEHOUSE_PROXY_ALLOW_PRIVATE || "").toLowerCase() === "true";
-              const anySecretAllowsPrivate = [...refs].some(rp => {
-                const m = secrets.getMeta(rp);
-                return m?.metadata?.allow_private === "true";
+            const ssrf = checkPrivateNetworkPolicy(
+              parsedUrl.hostname,
+              [...refs],
+              (p) => secrets.getMeta(p)
+            );
+            if (!ssrf.allowed) {
+              audit.log({
+                identity: auth.identity,
+                action: "proxy.forward.mcp",
+                path: [...refs].join(","),
+                source_ip: sourceIp,
+                metadata: { target_host: parsedUrl.hostname, reason: "ssrf_blocked" },
+                success: false,
               });
-              if (!allowPrivateEnv && !anySecretAllowsPrivate) {
-                audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path: [...refs].join(","), success: false });
-                return error("Requests to private/internal networks are blocked. Set secret metadata allow_private=true or GATEHOUSE_PROXY_ALLOW_PRIVATE=true to allow.");
-              }
+              return error(ssrf.reason);
             }
             if (!["http:", "https:"].includes(parsedUrl.protocol)) {
               return error(`Unsupported protocol: ${parsedUrl.protocol}`);
@@ -463,21 +477,17 @@ export function createMCPHandler(
               }
             }
           }
-          // Apply auto-inject: use secret metadata.header_name
+          // Apply auto-inject. Defaults: Authorization + Bearer if the
+          // secret's metadata does not declare header_name/auth_scheme.
           if (args.auto_inject) {
             for (const secretPath of (args.auto_inject as string[])) {
               const secretValue = resolved.get(secretPath);
               if (!secretValue) continue;
-              const meta = secrets.getMeta(secretPath);
-              const headerName = meta?.metadata?.header_name;
-              if (!headerName) {
-                return error(`Secret "${secretPath}" has no header_name in metadata. Set it to use auto_inject.`);
-              }
-              if (headerName.toLowerCase() === "authorization" && !secretValue.match(/^(Bearer|Basic|Token|Digest)\s/i)) {
-                upstreamHeaders[headerName] = `Bearer ${secretValue}`;
-              } else {
-                upstreamHeaders[headerName] = secretValue;
-              }
+              const { headerName, headerValue } = resolveAutoInject(
+                secretValue,
+                secrets.getMeta(secretPath)
+              );
+              upstreamHeaders[headerName] = headerValue;
             }
           }
           let upstreamBody: string | undefined;
@@ -507,6 +517,7 @@ export function createMCPHandler(
               identity: auth.identity,
               action: "proxy.forward.mcp",
               path: [...refs].join(","),
+              source_ip: sourceIp,
               metadata: {
                 target_host: new URL(upstreamUrl).hostname,
                 method,
@@ -530,6 +541,7 @@ export function createMCPHandler(
               identity: auth.identity,
               action: "proxy.forward.mcp",
               path: [...refs].join(","),
+              source_ip: sourceIp,
               success: false,
             });
             if (e.name === "AbortError") return error(`Request timed out after ${timeout}ms`);
@@ -591,7 +603,7 @@ export function createMCPHandler(
     }
   }
 
-  async function handleRequest(req: MCPRequest, auth: AuthContext): Promise<MCPResponse> {
+  async function handleRequest(req: MCPRequest, auth: AuthContext, sourceIp: string | null = null): Promise<MCPResponse> {
     switch (req.method) {
       case "initialize":
         return {
@@ -616,7 +628,7 @@ export function createMCPHandler(
 
       case "tools/call": {
         const { name, arguments: args } = req.params || {};
-        const result = await handleToolCall(name, args || {}, auth);
+        const result = await handleToolCall(name, args || {}, auth, sourceIp);
         return {
           jsonrpc: "2.0",
           id: req.id,
@@ -670,7 +682,7 @@ export function mcpHttpRouter(
   router.post("/", async (c) => {
     const auth = c.get("auth") as AuthContext;
     const req = (await c.req.json()) as MCPRequest;
-    const res = await mcp.handleRequest(req, auth);
+    const res = await mcp.handleRequest(req, auth, (c.get("sourceIp") as string) || null);
     return c.json(res);
   });
 
@@ -704,7 +716,7 @@ export function mcpHttpRouter(
   router.post("/message", async (c) => {
     const auth = c.get("auth") as AuthContext;
     const req = (await c.req.json()) as MCPRequest;
-    const res = await mcp.handleRequest(req, auth);
+    const res = await mcp.handleRequest(req, auth, (c.get("sourceIp") as string) || null);
     return c.json(res);
   });
 

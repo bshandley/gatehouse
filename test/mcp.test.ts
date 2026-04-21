@@ -14,6 +14,7 @@ import type { AuthContext } from "../src/auth/middleware";
 describe("MCP Server", () => {
   let mcp: ReturnType<typeof createMCPHandler>;
   let secrets: SecretsEngine;
+  let audit: AuditLog;
   let dir: string;
 
   const adminAuth: AuthContext = {
@@ -42,7 +43,7 @@ rules:
     );
 
     const db = initDB(dir);
-    const audit = new AuditLog(db);
+    audit = new AuditLog(db);
     secrets = new SecretsEngine(db, Buffer.from("b".repeat(64), "hex"));
     const leases = new LeaseManager(db, secrets, audit);
     const policies = new PolicyEngine(configDir);
@@ -295,6 +296,39 @@ rules:
     );
     expect(revokeResult.isError).toBe(true);
     expect(revokeResult.content[0].text).toContain("Access denied");
+  });
+
+  // Source IP propagation: audit rows from MCP tool calls must record
+  // the caller's IP, same as HTTP-path audit rows.
+  test("MCP tool calls record source_ip in audit log", async () => {
+    await mcp.handleToolCall(
+      "gatehouse_put",
+      { path: "api-keys/test", value: "val" },
+      adminAuth,
+      "10.9.8.7"
+    );
+    await mcp.handleToolCall(
+      "gatehouse_get",
+      { path: "api-keys/test" },
+      adminAuth,
+      "10.9.8.7"
+    );
+    await mcp.handleRequest(
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "gatehouse_list", arguments: {} },
+      },
+      adminAuth,
+      "10.9.8.7"
+    );
+    const rows = audit.query({ limit: 10 });
+    const mcpRows = rows.filter((r) => r.action.endsWith(".mcp"));
+    expect(mcpRows.length).toBeGreaterThanOrEqual(3);
+    for (const r of mcpRows) {
+      expect(r.source_ip).toBe("10.9.8.7");
+    }
   });
 
   // tools/call via handleRequest

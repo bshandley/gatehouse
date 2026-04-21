@@ -6,7 +6,7 @@ export interface AuditEntry {
   action: string;
   path?: string;
   lease_id?: string;
-  source_ip?: string;
+  source_ip?: string | null;
   metadata?: Record<string, string>;
   success?: boolean;
 }

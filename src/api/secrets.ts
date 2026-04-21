@@ -151,11 +151,11 @@ export function secretsRouter(
     const prefix = c.req.query("prefix") || "";
     const allResults = secrets.list(prefix);
 
-    // Filter to secrets the agent can actually access
-    const results = allResults.filter(
-      (s) =>
-        policies.check(auth.policies, s.path, "list") ||
-        policies.check(auth.policies, s.path, "read")
+    // Filter to secrets the agent can actually use via any capability.
+    // proxy/lease-only secrets still show up so the agent can discover them.
+    const USABLE_CAPS = ["list", "read", "proxy", "lease"] as const;
+    const results = allResults.filter((s) =>
+      USABLE_CAPS.some((cap) => policies.check(auth.policies, s.path, cap))
     );
 
     if (results.length === 0 && allResults.length > 0) {
