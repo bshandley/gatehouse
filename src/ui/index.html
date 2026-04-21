@@ -3529,12 +3529,12 @@
         <td style="font-size:12px;color:var(--text-secondary)">${r.last_used ? fmtTime(r.last_used) : 'Never'}</td>
         <td style="font-size:12px;color:var(--text-secondary)">${fmtTime(r.created_at)}</td>
         <td style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="window._openOnboardModal('${esc(r.role_id)}', '${esc(r.display_name)}')" title="Generate onboarding link"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Onboard</button>
-          <button class="btn btn-ghost btn-sm" onclick="openEditAgentModal(this)" data-rid="${esc(r.role_id)}" data-dname="${esc(r.display_name)}" data-pol='${JSON.stringify(r.policies || []).replace(/'/g, "&#39;")}'>Edit</button>
-          <button class="btn btn-ghost btn-sm" onclick="window._toggleSuspend('${esc(r.role_id)}', ${r.suspended ? 'false' : 'true'})" title="${r.suspended ? 'Reinstate' : 'Suspend'}">${r.suspended
-            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
-            : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>'}</button>
-          <button class="btn btn-danger btn-sm" onclick="window._deleteAgent('${esc(r.role_id)}')">Delete</button>
+          <button class="btn btn-ghost btn-sm" onclick="window._openOnboardModal('${esc(r.role_id)}', '${esc(r.display_name)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Onboard</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEditAgentModal(this)" data-rid="${esc(r.role_id)}" data-dname="${esc(r.display_name)}" data-pol='${JSON.stringify(r.policies || []).replace(/'/g, "&#39;")}'><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="window._toggleSuspend('${esc(r.role_id)}', ${r.suspended ? 'false' : 'true'})">${r.suspended
+            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Reinstate'
+            : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Suspend'}</button>
+          <button class="btn btn-danger btn-sm" onclick="window._deleteAgent('${esc(r.role_id)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
         </td>
       </tr>`).join('');
     } catch (e) {
@@ -3629,8 +3629,8 @@
         document.getElementById('onboard-url-field').value = data.onboard_url;
         document.getElementById('onboard-prompt-field').value =
           `Run this in your shell, then follow the instructions in the output:\n\n` +
-          `    curl -fsSL "${data.onboard_url}" > /tmp/gatehouse-onboard.md\n` +
-          `    cat /tmp/gatehouse-onboard.md\n\n` +
+          `curl -fsSL "${data.onboard_url}" > /tmp/gatehouse-onboard.md\n` +
+          `cat /tmp/gatehouse-onboard.md\n\n` +
           `Do not open the URL in a browser. The body is markdown instructions ` +
           `with a one-time token, not a web page. If your harness has no shell, ` +
           `use your HTTP fetch tool against the URL directly; the response is markdown.`;
@@ -3765,12 +3765,63 @@
 
       try {
         const data = await api('/v1/auth/approle', { method: 'POST', body: { display_name: name, policies: selectedPolicies } });
-        window._openOnboardModal(data.role_id, name);
+        window._showCredentialsModal(data.role_id, data.secret_id, name);
       } catch (e) {
         toast('Failed: ' + e.message, 'error');
       }
     };
   }
+
+  window._showCredentialsModal = function(roleId, secretId, displayName) {
+    const html = `
+      <div class="modal-overlay" onclick="if(event.target===this)window._dismissCredentialsModal()">
+        <div class="modal modal-wide" style="border-color:rgba(251,191,36,0.3)">
+          <h2 class="modal-title" style="display:flex;align-items:center;gap:10px">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            AppRole created, save these credentials
+          </h2>
+          <p style="color:var(--danger);font-size:13px;margin:0 0 16px 0;font-weight:500;padding:10px 12px;background:var(--danger-subtle);border-radius:6px;border:1px solid rgba(248,113,113,0.2)">The secret ID is shown once. Gatehouse only stores its hash, so if you close this without copying, you'll need to rotate the AppRole to issue a new one.</p>
+          <p style="font-size:12px;color:var(--text-secondary);margin:0 0 20px 0;line-height:1.5">If your agent already knows the Gatehouse drill, copy the two values below into its environment. Otherwise hit <strong>Generate onboarding prompt</strong> for a paste-to-chat flow that installs the skill automatically.</p>
+          <div class="form-group">
+            <label class="form-label">Role ID</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" class="input" value="${esc(roleId)}" readonly id="cred-role-id" style="font-family:var(--font-mono);font-size:12px">
+              <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('cred-role-id');window._credCopied.role=true">Copy</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Secret ID</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" class="input" value="${esc(secretId)}" readonly id="cred-secret-id" style="font-family:var(--font-mono);font-size:12px">
+              <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('cred-secret-id');window._credCopied.secret=true">Copy</button>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="window._openOnboardModal('${esc(roleId)}', '${esc(displayName)}')">Generate onboarding prompt</button>
+            <button class="btn btn-primary" onclick="window._dismissCredentialsModal()">Done</button>
+          </div>
+        </div>
+      </div>
+    `;
+    window._credCopied = { role: false, secret: false };
+    document.getElementById('modal-container').innerHTML = html;
+  };
+
+  window._dismissCredentialsModal = async function() {
+    const copied = window._credCopied && window._credCopied.role && window._credCopied.secret;
+    if (!copied) {
+      const ok = await ghConfirm({
+        title: 'Close without copying?',
+        message: 'You haven\'t copied both the Role ID and Secret ID. This is the only time the Secret ID will be shown. Close anyway?',
+        confirmText: 'Close',
+        type: 'warning',
+      });
+      if (!ok) return;
+    }
+    const overlay = document.querySelector('#modal-container .modal-overlay');
+    if (overlay) overlay.remove();
+    loadAgents();
+  };
 
   window.copyCredField = function(id) {
     const el = document.getElementById(id);
