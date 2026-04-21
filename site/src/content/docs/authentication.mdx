@@ -92,6 +92,73 @@ Response:
 }
 ```
 
+### Onboarding links (no secrets in chat)
+
+Pasting `role_id` / `secret_id` into a chat window puts them into conversation history, logs, and anywhere the transcript gets shipped. Onboarding links solve that. The operator generates a one-time URL, hands it to the agent over any channel, and the agent fetches credentials directly.
+
+**Operator side: generate the link.** In the web UI, open the AppRoles tab, click **Onboard** on the target row, pick a TTL (5 min to 1 hour), and copy the generated prompt. It's a short `curl` snippet that writes the bootstrap markdown to a temp file and cats it back.
+
+Or via the API:
+
+```bash
+curl -X POST http://localhost:3100/v1/onboard \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"role_id": "role-xxxx-...", "ttl_seconds": 900, "label": "telegram bot"}'
+```
+
+Response:
+
+```json
+{
+  "id": "onboard-...",
+  "onboard_url": "https://gatehouse.example/v1/onboard/<token>",
+  "expires_at": "..."
+}
+```
+
+**Agent side: exchange the token.** The agent runs the curl snippet, reads the markdown (which is self-installing instructions), and calls exchange exactly once:
+
+```bash
+curl -X POST https://gatehouse.example/v1/onboard/<token>/exchange
+```
+
+Response (consumed on success; subsequent calls return 410 Gone):
+
+```json
+{
+  "token": "<JWT>",
+  "role_id": "role-...",
+  "secret_id": "...",
+  "base_url": "https://gatehouse.example",
+  "mcp_url": "https://gatehouse.example/v1/mcp",
+  "role_display_name": "my-agent",
+  "policies": ["agent-readonly"],
+  "expires_in": 86400
+}
+```
+
+The agent writes `role_id` / `secret_id` into its harness's credential path (`~/.hermes/.env`, `~/.claude/.env.gatehouse`, `~/.openclaw/workspace/.env`, or `.env.gatehouse` in cwd for Codex/Cursor/Windsurf) and installs a `gatehouse` skill so future sessions know how to use the vault.
+
+**Important behaviors:**
+
+- Exchange **rotates the AppRole's `secret_id`**. Any agent still running with the previous secret must re-onboard.
+- Links are **single-use**. After exchange they return `410 Gone`.
+- Before exchange, the bootstrap markdown URL is **idempotent**: if the agent's context gets compacted or the install fails mid-way, it can re-fetch the same URL until exchange is called.
+- If the AppRole has **zero policies**, the rendered markdown tells the agent to halt rather than probe, because `gatehouse_list` will be empty and every proxy call will be denied.
+- Set `GATEHOUSE_PUBLIC_URL` when behind a reverse proxy so the generated link uses the public hostname instead of the LAN address from the `Host` header.
+
+**Admin endpoints:**
+
+```bash
+# List active links
+curl http://localhost:3100/v1/onboard -H "Authorization: Bearer $ADMIN_JWT"
+
+# Revoke an unused link
+curl -X DELETE http://localhost:3100/v1/onboard/<id> \
+  -H "Authorization: Bearer $ADMIN_JWT"
+```
+
 ## TOTP (two-factor auth)
 
 Enable TOTP for a user account from the web UI: **Me → Security → Enable 2FA**. Scan the QR code with any RFC 6238 authenticator (Google Authenticator, Authy, 1Password, Aegis). Confirm the setup with a 6-digit code. You'll be shown 10 one-time recovery codes. Save them somewhere safe.
