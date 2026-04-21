@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { secretsRouter, bulkSecretsRouter } from "./api/secrets";
 import { leaseRouter } from "./api/lease";
 import { authRouter } from "./api/auth";
+import { onboardRouter } from "./api/onboard";
 import { meRouter } from "./api/me";
 import { policyRouter } from "./api/policy";
 import { auditRouter } from "./api/audit";
@@ -40,11 +41,18 @@ const patternEngine = new PatternEngine(db);
 leases.startReaper(30_000);
 dynamicSecrets.startReaper(30_000);
 
-// Audit log retention purge (check every hour)
+// Audit log retention purge + onboarding token cleanup (check every hour)
 const auditPurgeInterval = setInterval(() => {
   const purged = audit.purgeExpired();
   if (purged > 0) {
     console.log(`[gatehouse:audit] purged ${purged} expired audit entries`);
+  }
+  // Keep expired/consumed tokens for 24h of audit visibility, then drop.
+  const dropped = db
+    .query("DELETE FROM onboarding_tokens WHERE expires_at < datetime('now', '-1 day')")
+    .run();
+  if (dropped.changes > 0) {
+    console.log(`[gatehouse:onboard] purged ${dropped.changes} expired tokens`);
   }
 }, 3_600_000);
 
@@ -155,6 +163,12 @@ app.get("/", async (c) => {
 
 // Auth routes (login, token exchange - no auth middleware)
 app.route("/v1/auth", authRouter(db, config));
+
+// Onboarding routes (public fetch/exchange + admin-gated create/list/revoke).
+// Mounted BEFORE authMiddleware: the onboarding token in the URL path is the
+// auth for public routes, and admin-gated routes verify the bearer token
+// themselves (same pattern as /v1/auth). Do NOT read c.get("auth") here.
+app.route("/v1/onboard", onboardRouter(db, audit, policies, config));
 
 // Protected routes
 app.use("/v1/*", authMiddleware(config));
@@ -364,7 +378,7 @@ app.get("/v1/events", (c) => {
   });
 });
 
-app.route("/v1/secrets", secretsRouter(secrets, policies, audit));
+app.route("/v1/secrets", secretsRouter(secrets, policies, audit, patternEngine));
 app.route("/v1/secrets-bulk", bulkSecretsRouter(secrets, policies, audit));
 app.route("/v1/lease", leaseRouter(leases, policies, audit));
 app.route("/v1/policy", policyRouter(policies, audit));

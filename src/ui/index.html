@@ -582,7 +582,8 @@
     .confirm-actions .btn { min-width: 110px; justify-content: center; }
 
     /* Toast */
-    .toast-container { position: fixed; top: 16px; right: 16px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+    .toast-container { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 2000; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+    .toast-container > * { pointer-events: auto; }
     .toast {
       padding: 12px 16px;
       border-radius: var(--radius);
@@ -3528,6 +3529,7 @@
         <td style="font-size:12px;color:var(--text-secondary)">${r.last_used ? fmtTime(r.last_used) : 'Never'}</td>
         <td style="font-size:12px;color:var(--text-secondary)">${fmtTime(r.created_at)}</td>
         <td style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="window._openOnboardModal('${esc(r.role_id)}', '${esc(r.display_name)}')" title="Generate onboarding link"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Onboard</button>
           <button class="btn btn-ghost btn-sm" onclick="openEditAgentModal(this)" data-rid="${esc(r.role_id)}" data-dname="${esc(r.display_name)}" data-pol='${JSON.stringify(r.policies || []).replace(/'/g, "&#39;")}'>Edit</button>
           <button class="btn btn-ghost btn-sm" onclick="window._toggleSuspend('${esc(r.role_id)}', ${r.suspended ? 'false' : 'true'})" title="${r.suspended ? 'Reinstate' : 'Suspend'}">${r.suspended
             ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
@@ -3550,6 +3552,120 @@
     } catch (e) {
       toast('Delete failed: ' + e.message, 'error');
     }
+  };
+
+  window._openOnboardModal = async function(roleId, displayName) {
+    const html = `
+      <div class="modal-overlay" onclick="if(event.target===this)window._closeOnboardModal()">
+        <div class="modal modal-wide">
+          <h2 class="modal-title" style="display:flex;align-items:center;gap:10px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            Onboard "${esc(displayName)}"
+          </h2>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;line-height:1.5">Generate a single-use link. Paste it to the agent over any channel. The agent fetches the link, exchanges it for credentials, and installs a gatehouse skill. Exchange rotates this AppRole's secret_id, so any agent already using it will need to re-onboard.</p>
+          <div id="onboard-form-panel">
+            <div class="form-group">
+              <label class="form-label">Link TTL</label>
+              <select id="onboard-ttl" class="input">
+                <option value="300">5 minutes</option>
+                <option value="900" selected>15 minutes</option>
+                <option value="1800">30 minutes</option>
+                <option value="3600">1 hour</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label (optional)</label>
+              <input type="text" id="onboard-label" class="input" placeholder="e.g. bradley's telegram bot" maxlength="200">
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-ghost" onclick="window._closeOnboardModal()">Cancel</button>
+              <button class="btn btn-primary" id="onboard-generate-btn">Generate Link</button>
+            </div>
+          </div>
+          <div id="onboard-result-panel" style="display:none">
+            <div class="form-group">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <label class="form-label" style="margin:0">Paste this to the agent</label>
+                <button class="btn btn-primary btn-sm" onclick="copyCredField('onboard-prompt-field')">Copy Prompt</button>
+              </div>
+              <p style="font-size:11px;color:var(--text-tertiary);margin:0 0 8px 0">Framed as a shell command so the agent curls the URL instead of opening it in a browser. Works in any chat channel.</p>
+              <textarea id="onboard-prompt-field" readonly class="input" style="width:100%;min-height:140px;font-family:var(--font-mono);font-size:11px;line-height:1.5;white-space:pre-wrap"></textarea>
+              <p id="onboard-countdown" style="margin-top:8px;font-size:12px;color:var(--text-secondary)"></p>
+            </div>
+            <details style="margin-bottom:12px">
+              <summary style="font-size:11px;color:var(--text-tertiary);cursor:pointer">Just the URL (for QR codes or manual paste)</summary>
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <input type="text" class="input" readonly id="onboard-url-field" style="font-family:var(--font-mono);font-size:12px">
+                <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('onboard-url-field')">Copy</button>
+              </div>
+            </details>
+            <p style="font-size:11px;color:var(--warning);padding:8px 10px;background:var(--warning-subtle,rgba(251,191,36,0.08));border-radius:6px;margin-bottom:16px">Exchanging this link rotates the AppRole's secret_id. Any agent currently using the previous secret_id will need to re-onboard.</p>
+            <div class="modal-actions">
+              <button class="btn btn-danger btn-sm" id="onboard-revoke-btn">Revoke</button>
+              <button class="btn btn-primary" onclick="window._closeOnboardModal()">Done</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modal-container').innerHTML = html;
+
+    window._closeOnboardModal = function() {
+      const overlay = document.querySelector('#modal-container .modal-overlay');
+      if (overlay) overlay.remove();
+      loadAgents();
+    };
+
+    document.getElementById('onboard-generate-btn').onclick = async () => {
+      const ttl = parseInt(document.getElementById('onboard-ttl').value, 10);
+      const label = document.getElementById('onboard-label').value.trim();
+      try {
+        const data = await api('/v1/onboard', {
+          method: 'POST',
+          body: { role_id: roleId, ttl_seconds: ttl, label: label || undefined },
+        });
+        document.getElementById('onboard-form-panel').style.display = 'none';
+        document.getElementById('onboard-result-panel').style.display = 'block';
+        document.getElementById('onboard-url-field').value = data.onboard_url;
+        document.getElementById('onboard-prompt-field').value =
+          `Run this in your shell, then follow the instructions in the output:\n\n` +
+          `    curl -fsSL "${data.onboard_url}" > /tmp/gatehouse-onboard.md\n` +
+          `    cat /tmp/gatehouse-onboard.md\n\n` +
+          `Do not open the URL in a browser. The body is markdown instructions ` +
+          `with a one-time token, not a web page. If your harness has no shell, ` +
+          `use your HTTP fetch tool against the URL directly; the response is markdown.`;
+        const expiresAt = new Date(data.expires_at.replace(' ', 'T') + 'Z');
+        const tick = () => {
+          const remaining = Math.max(0, Math.floor((expiresAt - new Date()) / 1000));
+          const el = document.getElementById('onboard-countdown');
+          if (!el) { clearInterval(timer); return; }
+          if (remaining <= 0) {
+            el.textContent = 'Expired';
+            clearInterval(timer);
+            return;
+          }
+          const m = Math.floor(remaining / 60);
+          const s = remaining % 60;
+          el.textContent = `Expires in ${m}m ${s.toString().padStart(2, '0')}s`;
+        };
+        tick();
+        const timer = setInterval(tick, 1000);
+
+        document.getElementById('onboard-revoke-btn').onclick = async () => {
+          if (!await ghConfirm({ title: 'Revoke onboarding link', message: 'Revoke this link? The agent will not be able to exchange it.', confirmText: 'Revoke' })) return;
+          try {
+            await api(`/v1/onboard/${encodeURIComponent(data.id)}`, { method: 'DELETE' });
+            clearInterval(timer);
+            toast('Link revoked', 'success');
+            window._closeOnboardModal();
+          } catch (e) {
+            toast('Revoke failed: ' + e.message, 'error');
+          }
+        };
+      } catch (e) {
+        toast('Generate failed: ' + e.message, 'error');
+      }
+    };
   };
 
   window._toggleSuspend = async function(roleId, suspend) {
@@ -3611,7 +3727,7 @@
       <div class="modal-overlay" onclick="if(event.target===this)this.remove()">
         <div class="modal">
           <h2 class="modal-title">Create AppRole</h2>
-          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:20px;line-height:1.5">Create a new AppRole for an AI agent harness. You will receive a one-time secret that cannot be retrieved later.</p>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:20px;line-height:1.5">Create a new AppRole for an AI agent harness. You'll immediately be taken to the onboarding link generator so you can hand credentials to the agent without pasting secrets into chat.</p>
           <div class="form-group">
             <label class="form-label">Display Name</label>
             <input type="text" id="new-agent-name" placeholder="claude-code-agent" spellcheck="false">
@@ -3637,160 +3753,24 @@
       const name = document.getElementById('new-agent-name').value.trim();
       if (!name) { toast('Display name required', 'error'); return; }
 
+      if (selectedPolicies.length === 0) {
+        const proceed = await ghConfirm({
+          title: 'No policies attached',
+          message: 'This AppRole will have zero policies. The agent will log in successfully but gatehouse_list will return empty and every proxy call will be denied. Are you sure? (You can attach policies later from the AppRoles list.)',
+          confirmText: 'Create anyway',
+          type: 'warning',
+        });
+        if (!proceed) return;
+      }
+
       try {
         const data = await api('/v1/auth/approle', { method: 'POST', body: { display_name: name, policies: selectedPolicies } });
-        const origin = window.location.origin;
-        const agentPrompt = buildAgentPrompt({
-          origin,
-          displayName: name,
-          roleId: data.role_id,
-          secretId: data.secret_id,
-          policies: selectedPolicies,
-        });
-        document.getElementById('modal-container').innerHTML = `
-          <div class="modal-overlay">
-            <div class="modal modal-wide" style="border-color:rgba(251,191,36,0.3)">
-              <h2 class="modal-title" style="display:flex;align-items:center;gap:10px">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                Save These Credentials
-              </h2>
-              <p style="color:var(--danger);font-size:13px;margin-bottom:20px;font-weight:500;padding:10px 12px;background:var(--danger-subtle);border-radius:6px;border:1px solid rgba(248,113,113,0.2)">The secret ID cannot be retrieved again after closing this dialog.</p>
-              <div class="form-group">
-                <label class="form-label">Role ID</label>
-                <div style="display:flex;gap:8px">
-                  <input type="text" class="input" value="${data.role_id}" readonly id="cred-role-id" style="font-family:var(--font-mono);font-size:12px">
-                  <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('cred-role-id')">Copy</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Secret ID</label>
-                <div style="display:flex;gap:8px">
-                  <input type="text" class="input" value="${data.secret_id}" readonly id="cred-secret-id" style="font-family:var(--font-mono);font-size:12px">
-                  <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('cred-secret-id')">Copy</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                  <label class="form-label" style="margin:0">Agent System Prompt</label>
-                  <button class="btn btn-ghost btn-sm" onclick="copyAgentPrompt()">Copy Prompt</button>
-                </div>
-                <p style="font-size:11px;color:var(--text-tertiary);margin:0 0 8px 0">Paste into the agent's system prompt or config. Includes endpoints, credentials, and MCP tool cheatsheet.</p>
-                <textarea id="cred-agent-prompt" readonly class="input" style="width:100%;min-height:260px;font-family:var(--font-mono);font-size:11px;line-height:1.5;white-space:pre">${esc(agentPrompt)}</textarea>
-              </div>
-              <div class="modal-actions">
-                <button class="btn btn-primary" onclick="dismissCredentialModal(this)">I've Saved These</button>
-              </div>
-            </div>
-          </div>
-        `;
+        window._openOnboardModal(data.role_id, name);
       } catch (e) {
         toast('Failed: ' + e.message, 'error');
       }
     };
   }
-
-  function buildAgentPrompt({ origin, displayName, roleId, secretId, policies }) {
-    const policyLine = (policies && policies.length)
-      ? policies.join(', ')
-      : '(none assigned yet - ask the operator to attach a policy)';
-    return `You have credentials to a Gatehouse secrets vault. Gatehouse lets
-you use API keys and other credentials without ever seeing the raw
-value: you describe an HTTP request with {{secret:path}} placeholders,
-and Gatehouse injects the real credential into the outbound call.
-
-# Identity
-  Display name: ${displayName}
-  Role ID:      ${roleId}
-  Secret ID:    ${secretId}
-  Policies:     ${policyLine}
-
-# Endpoints
-  Base URL:     ${origin}
-  Login:        POST ${origin}/v1/auth/approle/login
-                body: {"role_id":"...","secret_id":"..."}
-                returns: {"token":"<jwt>","ttl_seconds":...}
-  MCP (HTTP):   ${origin}/v1/mcp
-                (streamable HTTP MCP transport)
-
-# Authentication
-Send the JWT from /v1/auth/approle/login as "Authorization: Bearer <jwt>"
-on every subsequent request, including MCP calls. Tokens expire; re-login
-when they do.
-
-# Start here
-1. gatehouse_status - confirm identity and policies.
-2. gatehouse_list - returns every secret you can use (read, proxy, or
-   lease). No arguments needed; takes an optional prefix filter.
-3. For an interesting secret, gatehouse_patterns reveals known-good
-   request shapes other agents have used. Use this before guessing URLs.
-4. Call the upstream API via gatehouse_proxy, referencing the secret
-   with {{secret:path}}.
-
-# gatehouse_proxy - the main tool
-You construct the full HTTP request (method, url, headers, body) and
-embed {{secret:path/to/secret}} anywhere a credential would appear.
-Gatehouse substitutes it server-side, so the raw value never reaches
-your context.
-
-Example:
-  {
-    "method": "POST",
-    "url": "https://api.example.com/v1/things",
-    "headers": {
-      "Authorization": "Bearer {{secret:providers/example-key}}",
-      "Content-Type": "application/json"
-    },
-    "body": {"name": "hello"}
-  }
-
-Shorthand: "inject": {"Authorization": "path/to/secret"} sets the
-header to the secret's raw value (Authorization auto-prefixes
-"Bearer "). Even simpler: "auto_inject": ["path/to/secret"] defaults
-to Authorization: Bearer <value>. Operators can override per-secret
-via metadata.header_name (e.g. "X-API-Key") and metadata.auth_scheme
-(empty string to skip the Bearer prefix).
-
-# MCP tools you have
-  gatehouse_status   Health + your identity, policies, active lease count
-  gatehouse_list     Secrets you can access (metadata only, no values)
-  gatehouse_patterns Known-good request patterns for a secret path
-  gatehouse_proxy    Make an HTTP call with secrets auto-injected (PREFERRED)
-  gatehouse_lease    Check out a raw secret with a bounded TTL (fallback
-                     when a library insists on holding the key itself)
-  gatehouse_revoke   Revoke a lease early
-  gatehouse_get      Read a secret value directly (avoid if proxy works)
-  gatehouse_put      Write a secret (requires write policy)
-  gatehouse_scrub    Redact credentials from text before logging
-
-# Troubleshooting
-- 401 or expired token: re-login via /v1/auth/approle/login.
-- 403 on gatehouse_proxy: your policy does not grant "proxy" on that
-  secret path, or the target domain is not in the secret's
-  allowed_domains metadata. gatehouse_status shows your policies;
-  gatehouse_list shows each secret's metadata.
-- If a secret you expect is missing from gatehouse_list, ask the
-  operator to extend your policy. Do not guess paths.
-
-# Rules
-- Never paste the raw Role ID / Secret ID into code, logs, or commits.
-  Keep them in an env var or a local credential file outside the repo.
-- Prefer gatehouse_proxy over gatehouse_get / gatehouse_lease. The
-  proxy keeps the credential out of your context window entirely.
-- Scrub outbound log lines with gatehouse_scrub if unsure.`;
-  }
-
-  window.copyAgentPrompt = function() {
-    const el = document.getElementById('cred-agent-prompt');
-    if (!el) return;
-    const text = el.value;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => toast('Prompt copied', 'success')).catch(() => {
-        el.select(); document.execCommand('copy'); toast('Prompt copied', 'success');
-      });
-    } else {
-      el.select(); document.execCommand('copy'); toast('Prompt copied', 'success');
-    }
-  };
 
   window.copyCredField = function(id) {
     const el = document.getElementById(id);
@@ -3802,20 +3782,6 @@ via metadata.header_name (e.g. "X-API-Key") and metadata.auth_scheme
       });
     } else {
       el.select(); document.execCommand('copy'); toast('Copied', 'success');
-    }
-  };
-
-  window.dismissCredentialModal = async function(btn) {
-    const ok = await ghConfirm({
-      title: 'Credentials Saved?',
-      message: 'Have you saved the credentials? They cannot be recovered.',
-      confirmText: "Yes, I've Saved Them",
-      type: 'warning'
-    });
-    if (ok) {
-      const overlay = document.querySelector('#modal-container .modal-overlay');
-      if (overlay) overlay.remove();
-      loadAgents();
     }
   };
 

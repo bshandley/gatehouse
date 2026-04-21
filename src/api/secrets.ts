@@ -3,6 +3,7 @@ import type { SecretsEngine } from "../secrets/engine";
 import type { PolicyEngine } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 import type { AuthContext } from "../auth/middleware";
+import type { PatternEngine } from "../patterns/engine";
 
 const PATH_REGEX = /^[a-zA-Z0-9/_-]+$/;
 const MAX_METADATA_VALUE_SIZE = 1024; // 1KB per value
@@ -140,7 +141,8 @@ export function bulkSecretsRouter(
 export function secretsRouter(
   secrets: SecretsEngine,
   policies: PolicyEngine,
-  audit: AuditLog
+  audit: AuditLog,
+  patterns?: PatternEngine
 ) {
   const router = new Hono();
 
@@ -169,7 +171,17 @@ export function secretsRouter(
       source_ip: c.get("sourceIp"),
     });
 
-    return c.json({ secrets: results });
+    const summary = patterns?.summaryByPath();
+    const enriched = results.map((s) => {
+      const hit = summary?.get(s.path);
+      return {
+        ...s,
+        pattern_count: hit?.count ?? 0,
+        ...(hit ? { top_pattern: hit.top } : {}),
+      };
+    });
+
+    return c.json({ secrets: enriched });
   });
 
   // Get secret value or metadata.
@@ -193,7 +205,19 @@ export function secretsRouter(
       return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
     }
 
-    if (!policies.check(auth.policies, path, "read")) {
+    // Metadata-only reads (no /value, /versions, or /versions/N) are gated on
+    // any usable capability - proxy/lease/list callers need to see metadata
+    // like header_name and allowed_domains to construct requests, without
+    // that being grantable as a value read. Raw value reads still require
+    // `read` specifically.
+    const needsReadCap = isValueRequest || isVersionsRequest || !!versionMatch;
+    const allowed = needsReadCap
+      ? policies.check(auth.policies, path, "read")
+      : policies.check(auth.policies, path, "read") ||
+        policies.check(auth.policies, path, "proxy") ||
+        policies.check(auth.policies, path, "lease") ||
+        policies.check(auth.policies, path, "list");
+    if (!allowed) {
       audit.log({
         identity: auth.identity,
         action: isValueRequest ? "secret.reveal_value" : "secret.read_metadata",

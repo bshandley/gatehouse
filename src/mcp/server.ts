@@ -314,14 +314,20 @@ export function createMCPHandler(
             path: args.prefix || "*",
             source_ip: sourceIp,
           });
+          const summary = patterns?.summaryByPath();
           return text(
             JSON.stringify(
-              items.map((s) => ({
-                path: s.path,
-                metadata: s.metadata,
-                version: s.version,
-                updated_at: s.updated_at,
-              })),
+              items.map((s) => {
+                const hit = summary?.get(s.path);
+                return {
+                  path: s.path,
+                  metadata: s.metadata,
+                  version: s.version,
+                  updated_at: s.updated_at,
+                  pattern_count: hit?.count ?? 0,
+                  ...(hit ? { top_pattern: hit.top } : {}),
+                };
+              }),
               null,
               2
             )

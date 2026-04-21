@@ -280,6 +280,40 @@ export class PatternEngine {
       .sort((a, b) => b.confidence - a.confidence);
   }
 
+  /**
+   * One-shot summary of every secret_path that has patterns, for embedding
+   * in gatehouse_list responses. Returns count + the single best pattern
+   * preview (method + url_template) so agents get endpoint discovery in the
+   * same tool call as listing secrets, rather than having to query patterns
+   * separately for each one.
+   */
+  summaryByPath(): Map<string, { count: number; top: string }> {
+    const rows = this.db
+      .query<RawPattern, []>("SELECT * FROM proxy_patterns")
+      .all();
+    const byPath = new Map<string, PatternWithConfidence[]>();
+    for (const r of rows) {
+      const p = this.rawToPattern(r);
+      const arr = byPath.get(p.secret_path) ?? [];
+      arr.push(p);
+      byPath.set(p.secret_path, arr);
+    }
+    const out = new Map<string, { count: number; top: string }>();
+    for (const [path, arr] of byPath) {
+      arr.sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+        return b.total_successes - a.total_successes;
+      });
+      const top = arr[0];
+      out.set(path, {
+        count: arr.length,
+        top: `${top.method} ${top.url_template}`,
+      });
+    }
+    return out;
+  }
+
   suggest(secretPath: string): PatternSuggestion[] {
     const patterns = this.query(secretPath);
     const filtered = patterns.filter((p) => p.pinned || p.confidence > 0.5);

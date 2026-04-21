@@ -226,6 +226,39 @@ export class PolicyEngine {
    * Check if a set of policy names grants a capability on a path.
    * Uses glob matching: "secrets/api-keys/*" matches "secrets/api-keys/openai"
    */
+  /**
+   * Flattened rules for a set of policy names. Unknown policy names are
+   * silently skipped. Useful for introspection (e.g. "does this role grant
+   * `lease` on any path starting with `db/`?") without exposing the internal
+   * policies map.
+   */
+  rulesFor(policyNames: string[]): PolicyRule[] {
+    const out: PolicyRule[] = [];
+    for (const name of policyNames) {
+      const policy = this.policies.get(name);
+      if (!policy) continue;
+      out.push(...policy.rules);
+    }
+    return out;
+  }
+
+  /**
+   * True if any rule in the given policies grants `capability` on any path
+   * that begins with `prefix`. Path prefixes are compared literally (no glob
+   * expansion); a rule path of `db/*` with prefix `db/` matches.
+   */
+  hasCapabilityOnPrefix(
+    policyNames: string[],
+    prefix: string,
+    capability: Capability
+  ): boolean {
+    for (const rule of this.rulesFor(policyNames)) {
+      if (!rule.capabilities.includes(capability)) continue;
+      if (rule.paths.some((p) => p.startsWith(prefix) || p === "*")) return true;
+    }
+    return false;
+  }
+
   check(
     policyNames: string[],
     path: string,

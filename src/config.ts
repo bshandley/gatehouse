@@ -4,6 +4,7 @@ export interface GatehouseConfig {
   configDir: string;
   masterKey: Buffer;
   jwtSecret: string;
+  publicUrl?: string;
   oauth?: {
     issuer: string;
     clientId: string;
@@ -34,6 +35,7 @@ export function loadConfig(): GatehouseConfig {
     configDir: process.env.GATEHOUSE_CONFIG_DIR || "/config",
     masterKey,
     jwtSecret,
+    publicUrl: process.env.GATEHOUSE_PUBLIC_URL?.replace(/\/$/, "") || undefined,
   };
 
   // Optional OAuth (PocketID)
