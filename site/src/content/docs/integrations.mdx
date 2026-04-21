@@ -17,6 +17,25 @@ can connect to at least one of them. Pick the method that fits your setup.
 
 ---
 
+## 0. Onboarding links (fastest way to hand credentials to an agent)
+
+If you don't want to copy-paste `role_id` / `secret_id` into chat yourself, let the agent install itself. Generate an onboarding link from the AppRole's **Onboard** action in the web UI (TTL 5 min to 1 hour), then paste the generated prompt to the agent over any channel:
+
+```
+Run this in your shell, then follow the instructions in the output:
+
+curl -fsSL "https://gatehouse.example/v1/onboard/<token>" > /tmp/gatehouse-onboard.md
+cat /tmp/gatehouse-onboard.md
+```
+
+The fetched markdown detects the harness (Hermes, OpenClaw, Claude Code, Codex/Cursor/Windsurf, or "no filesystem" fallback), calls `POST /v1/onboard/<token>/exchange` to receive rotated AppRole credentials and a 24h JWT, persists the env vars into the harness's credential path, and installs a `gatehouse` skill. Exchange is single-use and rotates the AppRole's `secret_id` — any agent already holding the previous `secret_id` will need to re-onboard.
+
+Behind a reverse proxy? Set `GATEHOUSE_PUBLIC_URL=https://gatehouse.yourdomain.com` so the generated links use the public origin instead of whatever `Host` header Hono observes.
+
+Every harness-specific section below still applies once the link is exchanged; the onboarding markdown writes the same env vars the manual flow would.
+
+---
+
 ## 1. Claude Code
 
 Claude Code supports MCP servers via `.claude/settings.json` or the `claude mcp` CLI.

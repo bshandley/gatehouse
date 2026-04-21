@@ -12,7 +12,20 @@ This document is written for AI agents that need to authenticate with and use Ga
 
 ## Authentication
 
-You need a JWT token before you can do anything. Your operator gave you a `role_id` and `secret_id`. These are **login credentials for the vault itself**, not secret paths or secret values. Exchange them for a token:
+### Onboarding links (the common case)
+
+Your operator probably handed you a one-time URL along the lines of `https://gatehouse.example/v1/onboard/<token>`, wrapped in a prompt that tells you to curl it. Do exactly that:
+
+```bash
+curl -fsSL "https://gatehouse.example/v1/onboard/<token>" > /tmp/gatehouse-onboard.md
+cat /tmp/gatehouse-onboard.md
+```
+
+The response is self-installing markdown. It contains your identity, a bootstrap token, and step-by-step instructions for your harness (Hermes, OpenClaw, Claude Code, Codex/Cursor/Windsurf). Follow the steps in the file: call `POST /v1/onboard/<token>/exchange` exactly once to receive your rotated `role_id`, `secret_id`, and a 24h JWT, then persist the credentials and install the `gatehouse` skill as instructed. The bootstrap token is single-use; fetching the markdown is safely repeatable until you exchange.
+
+### Direct AppRole login (alternative)
+
+If your operator handed you `role_id` and `secret_id` directly, exchange them for a JWT:
 
 ```bash
 curl -X POST http://localhost:3100/v1/auth/approle/login \
@@ -80,13 +93,27 @@ Response:
 ```json
 {
   "secrets": [
-    {"path": "api-keys/openai", "version": 1, "created_at": "..."},
-    {"path": "api-keys/anthropic", "version": 1, "created_at": "..."}
+    {
+      "path": "services/memos-pat",
+      "version": 1,
+      "created_at": "...",
+      "metadata": {"allowed_domains": "10.0.0.102:5230", "header_name": "Authorization"},
+      "pattern_count": 4,
+      "top_pattern": "POST http://10.0.0.102:5230/api/v1/memos"
+    },
+    {"path": "api-keys/anthropic", "version": 1, "created_at": "...", "pattern_count": 0}
   ]
 }
 ```
 
-The response is automatically filtered to only show secrets you have `read` or `list` access to. Use an empty prefix to discover everything available to you.
+The response is filtered to only show secrets you can use via any capability (`read`, `list`, `proxy`, or `lease`). Use an empty prefix to discover everything available to you.
+
+Two fields matter for figuring out how to use a secret without probing:
+
+- **`pattern_count`** — how many known-good request shapes other agents have verified for this secret.
+- **`top_pattern`** — when `pattern_count > 0`, a `METHOD url_template` preview of the highest-confidence pattern. This IS the endpoint; don't scan for ports.
+
+If `pattern_count > 0`, call `gatehouse_patterns` (MCP) or `GET /v1/proxy/patterns?secret=<path>` for the full verified pattern including headers and body schema, then copy that shape. If `pattern_count == 0`, use `metadata.allowed_domains` as the canonical host; your first successful proxy call seeds a pattern for the next agent. If `gatehouse_list` returns an empty array, your policy grants nothing — stop and tell the operator rather than probing.
 
 ### Get a secret's value
 
@@ -122,7 +149,9 @@ curl http://localhost:3100/v1/secrets/api-keys/openai \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-Returns path, version, metadata, and timestamps, but not the secret value.
+Returns path, version, metadata, and timestamps, but not the secret value. Accepts any usable capability (`read`, `proxy`, `lease`, or `list`), so proxy-only AppRoles can inspect metadata for the secrets they can use. Only `/value` and `/versions` require `read`.
+
+In practice you shouldn't need this endpoint often — the same metadata is already returned by `GET /v1/secrets` for every secret in one round trip, so list first, fetch-by-path only when you specifically want one entry's metadata.
 
 ## Leasing secrets
 

@@ -33,6 +33,7 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 - **Key rotation.** Rotate the master key and re-wrap all DEKs + dynamic configs in one API call, zero downtime.
 - **YAML + DB policies.** Path-based ACLs with glob matching. YAML for version control, DB for UI management. Capabilities: read, write, delete, list, lease, proxy, admin.
 - **MCP server.** 9 tools including `gatehouse_proxy` for credential-injecting HTTP forwarding and `gatehouse_patterns` for querying learned API call templates.
+- **Agent onboarding links.** Generate a one-time bootstrap URL in the UI, hand it to an agent over any channel, and the agent curls the link, exchanges the token for rotated AppRole credentials and a 24h JWT, and auto-installs a `gatehouse` skill into its harness (Hermes, OpenClaw, Claude Code, Codex/Cursor/Windsurf). `role_id` and `secret_id` never appear in the chat stream.
 - **REST API.** Standard HTTP for everything else, including credential scrubbing endpoint.
 - **Audit log.** Structured JSON with configurable retention policy and automatic purge.
 - **Output scrubbing.** Catch and redact leaked credentials before they hit agent context (MCP + REST).
@@ -134,6 +135,34 @@ curl http://localhost:3100/v1/secrets?prefix=api-keys/ \
 ```
 
 The JWT expires after 24 hours by default. The agent should re-login when it receives a 401 response.
+
+#### Alternative: onboarding links (no secrets in chat)
+
+If you'd rather not paste `role_id` / `secret_id` into a chat window, use an onboarding link instead. In the web UI, open an AppRole's **Onboard** action and pick a TTL (5 min to 1 hour). You get a one-time URL plus a copy-ready prompt.
+
+Hand the prompt to the agent over any channel. The agent runs:
+
+```bash
+curl -fsSL "https://gatehouse.example/v1/onboard/<token>" > /tmp/gatehouse-onboard.md
+cat /tmp/gatehouse-onboard.md
+```
+
+The fetched markdown is self-installing instructions. The agent calls `POST /v1/onboard/<token>/exchange` exactly once, receives the rotated `role_id`, `secret_id`, and a 24h JWT, and writes them into its harness's credential path plus installs a `gatehouse` skill. Exchange rotates the AppRole's `secret_id`, so any agent already running with the previous secret needs to re-onboard. Links are single-use and expire on the TTL you picked.
+
+Admin API for onboarding (create/list/revoke):
+
+```bash
+# Create a link (TTL 900s = 15 min, max 3600s)
+curl -X POST http://localhost:3100/v1/onboard \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"role_id": "role-...", "ttl_seconds": 900, "label": "telegram bot"}'
+# returns: { "id": "onboard-...", "onboard_url": "https://.../v1/onboard/<token>", "expires_at": "..." }
+
+# Revoke before use
+curl -X DELETE http://localhost:3100/v1/onboard/<id> \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
 
 ### For humans: user accounts
 
@@ -598,6 +627,7 @@ Every `GATEHOUSE_*` environment variable, what it does, and what you're trading 
 |---|---|---|
 | `GATEHOUSE_PORT` | `3100` | HTTP listen port inside the container. |
 | `GATEHOUSE_CORS_ORIGINS` | *(empty, restrictive)* | Comma-separated list of allowed CORS origins. Only needed if you access the web UI from a different origin than where Gatehouse is running (e.g., behind a reverse proxy on a different hostname). Example: `https://gatehouse.local,https://gatehouse.yourdomain.com`. When empty, CORS is restricted to same-origin requests only. |
+| `GATEHOUSE_PUBLIC_URL` | *(derived from request)* | Public origin used when generating onboarding links. Set this when Gatehouse is behind a reverse proxy or on a LAN IP and the `Host` header isn't the address you want agents to fetch from. Takes precedence over request headers. Example: `https://gatehouse.home.arpa`. |
 | `GATEHOUSE_MAX_BODY_SIZE` | `1048576` (1 MB) | Maximum request body size in bytes. Increase this if your proxy payloads are larger than 1 MB (e.g., forwarding file uploads through the proxy). Setting this too high lets agents send arbitrarily large payloads through Gatehouse. |
 
 ### Proxy and SSRF

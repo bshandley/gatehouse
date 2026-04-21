@@ -33,7 +33,11 @@ Policies are displayed as cards listing the rules and which AppRoles reference e
 
 ## AppRoles
 
-The AppRoles tab manages machine credentials for agent harnesses. Creating an AppRole opens a one-time modal showing the `role_id` and `secret_id` — this modal cannot be dismissed accidentally, because the `secret_id` is only visible once. The same modal also generates a copy-ready **Agent System Prompt** containing the base URL, login endpoint, MCP endpoint, credentials, and a cheatsheet of the MCP tools — paste it straight into your agent's system prompt or harness config.
+The AppRoles tab manages machine credentials for agent harnesses. Each row has four icon+label actions: **Onboard** (generate a one-time onboarding link), **Edit** (rename, change policies, toggle suspend), **Suspend/Reinstate**, and **Delete**.
+
+Creating an AppRole opens a credentials-first modal with amber borders showing the `role_id` and `secret_id`. Both values must be copied before dismissal; dismissing without copying both prompts a confirmation. A **Generate onboarding prompt** button on the same modal produces a short curl-to-tempfile snippet you can paste into an agent chat; the agent fetches the bootstrap markdown, exchanges the token once, and writes durable credentials to its own filesystem. Raw secrets never cross the chat window.
+
+If an AppRole is created with zero policies, the UI confirms before proceeding, and the rendered onboard markdown instructs the agent to halt rather than probe.
 
 ## Users
 

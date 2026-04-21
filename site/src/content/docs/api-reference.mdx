@@ -33,6 +33,18 @@ All REST routes under `/v1/` require `Authorization: Bearer <token>` except `/v1
 | PUT | `/v1/auth/users/:username` | Update user (admin). |
 | DELETE | `/v1/auth/users/:username` | Delete user (admin). |
 
+## Onboarding links
+
+One-time bootstrap tokens that hand an agent durable AppRole credentials without secrets ever entering chat.
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/v1/onboard` | Create an onboarding link for an AppRole (admin). Returns `{ token, url, expires_at }`. |
+| GET | `/v1/onboard` | List active onboarding links (admin). |
+| GET | `/v1/onboard/:token` | Fetch the rendered markdown bootstrap document (unauthenticated, idempotent until exchange). |
+| POST | `/v1/onboard/:token/exchange` | One-shot exchange: consumes the token, returns `{ token (JWT), role_id, secret_id, base_url, mcp_url, role_display_name, policies, expires_in }`. |
+| DELETE | `/v1/onboard/:token` | Revoke an unused onboarding link (admin). |
+
 ## TOTP self-service
 
 | Method | Path | Description |
