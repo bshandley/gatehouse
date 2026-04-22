@@ -1,4 +1,4 @@
-FROM oven/bun:1.2-slim AS build
+FROM oven/bun:1.3-slim AS build
 
 WORKDIR /app
 COPY package.json bun.lock* ./
@@ -8,7 +8,7 @@ COPY src/ src/
 COPY tsconfig.json ./
 
 # ── Runtime stage ──────────────────────────────────────
-FROM oven/bun:1.2-slim
+FROM oven/bun:1.3-slim
 
 LABEL org.opencontainers.image.title="Gatehouse"
 LABEL org.opencontainers.image.description="Lightweight secrets vault for homelab AI agents"
