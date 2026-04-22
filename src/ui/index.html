@@ -897,6 +897,11 @@
       word-break: break-all;
       user-select: all;
       line-height: 1.6;
+      transition: color 120ms ease, opacity 120ms ease;
+    }
+    .reveal-value.is-masked {
+      letter-spacing: 0.08em;
+      user-select: none;
     }
 
     /* TTL */
@@ -2771,9 +2776,9 @@
       <div class="reveal-box">
         <div class="reveal-header">
           <span class="reveal-label">Secret Value</span>
-          <button class="btn btn-ghost btn-sm" id="reveal-btn" onclick="window._revealSecret('${esc(path)}')">
+          <button class="btn btn-ghost btn-sm" id="reveal-btn" aria-pressed="false" onclick="window._toggleRevealSecret('${esc(path)}')">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            Reveal
+            <span id="reveal-btn-label">Reveal</span>
           </button>
         </div>
         <div class="reveal-value" id="secret-value-display" style="color:var(--text-tertiary)">Click reveal to decrypt and display value</div>
@@ -2791,18 +2796,48 @@
     `;
   }
 
-  window._revealSecret = async function(path) {
-    try {
-      const data = await api(`/v1/secrets/${path}/value`);
-      document.getElementById('secret-value-display').textContent = data.value;
-      document.getElementById('secret-value-display').style.color = 'var(--text-primary)';
-      const btn = document.getElementById('reveal-btn');
-      btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> Revealed';
-      btn.disabled = true;
-      btn.style.opacity = '0.5';
-    } catch (e) {
-      toast('Failed to reveal: ' + e.message, 'error');
+  // Cache of revealed values keyed by path, so toggling Hide/Show after the
+  // first reveal is a local visual change and doesn't re-hit the API or spam
+  // audit logs. The cache is dropped when the user navigates away from the
+  // secret detail view.
+  window._revealedCache = window._revealedCache || {};
+  const EYE_OPEN_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_OFF_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+  window._toggleRevealSecret = async function(path) {
+    const btn = document.getElementById('reveal-btn');
+    const label = document.getElementById('reveal-btn-label');
+    const display = document.getElementById('secret-value-display');
+    const isRevealed = btn.getAttribute('aria-pressed') === 'true';
+
+    if (isRevealed) {
+      // Hide, but keep value cached so a subsequent reveal is instant.
+      const cached = window._revealedCache[path] || '';
+      display.classList.add('is-masked');
+      display.style.color = 'var(--text-tertiary)';
+      display.textContent = '•'.repeat(Math.min(Math.max(cached.length, 8), 48));
+      btn.setAttribute('aria-pressed', 'false');
+      btn.innerHTML = EYE_OPEN_SVG + ' <span id="reveal-btn-label">Reveal</span>';
+      return;
     }
+
+    // Reveal: hit the API only if we don't already have the value cached.
+    let value = window._revealedCache[path];
+    if (value === undefined) {
+      try {
+        const data = await api(`/v1/secrets/${path}/value`);
+        value = data.value;
+        window._revealedCache[path] = value;
+      } catch (e) {
+        toast('Failed to reveal: ' + e.message, 'error');
+        return;
+      }
+    }
+    display.classList.remove('is-masked');
+    display.style.color = 'var(--text-primary)';
+    display.textContent = value;
+    btn.setAttribute('aria-pressed', 'true');
+    btn.innerHTML = EYE_OFF_SVG + ' <span id="reveal-btn-label">Hide</span>';
   };
 
   window._leaseSecret = async function(path) {
