@@ -17,19 +17,35 @@ Your policies: {{POLICIES}}
 
 ## Step 1: Detect your harness
 
-Pick the first option that matches your runtime:
+Your own identity is the most reliable signal. A host machine can
+have `~/.hermes/`, `~/.claude/`, and `~/.openclaw/` all at once,
+because the operator runs multiple agents on it, so filesystem markers
+are the WEAKEST evidence. Work this ladder top-down and stop at the
+first match:
 
-1. **Hermes Agent** if you have a `skill_manage` tool, or `~/.hermes/`
-   exists on disk.
-2. **OpenClaw** if `~/.openclaw/` exists on disk.
-3. **Claude Code** if you have Write/Edit tools and `~/.claude/` exists
-   or is writable.
-4. **Codex / Cursor / Windsurf** if you have file tools but no skills
-   system and no `~/.claude/` or `~/.hermes/`. You can write to
-   `AGENTS.md` at the current working directory.
-5. **None of the above** if you have no persistent filesystem. Use these
-   instructions for this session only and tell the operator the next
-   session will need a new onboarding link.
+1. **Self-identification.** If you already know which runtime you
+   are (Claude Code, opencode, Hermes Agent, OpenClaw, Codex, Cursor,
+   Windsurf, Copilot CLI, Gemini CLI, or anything else), pick that
+   one and skip the rest of the ladder. Do not second-guess your own
+   identity from filesystem contents, those belong to other agents
+   sharing the host.
+2. **Tool signals.** If you genuinely don't know:
+   - A `skill_manage` tool means **Hermes Agent**.
+   - A `Skill` tool that loads from `~/.claude/skills/` means
+     **Claude Code**.
+3. **Filesystem, as a last resort.** Only if the two steps above
+   didn't resolve, AND exactly one of `~/.hermes/`, `~/.openclaw/`,
+   `~/.claude/` exists, use that as the harness. If two or more
+   exist, stop and ask the operator which runtime this is.
+4. **Generic file-writer fallback.** File tools but no skills system
+   and no clear identity: write `.env.gatehouse` and update
+   `AGENTS.md` in the current working directory. This is the right
+   bucket for Codex, Cursor, Windsurf, opencode without self-ID, and
+   anything else that can edit files but doesn't have a harness-native
+   skills directory.
+5. **No filesystem at all.** Hold credentials in conversation state
+   only and tell the operator the next session will need a new
+   onboarding link.
 
 ## Step 2: Exchange the bootstrap token
 
@@ -97,7 +113,7 @@ Write the env vars to `~/.claude/.env.gatehouse` and tell the user to
 source it or export the variables.
 Write the Step 5 body to `~/.claude/skills/gatehouse/SKILL.md`.
 
-### Codex / Cursor / Windsurf
+### Generic file-writer (opencode, Codex, Cursor, Windsurf, or similar)
 
 Write the env vars to `.env.gatehouse` in the current working
 directory. Tell the user to source it.
@@ -105,6 +121,9 @@ Append only the "Operating rules" and "Situation, tool" sections of
 Step 5 to `AGENTS.md` at the repo root, under a `## Gatehouse`
 heading. These harnesses don't have a skills system, so the full
 skill body is more than they need.
+
+Do NOT write into `~/.hermes/`, `~/.openclaw/`, or `~/.claude/` from
+this bucket. Those belong to other agents on the same host.
 
 ### No filesystem
 
