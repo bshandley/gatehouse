@@ -179,6 +179,8 @@ app.get("/v1/config", (c) => {
     port: config.port,
     jwt_expiry: "24h",
     oauth_enabled: !!config.oauth,
+    oauth_issuer: config.oauth?.issuer ?? "",
+    root_token_set: !!process.env.GATEHOUSE_ROOT_TOKEN,
     lease_reaper_interval: 30,
     max_lease_ttl: 86400,
     min_lease_ttl: 10,

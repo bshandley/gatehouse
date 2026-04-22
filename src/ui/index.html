@@ -2074,17 +2074,6 @@
           </div>
         </div>
 
-        <!-- Auth Config -->
-        <div class="card config-section">
-          <div class="card-header">
-            <span class="card-title">Authentication</span>
-            <span class="badge badge-neutral">Read-only</span>
-          </div>
-          <div class="card-body-padded" id="settings-auth-body">
-            <div class="empty-state" style="padding:12px 0;text-align:left">Loading...</div>
-          </div>
-        </div>
-
         <!-- SSO / OAuth Configuration -->
         <div class="card config-section">
           <div class="card-header">
@@ -4797,22 +4786,23 @@
     // Server config
     try {
       const cfg = await api('/v1/config');
+      const rootTokenBadge = cfg.root_token_set
+        ? '<span class="badge badge-warning" style="font-size:10px">Set</span>'
+        : '<span class="badge badge-neutral" style="font-size:10px">Not set</span>';
+      const rootTokenHint = cfg.root_token_set
+        ? 'Bootstrap admin credential is active. Recommended to unset <code>GATEHOUSE_ROOT_TOKEN</code> once an admin AppRole or user exists.'
+        : 'Bootstrap admin credential, used once to mint the first admin AppRole. "Not set" is the recommended steady state.';
       document.getElementById('settings-config-body').innerHTML = `
         <div class="config-row"><span class="config-key">Port</span><span class="config-val">${cfg.port}</span></div>
         <div class="config-row"><span class="config-key">JWT Expiry</span><span class="config-val">${esc(cfg.jwt_expiry)}</span></div>
-        <div class="config-row"><span class="config-key">OAuth Enabled</span><span class="config-val">${cfg.oauth_enabled ? 'Yes' : 'No'}</span></div>
         <div class="config-row"><span class="config-key">Lease Reaper Interval</span><span class="config-val">${cfg.lease_reaper_interval}s</span></div>
         <div class="config-row"><span class="config-key">Lease TTL Range</span><span class="config-val">${cfg.min_lease_ttl}s - ${cfg.max_lease_ttl}s</span></div>
-      `;
-      document.getElementById('settings-auth-body').innerHTML = `
-        <div class="config-row"><span class="config-key">JWT Expiry</span><span class="config-val">${esc(cfg.jwt_expiry)}</span></div>
-        <div class="config-row"><span class="config-key">Root Token</span><span class="config-val">${cfg.root_token_set ? '<span class="badge badge-success" style="font-size:10px">Set</span>' : '<span class="badge badge-warning" style="font-size:10px">Not set</span>'}</span></div>
-        <div class="config-row"><span class="config-key">OAuth / SSO</span><span class="config-val">${cfg.oauth_enabled ? '<span class="badge badge-success" style="font-size:10px">Enabled</span>' : '<span class="badge badge-neutral" style="font-size:10px">Disabled</span>'}</span></div>
-        ${cfg.oauth_issuer ? `<div class="config-row"><span class="config-key">OAuth Issuer</span><span class="config-val">${esc(cfg.oauth_issuer)}</span></div>` : ''}
+        <div class="config-row"><span class="config-key">SSO</span><span class="config-val">${cfg.oauth_enabled ? `<span class="badge badge-success" style="font-size:10px">Enabled</span>${cfg.oauth_issuer ? ` <span style="color:var(--text-tertiary);font-size:12px;margin-left:6px">${esc(cfg.oauth_issuer)}</span>` : ''}` : '<span class="badge badge-neutral" style="font-size:10px">Disabled</span>'}</span></div>
+        <div class="config-row"><span class="config-key">Root Token</span><span class="config-val">${rootTokenBadge}</span></div>
+        <div style="padding:4px 0 0 0;color:var(--text-tertiary);font-size:12px;line-height:1.5">${rootTokenHint}</div>
       `;
     } catch {
       document.getElementById('settings-config-body').innerHTML = '<div style="color:var(--text-tertiary);font-size:13px">Unable to load configuration</div>';
-      document.getElementById('settings-auth-body').innerHTML = '<div style="color:var(--text-tertiary);font-size:13px">Unable to load auth configuration</div>';
     }
 
     // Sync theme toggle state
