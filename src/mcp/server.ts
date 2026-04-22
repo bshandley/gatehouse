@@ -3,6 +3,7 @@ import { streamSSE } from "hono/streaming";
 import type { SecretsEngine } from "../secrets/engine";
 import type { LeaseManager } from "../lease/manager";
 import type { PolicyEngine } from "../policy/engine";
+import { ALL_CAPABILITIES } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 import type { AuthContext } from "../auth/middleware";
 import { scrubValue } from "../scrub/scrubber";
@@ -303,11 +304,15 @@ export function createMCPHandler(
           // capability (list / read / proxy / lease). No separate "list"
           // cap gate - discovery is table stakes for agents.
           const USABLE_CAPS = ["list", "read", "proxy", "lease"] as const;
-          const items = secrets
-            .list(args.prefix || "")
-            .filter((s) =>
-              USABLE_CAPS.some((cap) => policies.check(auth.policies, s.path, cap))
-            );
+          const withCaps = secrets.list(args.prefix || "").map((s) => ({
+            s,
+            caps: ALL_CAPABILITIES.filter((cap) =>
+              policies.check(auth.policies, s.path, cap)
+            ),
+          }));
+          const items = withCaps.filter(({ caps }) =>
+            USABLE_CAPS.some((cap) => caps.includes(cap))
+          );
           audit.log({
             identity: auth.identity,
             action: "secret.list.mcp",
@@ -317,13 +322,14 @@ export function createMCPHandler(
           const summary = patterns?.summaryByPath();
           return text(
             JSON.stringify(
-              items.map((s) => {
+              items.map(({ s, caps }) => {
                 const hit = summary?.get(s.path);
                 return {
                   path: s.path,
                   metadata: s.metadata,
                   version: s.version,
                   updated_at: s.updated_at,
+                  caps,
                   pattern_count: hit?.count ?? 0,
                   ...(hit ? { top_pattern: hit.top } : {}),
                 };

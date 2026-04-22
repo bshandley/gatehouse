@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { SecretsEngine } from "../secrets/engine";
 import type { PolicyEngine } from "../policy/engine";
+import { ALL_CAPABILITIES } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 import type { AuthContext } from "../auth/middleware";
 import type { PatternEngine } from "../patterns/engine";
@@ -156,8 +157,11 @@ export function secretsRouter(
     // Filter to secrets the agent can actually use via any capability.
     // proxy/lease-only secrets still show up so the agent can discover them.
     const USABLE_CAPS = ["list", "read", "proxy", "lease"] as const;
-    const results = allResults.filter((s) =>
-      USABLE_CAPS.some((cap) => policies.check(auth.policies, s.path, cap))
+    const capsFor = (path: string) =>
+      ALL_CAPABILITIES.filter((cap) => policies.check(auth.policies, path, cap));
+    const withCaps = allResults.map((s) => ({ s, caps: capsFor(s.path) }));
+    const results = withCaps.filter(({ caps }) =>
+      USABLE_CAPS.some((cap) => caps.includes(cap))
     );
 
     if (results.length === 0 && allResults.length > 0) {
@@ -172,10 +176,11 @@ export function secretsRouter(
     });
 
     const summary = patterns?.summaryByPath();
-    const enriched = results.map((s) => {
+    const enriched = results.map(({ s, caps }) => {
       const hit = summary?.get(s.path);
       return {
         ...s,
+        caps,
         pattern_count: hit?.count ?? 0,
         ...(hit ? { top_pattern: hit.top } : {}),
       };

@@ -154,13 +154,36 @@ on 401. Prefer the streamable HTTP MCP endpoint at
 `{GATEHOUSE_URL}/v1/mcp` when your harness supports it. The tools
 listed below are exposed there natively.
 
+## HTTP fallback (when MCP tools aren't wired up)
+
+If your harness can only make raw HTTP calls, every `gatehouse_*` tool
+below maps to an authenticated endpoint. Send `Authorization: Bearer
+<jwt>` on each.
+
+| Tool | HTTP |
+| --- | --- |
+| `gatehouse_list` | `GET /v1/secrets?prefix=<p>` returns `{"secrets": [...]}`. `prefix` is starts-with on the full path (`prefix=api` matches `api-keys/...`, NOT `services/api-foo`). |
+| `gatehouse_patterns` | `GET /v1/proxy/patterns?secret=<path>` returns `{"patterns": [...]}` with fields `method`, `url_template`, `request_headers`, `request_body_schema`, `confidence`. |
+| `gatehouse_proxy` | `POST /v1/proxy` with the body shape in "Injection styles" below. |
+| `gatehouse_get` | `GET /v1/secrets/<path>/value` (requires `read`). |
+| `gatehouse_lease` | `POST /v1/lease/<path>` with `{"ttl": 300}`. Returns `{lease, value}`. |
+| `gatehouse_revoke` | `DELETE /v1/lease/<lease_id>`. |
+| `gatehouse_scrub` | `POST /v1/scrub` with `{"text": "..."}`. |
+
 ## First call to any secret, in order
 
 1. `gatehouse_list` (prefix optional). Returns every secret you can
-   use, with metadata inline and two pattern hints per entry:
+   use. HTTP response is `{"secrets": [...]}`; MCP returns the array
+   directly. Per-entry fields:
+   - `caps`: capabilities you hold on this secret, e.g.
+     `["read","proxy"]`. Filter by `caps.includes("proxy")` when
+     you're looking for something to call through the proxy.
    - `pattern_count`: how many known-good request shapes exist.
    - `top_pattern`: the highest-confidence pattern, e.g.
      `POST http://10.0.0.102:5230/api/v1/memos`. This IS your endpoint.
+   Prefix is starts-with on the full path, not a substring match.
+   Use `prefix=services/` to see all `services/*`, not `prefix=memos`
+   to find `services/memos-pat`.
 2. **If `gatehouse_list` returns an empty array, STOP.** Your policy
    grants nothing. Do not probe, scan, or guess endpoints, the
    credential you need is not reachable by you. Tell the operator
@@ -197,10 +220,11 @@ listed below are exposed there natively.
    credential (stack traces, tool output, echoed requests), pass it
    through `gatehouse_scrub`.
 6. **Metadata is in `gatehouse_list` already.** Every secret's
-   `allowed_domains`, `header_name`, `auth_scheme`, `pattern_count`,
-   and `top_pattern` are returned by `gatehouse_list`. Don't fetch a
-   secret by path just to inspect metadata. Never call `gatehouse_get`
-   just to see metadata, it returns the raw value and requires `read`.
+   `allowed_domains`, `header_name`, `auth_scheme`, `caps`,
+   `pattern_count`, and `top_pattern` are returned by `gatehouse_list`.
+   Don't fetch a secret by path just to inspect metadata. Never call
+   `gatehouse_get` just to see metadata, it returns the raw value and
+   requires `read`.
 
 ## Injection styles for gatehouse_proxy
 
