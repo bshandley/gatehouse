@@ -10,11 +10,12 @@ COPY tsconfig.json ./
 # ── Runtime stage ──────────────────────────────────────
 FROM oven/bun:1.3-slim
 
+ARG VERSION=dev
 LABEL org.opencontainers.image.title="Gatehouse"
 LABEL org.opencontainers.image.description="Lightweight secrets vault for homelab AI agents"
 LABEL org.opencontainers.image.source="https://github.com/bshandley/gatehouse"
 LABEL org.opencontainers.image.licenses="AGPL-3.0-or-later"
-LABEL org.opencontainers.image.version="0.2.1"
+LABEL org.opencontainers.image.version="${VERSION}"
 
 # Install openssh-client for SSH certificate provider (ssh-keygen)
 RUN apt-get update && apt-get install -y --no-install-recommends openssh-client && rm -rf /var/lib/apt/lists/*
