@@ -149,7 +149,7 @@ before completing Step 3.
 <!-- GATEHOUSE-SKILL-BEGIN -->
 ---
 name: gatehouse
-description: Use when calling any authenticated external HTTP API, when an API key or bearer token is needed, when the user mentions credentials, secrets, vault, tokens, or keys, when a 401/403 comes back from an upstream API, or when picking up temporary database or SSH credentials. Routes all credential access through the Gatehouse vault so raw secrets never enter the agent context window.
+description: Use when calling any authenticated external HTTP API, when an API key or bearer token is needed, when the user mentions credentials, secrets, vault, tokens, or keys, when a 401/403 comes back from an upstream API, or when picking up temporary database or SSH credentials (dynamic secrets, checked out via gatehouse_checkout). Routes all credential access through the Gatehouse vault so raw secrets never enter the agent context window.
 ---
 
 # Gatehouse
@@ -181,25 +181,34 @@ below maps to an authenticated endpoint. Send `Authorization: Bearer
 
 | Tool | HTTP |
 | --- | --- |
-| `gatehouse_list` | `GET /v1/secrets?prefix=<p>` returns `{"secrets": [...]}`. `prefix` is starts-with on the full path (`prefix=api` matches `api-keys/...`, NOT `services/api-foo`). |
-| `gatehouse_patterns` | `GET /v1/proxy/patterns?secret=<path>` returns `{"patterns": [...]}` with fields `method`, `url_template`, `request_headers`, `request_body_schema`, `confidence`. |
-| `gatehouse_proxy` | `POST /v1/proxy` with the body shape in "Injection styles" below. |
-| `gatehouse_get` | `GET /v1/secrets/<path>/value` (requires `read`). |
-| `gatehouse_lease` | `POST /v1/lease/<path>` with `{"ttl": 300}`. Returns `{lease, value}`. |
-| `gatehouse_revoke` | `DELETE /v1/lease/<lease_id>`. |
+| `gatehouse_list` | `GET /v1/secrets?prefix=<p>` returns `{"secrets": [...]}`. Static and dynamic entries are merged; each entry has a `kind: "static" \| "dynamic"` field. `prefix` is starts-with on the full path (`prefix=api` matches `api-keys/...`, NOT `services/api-foo`). |
+| `gatehouse_patterns` | `GET /v1/proxy/patterns?secret=<path>` returns `{"patterns": [...]}` with fields `method`, `url_template`, `request_headers`, `request_body_schema`, `confidence`. Static secrets only. |
+| `gatehouse_proxy` | `POST /v1/proxy` with the body shape in "Injection styles" below. Static secrets only. |
+| `gatehouse_get` | `GET /v1/secrets/<path>/value` (requires `read`). Static secrets only. |
+| `gatehouse_lease` | `POST /v1/lease/<path>` with `{"ttl": 300}`. Returns `{lease, value}`. STATIC secrets only. |
+| `gatehouse_checkout` | `POST /v1/dynamic/<path>/checkout` with `{"ttl": 300}`. DYNAMIC secrets only (SSH, DB). Returns `{lease_id, path, provider_type, credential, ttl_seconds, expires_at}`. |
+| `gatehouse_revoke` | For static leases: `DELETE /v1/lease/<lease_id>`. For dynamic leases: `DELETE /v1/dynamic/lease/<lease_id>`. The MCP tool figures out which one you have; the HTTP endpoints are separate, so try dynamic if static returns 404. |
 | `gatehouse_scrub` | `POST /v1/scrub` with `{"text": "..."}`. |
 
 ## First call to any secret, in order
 
 1. `gatehouse_list` (prefix optional). Returns every secret you can
-   use. HTTP response is `{"secrets": [...]}`; MCP returns the array
-   directly. Per-entry fields:
+   use, static and dynamic merged. HTTP response is
+   `{"secrets": [...]}`; MCP returns the array directly. Per-entry
+   fields:
+   - `kind`: `"static"` (stored value, API key style) or `"dynamic"`
+     (ephemeral credential minted on demand, SSH cert or DB user).
+     Branch on this before picking a tool.
    - `caps`: capabilities you hold on this secret, e.g.
      `["read","proxy"]`. Filter by `caps.includes("proxy")` when
      you're looking for something to call through the proxy.
-   - `pattern_count`: how many known-good request shapes exist.
-   - `top_pattern`: the highest-confidence pattern, e.g.
-     `POST http://10.0.0.102:5230/api/v1/memos`. This IS your endpoint.
+   - Static only: `pattern_count` (how many known-good request shapes
+     exist) and `top_pattern` (the highest-confidence pattern, e.g.
+     `POST http://10.0.0.102:5230/api/v1/memos`). `top_pattern` IS
+     your endpoint.
+   - Dynamic only: `provider_type` (e.g. `postgresql`, `ssh-cert`).
+     These are not called via `gatehouse_proxy`; use
+     `gatehouse_checkout` to mint a credential.
    Prefix is starts-with on the full path, not a substring match.
    Use `prefix=services/` to see all `services/*`, not `prefix=memos`
    to find `services/memos-pat`.
@@ -222,12 +231,40 @@ below maps to an authenticated endpoint. Send `Authorization: Bearer
 5. Call `gatehouse_proxy` with the template or inject shorthand
    (below). Never `gatehouse_get` just to read a value into context.
 
+## Dynamic secrets (SSH, DB)
+
+Entries with `kind: "dynamic"` are NOT stored values, they are
+generators. Each `gatehouse_checkout` mints a fresh credential on the
+backend (a signed SSH certificate, an ephemeral DB user, etc.) that
+auto-revokes at TTL. Treat them like leases with a single return value
+and a clock.
+
+- Discover them through `gatehouse_list` like anything else. If a
+  dynamic secret you need is absent from the list, your policy
+  doesn't grant `lease` on it, apply the same "STOP, ask the
+  operator" rule as for static secrets.
+- Check out with `gatehouse_checkout` (MCP) or
+  `POST /v1/dynamic/<path>/checkout` (HTTP). The response body
+  includes a `credential` object whose shape depends on
+  `provider_type`: SSH cert configs return
+  `{private_key, certificate, username, ...}`, DB providers return
+  `{username, password, host, ...}`.
+- Do NOT pass the credential to `gatehouse_proxy`. Proxy only knows
+  static secrets. Consume the credential directly in your tool call
+  (SSH client, DB driver).
+- `gatehouse_revoke` works on dynamic `lease_id`s too. Revoke as
+  soon as you're done, don't wait for the TTL.
+- Never `gatehouse_get` or `gatehouse_lease` a dynamic path, both
+  will miss. Dynamic configs live on a separate path namespace on
+  the server.
+
 ## Operating rules
 
 1. Never echo role_id, secret_id, JWT, or any secret value into
    context, logs, or output.
-2. For any authenticated outbound API call, use `gatehouse_proxy`.
-   It keeps the credential out of your context entirely.
+2. For any authenticated outbound API call against a STATIC secret,
+   use `gatehouse_proxy`. It keeps the credential out of your context
+   entirely.
 3. On 4xx/5xx from upstream, the `gatehouse_proxy` response includes
    a `suggestions` array of up to 5 verified patterns for that secret.
    Use them before retrying.
@@ -235,15 +272,18 @@ below maps to an authenticated endpoint. Send `Authorization: Bearer
    `gatehouse_lease` with a 60-600 second TTL. Call `gatehouse_revoke`
    the moment you're done. Use `gatehouse_get` only if both proxy and
    lease are unavailable.
-5. Before returning or logging any text that might contain a
+5. For DYNAMIC secrets (entries with `kind: "dynamic"`), use
+   `gatehouse_checkout`, not `gatehouse_lease` or `gatehouse_proxy`.
+   See the Dynamic secrets section above.
+6. Before returning or logging any text that might contain a
    credential (stack traces, tool output, echoed requests), pass it
    through `gatehouse_scrub`.
-6. **Metadata is in `gatehouse_list` already.** Every secret's
-   `allowed_domains`, `header_name`, `auth_scheme`, `caps`,
-   `pattern_count`, and `top_pattern` are returned by `gatehouse_list`.
-   Don't fetch a secret by path just to inspect metadata. Never call
-   `gatehouse_get` just to see metadata, it returns the raw value and
-   requires `read`.
+7. **Metadata is in `gatehouse_list` already.** Every secret's
+   `kind`, `allowed_domains`, `header_name`, `auth_scheme`, `caps`,
+   `pattern_count`, `top_pattern`, and `provider_type` are returned
+   by `gatehouse_list`. Don't fetch a secret by path just to inspect
+   metadata. Never call `gatehouse_get` just to see metadata, it
+   returns the raw value and requires `read`.
 
 ## Injection styles for gatehouse_proxy
 
@@ -277,8 +317,18 @@ override this.
   the target is a private IP and the secret has `allow_private=false`.
   Check `gatehouse_status` and `gatehouse_list`. Don't work around,
   tell the operator.
+- **403 on lease or checkout**: policy lacks `lease` on that secret
+  path. Confirm with `gatehouse_list` (does the entry appear? what
+  are its `caps`?) and tell the operator if `lease` is missing.
+- **`Dynamic secret not found` on checkout**: you called
+  `gatehouse_checkout` against a path that isn't a dynamic config,
+  or you called `gatehouse_lease`/`gatehouse_get` against a dynamic
+  path. Re-read the entry's `kind` in `gatehouse_list` and pick the
+  matching tool.
 - **4xx/5xx from upstream**: use the `suggestions` in the error
   response before retrying.
 - **Secret not in gatehouse_list**: your policy doesn't grant any
-  usable access to it. Ask the operator to extend your policy.
+  usable access to it. Ask the operator to extend your policy. This
+  applies to static AND dynamic secrets, both appear in the same
+  list.
 <!-- GATEHOUSE-SKILL-END -->

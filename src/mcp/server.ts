@@ -6,6 +6,7 @@ import type { PolicyEngine } from "../policy/engine";
 import { ALL_CAPABILITIES } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 import type { AuthContext } from "../auth/middleware";
+import type { DynamicSecretsManager } from "../dynamic/manager";
 import { scrubValue } from "../scrub/scrubber";
 import { v4 as uuid } from "uuid";
 import type { PatternEngine } from "../patterns/engine";
@@ -21,14 +22,15 @@ import { VERSION } from "../version";
  * and stdio (for Claude Code, Codex, OpenClaw local configs).
  *
  * Tools exposed:
- *   gatehouse_get      - Read a secret value (with audit)
- *   gatehouse_lease    - Checkout a secret with a TTL
- *   gatehouse_revoke   - Revoke an active lease
- *   gatehouse_list     - List secret paths (metadata only)
- *   gatehouse_put      - Store/update a secret
- *   gatehouse_scrub    - Scrub text for leaked credentials
- *   gatehouse_status   - Health check and active lease count
- *   gatehouse_patterns - Query learned API call patterns for a secret
+ *   gatehouse_get       - Read a static secret value (with audit)
+ *   gatehouse_lease     - Checkout a static secret with a TTL
+ *   gatehouse_checkout  - Mint a dynamic credential (DB/SSH) with a TTL
+ *   gatehouse_revoke    - Revoke an active static or dynamic lease
+ *   gatehouse_list      - List secret paths (static + dynamic, metadata only)
+ *   gatehouse_put       - Store/update a secret
+ *   gatehouse_scrub     - Scrub text for leaked credentials
+ *   gatehouse_status    - Health check and active lease count
+ *   gatehouse_patterns  - Query learned API call patterns for a secret
  */
 
 // MCP protocol types
@@ -76,13 +78,13 @@ const TOOLS: MCPTool[] = [
   {
     name: "gatehouse_lease",
     description:
-      "Checkout a secret with a time-to-live. The secret auto-revokes after the TTL expires. Prefer this over gatehouse_get for agent workflows.",
+      "Check out a STATIC secret (stored value, like an API key) with a time-to-live. The lease auto-revokes after the TTL expires. For DYNAMIC secrets (entries with kind: 'dynamic' in gatehouse_list, e.g. SSH keys and DB credentials minted on demand), use gatehouse_checkout instead.",
     inputSchema: {
       type: "object",
       properties: {
         path: {
           type: "string",
-          description: "Secret path to lease",
+          description: "Static secret path to lease",
         },
         ttl: {
           type: "number",
@@ -94,14 +96,37 @@ const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: "gatehouse_checkout",
+    description:
+      "Mint a DYNAMIC credential (ephemeral DB user, signed SSH cert, etc.) with a time-to-live. Use this for entries with kind: 'dynamic' in gatehouse_list. The returned credential is created on the backend at checkout time and auto-revoked when the TTL expires. For STATIC secrets with a stored value, use gatehouse_lease instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description:
+            "Dynamic secret path to check out, e.g. 'ssh/lab' or 'db/prod-pg'",
+        },
+        ttl: {
+          type: "number",
+          description:
+            "Credential lifetime in seconds (default: 300, min: 10, max: 86400)",
+        },
+      },
+      required: ["path"],
+    },
+  },
+  {
     name: "gatehouse_revoke",
-    description: "Revoke an active lease before its TTL expires.",
+    description:
+      "Revoke an active lease before its TTL expires. Works for both static leases (from gatehouse_lease) and dynamic leases (from gatehouse_checkout).",
     inputSchema: {
       type: "object",
       properties: {
         lease_id: {
           type: "string",
-          description: "The lease ID returned from gatehouse_lease",
+          description:
+            "The lease ID returned from gatehouse_lease or gatehouse_checkout",
         },
       },
       required: ["lease_id"],
@@ -236,7 +261,8 @@ export function createMCPHandler(
   leases: LeaseManager,
   policies: PolicyEngine,
   audit: AuditLog,
-  patterns?: PatternEngine
+  patterns?: PatternEngine,
+  dynamic?: DynamicSecretsManager
 ) {
   async function handleToolCall(
     toolName: string,
@@ -286,58 +312,152 @@ export function createMCPHandler(
           );
         }
 
-        case "gatehouse_revoke": {
-          const lease = leases.getLease(args.lease_id);
-          if (!lease) return error(`Lease not found: "${args.lease_id}"`);
-          if (
-            lease.identity !== auth.identity &&
-            !policies.check(auth.policies, "*", "admin")
-          ) {
-            return error("Access denied: you can only revoke your own leases");
+        case "gatehouse_checkout": {
+          if (!dynamic) {
+            return error(
+              "Dynamic secrets are not available on this Gatehouse deployment"
+            );
           }
-          leases.revoke(args.lease_id, auth.identity);
-          return text(`Lease ${args.lease_id} revoked`);
+          if (!policies.check(auth.policies, args.path, "lease")) {
+            return error(
+              `Access denied: no lease permission on "${args.path}"`
+            );
+          }
+          const ttl = Math.max(10, Math.min(86400, args.ttl || 300));
+          try {
+            const lease = await dynamic.checkout(
+              args.path,
+              auth.identity,
+              ttl
+            );
+            if (!lease) {
+              return error(
+                `Dynamic secret not found: "${args.path}" (use gatehouse_list to find entries with kind: "dynamic")`
+              );
+            }
+            return text(
+              JSON.stringify(
+                {
+                  lease_id: lease.lease_id,
+                  path: lease.path,
+                  provider_type: lease.provider_type,
+                  credential: lease.credential,
+                  ttl_seconds: lease.ttl_seconds,
+                  expires_at: lease.expires_at,
+                },
+                null,
+                2
+              )
+            );
+          } catch (e: any) {
+            return error(
+              `Failed to mint dynamic credential: ${e.message || e}`
+            );
+          }
+        }
+
+        case "gatehouse_revoke": {
+          // Try static lease first, then fall back to dynamic.
+          const staticLease = leases.getLease(args.lease_id);
+          if (staticLease) {
+            if (
+              staticLease.identity !== auth.identity &&
+              !policies.check(auth.policies, "*", "admin")
+            ) {
+              return error(
+                "Access denied: you can only revoke your own leases"
+              );
+            }
+            leases.revoke(args.lease_id, auth.identity);
+            return text(`Lease ${args.lease_id} revoked`);
+          }
+
+          if (dynamic) {
+            const dynLease = dynamic.getLease(args.lease_id);
+            if (dynLease) {
+              if (
+                dynLease.identity !== auth.identity &&
+                !policies.check(auth.policies, "*", "admin")
+              ) {
+                return error(
+                  "Access denied: you can only revoke your own leases"
+                );
+              }
+              await dynamic.revokeLease(args.lease_id, auth.identity);
+              return text(`Lease ${args.lease_id} revoked`);
+            }
+          }
+
+          return error(`Lease not found: "${args.lease_id}"`);
         }
 
         case "gatehouse_list": {
           // Show the caller every secret they can actually use via any
           // capability (list / read / proxy / lease). No separate "list"
-          // cap gate - discovery is table stakes for agents.
+          // cap gate - discovery is table stakes for agents. Dynamic
+          // configs are merged into the same list so agents don't need
+          // to know about a second discovery surface.
           const USABLE_CAPS = ["list", "read", "proxy", "lease"] as const;
-          const withCaps = secrets.list(args.prefix || "").map((s) => ({
+          const prefix = args.prefix || "";
+
+          const staticWithCaps = secrets.list(prefix).map((s) => ({
             s,
             caps: ALL_CAPABILITIES.filter((cap) =>
               policies.check(auth.policies, s.path, cap)
             ),
           }));
-          const items = withCaps.filter(({ caps }) =>
+          const staticItems = staticWithCaps.filter(({ caps }) =>
             USABLE_CAPS.some((cap) => caps.includes(cap))
           );
+
+          const dynamicItems = dynamic
+            ? dynamic.listConfigs(prefix).map((d) => ({
+                d,
+                caps: ALL_CAPABILITIES.filter((cap) =>
+                  policies.check(auth.policies, d.path, cap)
+                ),
+              })).filter(({ caps }) =>
+                // Dynamic configs only expose lease + admin semantics.
+                // Surface them to anyone who can lease or admin the path.
+                caps.includes("lease") || caps.includes("admin")
+              )
+            : [];
+
           audit.log({
             identity: auth.identity,
             action: "secret.list.mcp",
-            path: args.prefix || "*",
+            path: prefix || "*",
             source_ip: sourceIp,
           });
+
           const summary = patterns?.summaryByPath();
-          return text(
-            JSON.stringify(
-              items.map(({ s, caps }) => {
-                const hit = summary?.get(s.path);
-                return {
-                  path: s.path,
-                  metadata: s.metadata,
-                  version: s.version,
-                  updated_at: s.updated_at,
-                  caps,
-                  pattern_count: hit?.count ?? 0,
-                  ...(hit ? { top_pattern: hit.top } : {}),
-                };
-              }),
-              null,
-              2
-            )
+          const staticEntries = staticItems.map(({ s, caps }) => {
+            const hit = summary?.get(s.path);
+            return {
+              path: s.path,
+              kind: "static" as const,
+              metadata: s.metadata,
+              version: s.version,
+              updated_at: s.updated_at,
+              caps,
+              pattern_count: hit?.count ?? 0,
+              ...(hit ? { top_pattern: hit.top } : {}),
+            };
+          });
+          const dynamicEntries = dynamicItems.map(({ d, caps }) => ({
+            path: d.path,
+            kind: "dynamic" as const,
+            provider_type: d.provider_type,
+            updated_at: d.updated_at,
+            caps,
+          }));
+
+          // Sort merged list by path for stable output.
+          const merged = [...staticEntries, ...dynamicEntries].sort((a, b) =>
+            a.path < b.path ? -1 : a.path > b.path ? 1 : 0
           );
+
+          return text(JSON.stringify(merged, null, 2));
         }
 
         case "gatehouse_put": {
@@ -685,10 +805,11 @@ export function mcpHttpRouter(
   leases: LeaseManager,
   policies: PolicyEngine,
   audit: AuditLog,
-  patterns?: PatternEngine
+  patterns?: PatternEngine,
+  dynamic?: DynamicSecretsManager
 ) {
   const router = new Hono();
-  const mcp = createMCPHandler(secrets, leases, policies, audit, patterns);
+  const mcp = createMCPHandler(secrets, leases, policies, audit, patterns, dynamic);
 
   // Streamable HTTP endpoint (POST /mcp)
   router.post("/", async (c) => {
@@ -751,9 +872,10 @@ export async function runStdioTransport(
   leases: LeaseManager,
   policies: PolicyEngine,
   audit: AuditLog,
-  auth: AuthContext
+  auth: AuthContext,
+  dynamic?: DynamicSecretsManager
 ) {
-  const mcp = createMCPHandler(secrets, leases, policies, audit);
+  const mcp = createMCPHandler(secrets, leases, policies, audit, undefined, dynamic);
 
   const decoder = new TextDecoder();
   let buffer = "";

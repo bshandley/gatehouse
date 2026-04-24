@@ -380,12 +380,12 @@ app.get("/v1/events", (c) => {
   });
 });
 
-app.route("/v1/secrets", secretsRouter(secrets, policies, audit, patternEngine));
+app.route("/v1/secrets", secretsRouter(secrets, policies, audit, patternEngine, dynamicSecrets));
 app.route("/v1/secrets-bulk", bulkSecretsRouter(secrets, policies, audit));
 app.route("/v1/lease", leaseRouter(leases, policies, audit));
 app.route("/v1/policy", policyRouter(policies, audit));
 app.route("/v1/audit", auditRouter(audit, policies));
-app.route("/v1/mcp", mcpHttpRouter(secrets, leases, policies, audit, patternEngine));
+app.route("/v1/mcp", mcpHttpRouter(secrets, leases, policies, audit, patternEngine, dynamicSecrets));
 app.route("/v1/proxy/patterns", patternsRouter(patternEngine, policies));
 app.route("/v1/proxy", proxyRouter(secrets, policies, audit, patternEngine));
 app.route("/v1/dynamic", dynamicRouter(dynamicSecrets, policies, audit));

@@ -5,6 +5,7 @@ import { ALL_CAPABILITIES } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 import type { AuthContext } from "../auth/middleware";
 import type { PatternEngine } from "../patterns/engine";
+import type { DynamicSecretsManager } from "../dynamic/manager";
 
 const PATH_REGEX = /^[a-zA-Z0-9/_-]+$/;
 const MAX_METADATA_VALUE_SIZE = 1024; // 1KB per value
@@ -143,28 +144,39 @@ export function secretsRouter(
   secrets: SecretsEngine,
   policies: PolicyEngine,
   audit: AuditLog,
-  patterns?: PatternEngine
+  patterns?: PatternEngine,
+  dynamic?: DynamicSecretsManager
 ) {
   const router = new Hono();
 
-  // List secrets (metadata only, no values)
-  // Returns only secrets the caller has read or list access to.
+  // List secrets (metadata only, no values).
+  // Returns every secret (static + dynamic) the caller can use via any
+  // capability. Static entries carry kind: "static", dynamic configs carry
+  // kind: "dynamic" + provider_type. Agents filter by caps or kind.
   router.get("/", (c) => {
     const auth = c.get("auth") as AuthContext;
     const prefix = c.req.query("prefix") || "";
-    const allResults = secrets.list(prefix);
 
-    // Filter to secrets the agent can actually use via any capability.
-    // proxy/lease-only secrets still show up so the agent can discover them.
     const USABLE_CAPS = ["list", "read", "proxy", "lease"] as const;
     const capsFor = (path: string) =>
       ALL_CAPABILITIES.filter((cap) => policies.check(auth.policies, path, cap));
-    const withCaps = allResults.map((s) => ({ s, caps: capsFor(s.path) }));
-    const results = withCaps.filter(({ caps }) =>
+
+    const allStatic = secrets.list(prefix);
+    const staticWithCaps = allStatic.map((s) => ({ s, caps: capsFor(s.path) }));
+    const staticResults = staticWithCaps.filter(({ caps }) =>
       USABLE_CAPS.some((cap) => caps.includes(cap))
     );
 
-    if (results.length === 0 && allResults.length > 0) {
+    const allDynamic = dynamic ? dynamic.listConfigs(prefix) : [];
+    const dynamicWithCaps = allDynamic.map((d) => ({ d, caps: capsFor(d.path) }));
+    const dynamicResults = dynamicWithCaps.filter(
+      ({ caps }) => caps.includes("lease") || caps.includes("admin")
+    );
+
+    // Only 403 if both sides had candidates but policy filtered everything out.
+    const totalCandidates = allStatic.length + allDynamic.length;
+    const totalVisible = staticResults.length + dynamicResults.length;
+    if (totalVisible === 0 && totalCandidates > 0) {
       return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
     }
 
@@ -176,17 +188,29 @@ export function secretsRouter(
     });
 
     const summary = patterns?.summaryByPath();
-    const enriched = results.map(({ s, caps }) => {
+    const staticEnriched = staticResults.map(({ s, caps }) => {
       const hit = summary?.get(s.path);
       return {
         ...s,
+        kind: "static" as const,
         caps,
         pattern_count: hit?.count ?? 0,
         ...(hit ? { top_pattern: hit.top } : {}),
       };
     });
+    const dynamicEnriched = dynamicResults.map(({ d, caps }) => ({
+      path: d.path,
+      kind: "dynamic" as const,
+      provider_type: d.provider_type,
+      updated_at: d.updated_at,
+      caps,
+    }));
 
-    return c.json({ secrets: enriched });
+    const merged = [...staticEnriched, ...dynamicEnriched].sort((a, b) =>
+      a.path < b.path ? -1 : a.path > b.path ? 1 : 0
+    );
+
+    return c.json({ secrets: merged });
   });
 
   // Get secret value or metadata.

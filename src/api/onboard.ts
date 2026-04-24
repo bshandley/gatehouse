@@ -81,10 +81,16 @@ function renderSituationTable(policies: PolicyEngine, roleNames: string[]): stri
     push("Find known-good request shapes", "`gatehouse_patterns`");
   }
   if (policies.hasCapabilityOnPrefix(roleNames, "db/", "lease")) {
-    push("Temporary DB credential", "`gatehouse_lease` on `db/<name>`");
+    push(
+      "Temporary DB credential",
+      "`gatehouse_checkout` on `db/<name>` (dynamic)"
+    );
   }
   if (policies.hasCapabilityOnPrefix(roleNames, "ssh/", "lease")) {
-    push("SSH somewhere", "`gatehouse_lease` on `ssh/<name>`");
+    push(
+      "SSH somewhere",
+      "`gatehouse_checkout` on `ssh/<name>` (dynamic)"
+    );
   }
   push("Check your policies / health", "`gatehouse_status`");
   push("List secrets you can access", "`gatehouse_list`");

@@ -17,6 +17,7 @@ import { SecretsEngine } from "./secrets/engine";
 import { LeaseManager } from "./lease/manager";
 import { PolicyEngine } from "./policy/engine";
 import { AuditLog } from "./audit/logger";
+import { DynamicSecretsManager } from "./dynamic/manager";
 import { runStdioTransport } from "./mcp/server";
 import { loadConfig } from "./config";
 import { type AuthContext, safeEqual } from "./auth/middleware";
@@ -27,6 +28,7 @@ const audit = new AuditLog(db);
 const secrets = new SecretsEngine(db, config.masterKey);
 const policies = new PolicyEngine(config.configDir);
 const leases = new LeaseManager(db, secrets, audit);
+const dynamicSecrets = new DynamicSecretsManager(db, audit, config.masterKey);
 
 // Resolve identity from token or env
 const token = process.env.GATEHOUSE_TOKEN || process.argv[2];
@@ -47,4 +49,4 @@ console.error(
   `[gatehouse:mcp] stdio transport started for identity="${auth.identity}"`
 );
 
-await runStdioTransport(secrets, leases, policies, audit, auth);
+await runStdioTransport(secrets, leases, policies, audit, auth, dynamicSecrets);

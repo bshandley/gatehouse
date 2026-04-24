@@ -6,6 +6,8 @@ import { LeaseManager } from "../src/lease/manager";
 import { PolicyEngine } from "../src/policy/engine";
 import { AuditLog } from "../src/audit/logger";
 import { createMCPHandler } from "../src/mcp/server";
+import { DynamicSecretsManager } from "../src/dynamic/manager";
+import type { DynamicProvider, DynamicCredential } from "../src/dynamic/provider";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -67,21 +69,23 @@ rules:
     expect(res.result.capabilities.tools).toBeDefined();
   });
 
-  test("tools/list returns all 9 tools", async () => {
+  test("tools/list returns all 10 tools", async () => {
     const res = await mcp.handleRequest(
       { jsonrpc: "2.0", id: 1, method: "tools/list" },
       adminAuth
     );
-    expect(res.result.tools).toHaveLength(9);
+    expect(res.result.tools).toHaveLength(10);
     const names = res.result.tools.map((t: any) => t.name);
     expect(names).toContain("gatehouse_get");
     expect(names).toContain("gatehouse_lease");
+    expect(names).toContain("gatehouse_checkout");
     expect(names).toContain("gatehouse_revoke");
     expect(names).toContain("gatehouse_list");
     expect(names).toContain("gatehouse_put");
     expect(names).toContain("gatehouse_scrub");
     expect(names).toContain("gatehouse_proxy");
     expect(names).toContain("gatehouse_status");
+    expect(names).toContain("gatehouse_patterns");
   });
 
   test("ping returns empty result", async () => {
@@ -157,6 +161,7 @@ rules:
     expect(parsed).toHaveLength(2);
     expect(parsed[0]).toHaveProperty("path");
     expect(parsed[0]).not.toHaveProperty("value");
+    expect(parsed[0].kind).toBe("static");
   });
 
   test("gatehouse_lease creates a lease and returns value", async () => {
@@ -349,5 +354,261 @@ rules:
     );
     expect(res.id).toBe(42);
     expect(res.result.content[0].text).toBe("val");
+  });
+});
+
+/**
+ * Minimal dynamic provider that mints a fake SSH-cert-shaped credential
+ * without talking to a real host. Used to exercise gatehouse_checkout and
+ * the dynamic branch of gatehouse_list and gatehouse_revoke.
+ */
+class FakeSSHProvider implements DynamicProvider {
+  readonly type = "fake-ssh";
+  revoked: Set<string> = new Set();
+
+  requiredConfig(): string[] {
+    return ["host"];
+  }
+
+  async create(
+    config: Record<string, string>,
+    identity: string,
+    ttlSeconds: number
+  ): Promise<DynamicCredential> {
+    const handle = `fake-ssh-${crypto.randomUUID().slice(0, 8)}`;
+    return {
+      credential: {
+        username: identity,
+        private_key: `-----BEGIN FAKE KEY-----\n${handle}\n-----END FAKE KEY-----`,
+        host: config.host,
+        ttl_seconds: String(ttlSeconds),
+      },
+      revocation_handle: handle,
+    };
+  }
+
+  async revoke(
+    _config: Record<string, string>,
+    revocationHandle: string
+  ): Promise<void> {
+    this.revoked.add(revocationHandle);
+  }
+
+  async validate(): Promise<{ ok: boolean; error?: string }> {
+    return { ok: true };
+  }
+}
+
+describe("MCP Server - dynamic secrets", () => {
+  let mcp: ReturnType<typeof createMCPHandler>;
+  let secrets: SecretsEngine;
+  let audit: AuditLog;
+  let dynamic: DynamicSecretsManager;
+  let fakeProvider: FakeSSHProvider;
+  let dir: string;
+
+  const dynAgentAuth: AuthContext = {
+    identity: "dyn-agent",
+    policies: ["homelab-ssh-user"],
+    source: "approle",
+  };
+
+  const adminAuth: AuthContext = {
+    identity: "test-admin",
+    policies: ["admin"],
+    source: "root",
+  };
+
+  const strangerAuth: AuthContext = {
+    identity: "stranger",
+    policies: ["homelab-ssh-user"],
+    source: "approle",
+  };
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "gatehouse-mcp-dyn-"));
+    const configDir = join(dir, "config");
+    mkdirSync(join(configDir, "policies"), { recursive: true });
+    writeFileSync(
+      join(configDir, "policies", "homelab-ssh-user.yaml"),
+      `name: homelab-ssh-user
+rules:
+  - path: "ssh/*"
+    capabilities: [lease]
+`
+    );
+
+    const db = initDB(dir);
+    audit = new AuditLog(db);
+    const masterKey = Buffer.from("c".repeat(64), "hex");
+    secrets = new SecretsEngine(db, masterKey);
+    const leases = new LeaseManager(db, secrets, audit);
+    const policies = new PolicyEngine(configDir);
+    dynamic = new DynamicSecretsManager(db, audit, masterKey);
+    fakeProvider = new FakeSSHProvider();
+    dynamic.registerProvider(fakeProvider);
+
+    // Seed a dynamic ssh config
+    dynamic.saveConfig("ssh/lab", "fake-ssh", { host: "10.0.0.50" });
+
+    mcp = createMCPHandler(secrets, leases, policies, audit, undefined, dynamic);
+  });
+
+  afterEach(() => {
+    dynamic.stopReaper();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("gatehouse_list merges dynamic configs with kind: 'dynamic'", async () => {
+    // Also put a static secret the agent CAN'T see (no policy) and one at
+    // an ssh/* path that still should not show up unless stored as dynamic.
+    await mcp.handleToolCall(
+      "gatehouse_put",
+      { path: "api-keys/hidden", value: "nope" },
+      adminAuth
+    );
+
+    const result = await mcp.handleToolCall(
+      "gatehouse_list",
+      {},
+      dynAgentAuth
+    );
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].path).toBe("ssh/lab");
+    expect(parsed[0].kind).toBe("dynamic");
+    expect(parsed[0].provider_type).toBe("fake-ssh");
+    expect(parsed[0].caps).toContain("lease");
+    expect(parsed[0]).not.toHaveProperty("value");
+  });
+
+  test("gatehouse_list with kind:'dynamic' omits pattern_count/top_pattern", async () => {
+    const result = await mcp.handleToolCall(
+      "gatehouse_list",
+      { prefix: "ssh/" },
+      dynAgentAuth
+    );
+    const [entry] = JSON.parse(result.content[0].text);
+    expect(entry.kind).toBe("dynamic");
+    expect(entry).not.toHaveProperty("pattern_count");
+    expect(entry).not.toHaveProperty("top_pattern");
+    expect(entry).not.toHaveProperty("metadata");
+  });
+
+  test("gatehouse_checkout mints a dynamic credential", async () => {
+    const result = await mcp.handleToolCall(
+      "gatehouse_checkout",
+      { path: "ssh/lab", ttl: 120 },
+      dynAgentAuth
+    );
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.lease_id).toStartWith("dlease-");
+    expect(parsed.path).toBe("ssh/lab");
+    expect(parsed.provider_type).toBe("fake-ssh");
+    expect(parsed.ttl_seconds).toBe(120);
+    expect(parsed.credential.username).toBe("dyn-agent");
+    expect(parsed.credential.host).toBe("10.0.0.50");
+    expect(parsed.credential.private_key).toContain("FAKE KEY");
+  });
+
+  test("gatehouse_checkout denies without lease capability", async () => {
+    const noLeaseAuth: AuthContext = {
+      identity: "nope",
+      policies: ["policy-that-does-not-exist"],
+      source: "approle",
+    };
+    const result = await mcp.handleToolCall(
+      "gatehouse_checkout",
+      { path: "ssh/lab" },
+      noLeaseAuth
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Access denied");
+    expect(result.content[0].text).toContain("lease");
+  });
+
+  test("gatehouse_checkout errors on unknown dynamic path", async () => {
+    const result = await mcp.handleToolCall(
+      "gatehouse_checkout",
+      { path: "ssh/nonexistent" },
+      dynAgentAuth
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not found");
+  });
+
+  test("gatehouse_revoke works on dynamic lease_id", async () => {
+    const checkout = await mcp.handleToolCall(
+      "gatehouse_checkout",
+      { path: "ssh/lab" },
+      dynAgentAuth
+    );
+    const { lease_id } = JSON.parse(checkout.content[0].text);
+
+    const revoke = await mcp.handleToolCall(
+      "gatehouse_revoke",
+      { lease_id },
+      dynAgentAuth
+    );
+    expect(revoke.isError).toBeUndefined();
+    expect(revoke.content[0].text).toContain("revoked");
+    // Provider should have seen the revocation
+    expect(fakeProvider.revoked.size).toBe(1);
+  });
+
+  test("gatehouse_revoke denies non-owner non-admin for dynamic lease", async () => {
+    const checkout = await mcp.handleToolCall(
+      "gatehouse_checkout",
+      { path: "ssh/lab" },
+      dynAgentAuth
+    );
+    const { lease_id } = JSON.parse(checkout.content[0].text);
+
+    const revoke = await mcp.handleToolCall(
+      "gatehouse_revoke",
+      { lease_id },
+      strangerAuth
+    );
+    expect(revoke.isError).toBe(true);
+    expect(revoke.content[0].text).toContain("Access denied");
+  });
+
+  test("gatehouse_checkout errors if dynamic manager is absent", async () => {
+    const configDir = join(dir, "config");
+    const db2 = initDB(join(dir, "x"));
+    const audit2 = new AuditLog(db2);
+    const masterKey = Buffer.from("d".repeat(64), "hex");
+    const secrets2 = new SecretsEngine(db2, masterKey);
+    const leases2 = new LeaseManager(db2, secrets2, audit2);
+    const policies2 = new PolicyEngine(configDir);
+    const mcpNoDyn = createMCPHandler(
+      secrets2,
+      leases2,
+      policies2,
+      audit2
+      // no dynamic manager
+    );
+
+    const result = await mcpNoDyn.handleToolCall(
+      "gatehouse_checkout",
+      { path: "ssh/lab" },
+      dynAgentAuth
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not available");
+  });
+
+  test("tools/list advertises gatehouse_checkout with schema", async () => {
+    const res = await mcp.handleRequest(
+      { jsonrpc: "2.0", id: 1, method: "tools/list" },
+      dynAgentAuth
+    );
+    const checkout = res.result.tools.find(
+      (t: any) => t.name === "gatehouse_checkout"
+    );
+    expect(checkout).toBeDefined();
+    expect(checkout.inputSchema.required).toContain("path");
+    expect(checkout.description).toContain("dynamic");
   });
 });

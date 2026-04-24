@@ -134,7 +134,7 @@ rules:
     expect(md).toContain("memos-user");
     expect(md).toContain(`/v1/onboard/${body.token}/exchange`);
     expect(md).toContain("gatehouse_proxy");
-    expect(md).toContain("gatehouse_lease` on `db/");
+    expect(md).toContain("gatehouse_checkout` on `db/");
 
     // Exchange (unauth)
     const ex = await app.request(`/v1/onboard/${body.token}/exchange`, { method: "POST" });
@@ -306,15 +306,15 @@ rules:
 
   test("situation table reflects role capabilities", async () => {
     // Role has proxy+read on *, lease on db/*. Should include proxy, patterns,
-    // db lease, and raw get; should NOT include write or ssh.
+    // db checkout (dynamic), and raw get; should NOT include write or ssh.
     const role = await createRole(app, "agent", ["agent"]);
     const { body } = await generateLink(app, role.role_id);
     const md = await (await app.request(`/v1/onboard/${body.token}`)).text();
 
     expect(md).toContain("gatehouse_proxy");
     expect(md).toContain("gatehouse_patterns");
-    expect(md).toContain("gatehouse_lease` on `db/");
-    expect(md).not.toContain("gatehouse_lease` on `ssh/");
+    expect(md).toContain("gatehouse_checkout` on `db/");
+    expect(md).not.toContain("gatehouse_checkout` on `ssh/");
     expect(md).toContain("gatehouse_get");
     expect(md).not.toContain("gatehouse_put");
   });
