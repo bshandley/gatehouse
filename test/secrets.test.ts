@@ -1,8 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { Database } from "bun:sqlite";
+import { Hono } from "hono";
 import { initDB } from "../src/db/init";
 import { SecretsEngine } from "../src/secrets/engine";
-import { mkdtempSync, rmSync } from "node:fs";
+import { AuditLog } from "../src/audit/logger";
+import { PolicyEngine } from "../src/policy/engine";
+import { secretsRouter } from "../src/api/secrets";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -197,5 +201,144 @@ describe("SecretsEngine", () => {
 
     expect(engine.get("pre/rotation")).toBe("before");
     expect(engine.get("post/rotation")).toBe("after");
+  });
+
+  // setMetadata - update metadata without re-encrypting the value.
+
+  test("setMetadata updates only metadata, preserves value", () => {
+    engine.put("svc/token", "abc123", { env: "dev" });
+    const updated = engine.setMetadata("svc/token", { env: "prod", owner: "team-x" });
+    expect(updated).not.toBeNull();
+    expect(updated!.metadata).toEqual({ env: "prod", owner: "team-x" });
+    expect(updated!.version).toBe(2);
+    // Value must still decrypt to the original.
+    expect(engine.get("svc/token")).toBe("abc123");
+  });
+
+  test("setMetadata archives the previous version for history", () => {
+    engine.put("svc/token", "v1-value", { env: "dev" });
+    engine.setMetadata("svc/token", { env: "prod" });
+
+    const versions = engine.listVersions("svc/token");
+    // Current is v2; the pre-update v1 should exist in history.
+    expect(versions.map(v => v.version).sort()).toContain(1);
+    // v1 value should still be retrievable
+    expect(engine.getVersion("svc/token", 1)).toBe("v1-value");
+  });
+
+  test("setMetadata returns null for nonexistent path", () => {
+    expect(engine.setMetadata("does/not/exist", { k: "v" })).toBeNull();
+  });
+
+  test("setMetadata can clear all metadata with an empty object", () => {
+    engine.put("svc/t", "val", { env: "dev", owner: "me" });
+    const result = engine.setMetadata("svc/t", {});
+    expect(result!.metadata).toEqual({});
+    expect(engine.get("svc/t")).toBe("val");
+  });
+});
+
+// HTTP-level coverage for the PATCH /v1/secrets/:path route - the UI's
+// "edit metadata only" flow depends on this.
+describe("PATCH /v1/secrets/:path (metadata-only update)", () => {
+  let app: Hono;
+  let engine: SecretsEngine;
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "gatehouse-patch-"));
+    const configDir = join(dir, "config");
+    mkdirSync(join(configDir, "policies"), { recursive: true });
+    writeFileSync(
+      join(configDir, "policies", "writer.yaml"),
+      `name: writer
+rules:
+  - path: "svc/*"
+    capabilities: [read, write]
+`
+    );
+    writeFileSync(
+      join(configDir, "policies", "reader.yaml"),
+      `name: reader
+rules:
+  - path: "svc/*"
+    capabilities: [read]
+`
+    );
+
+    const db = initDB(dir);
+    const audit = new AuditLog(db);
+    engine = new SecretsEngine(db, Buffer.from("b".repeat(64), "hex"));
+    const policies = new PolicyEngine(configDir);
+    engine.put("svc/existing", "original-value", { env: "dev" });
+
+    app = new Hono();
+    app.use("*", async (c, next) => {
+      c.set("requestId", "test-req-id");
+      c.set("sourceIp", "127.0.0.1");
+      const policyHeader = c.req.header("X-Test-Policies");
+      c.set("auth", {
+        identity: "test",
+        policies: policyHeader ? JSON.parse(policyHeader) : ["writer"],
+      });
+      await next();
+    });
+    app.route("/v1/secrets", secretsRouter(engine, policies, audit));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("PATCH updates metadata, preserves value, bumps version", async () => {
+    const res = await app.request("/v1/secrets/svc/existing", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ metadata: { env: "prod", owner: "team-x" } }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.metadata).toEqual({ env: "prod", owner: "team-x" });
+    expect(body.version).toBe(2);
+    expect(engine.get("svc/existing")).toBe("original-value");
+  });
+
+  test("PATCH returns 403 without write capability", async () => {
+    const res = await app.request("/v1/secrets/svc/existing", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Test-Policies": JSON.stringify(["reader"]),
+      },
+      body: JSON.stringify({ metadata: { env: "prod" } }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  test("PATCH returns 404 for nonexistent secret", async () => {
+    const res = await app.request("/v1/secrets/svc/missing", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ metadata: { env: "prod" } }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  test("PATCH returns 400 without metadata in body", async () => {
+    const res = await app.request("/v1/secrets/svc/existing", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test("PATCH returns 400 when metadata values are non-strings", async () => {
+    const res = await app.request("/v1/secrets/svc/existing", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ metadata: { env: 42 } }),
+    });
+    expect(res.status).toBe(400);
   });
 });

@@ -2756,6 +2756,39 @@
     const meta = allSecrets.find(s => s.path === path);
     if (!meta) { detail.innerHTML = '<div class="secret-detail-empty">Secret not found</div>'; return; }
 
+    // Dynamic configs live under /v1/dynamic, not /v1/secrets - the reveal
+    // and static-lease flows don't apply. Render an informational panel
+    // and send the admin to the Dynamic Secrets page for real management.
+    if (meta.kind === 'dynamic') {
+      let dynMeta = '';
+      if (meta.metadata && Object.keys(meta.metadata).length) {
+        dynMeta = `<div style="margin-bottom:16px"><div class="detail-field-label" style="margin-bottom:8px">Routing Metadata</div><table class="meta-table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>`;
+        for (const [k, v] of Object.entries(meta.metadata)) {
+          dynMeta += `<tr><td class="mono">${esc(k)}</td><td class="mono">${esc(String(v))}</td></tr>`;
+        }
+        dynMeta += '</tbody></table></div>';
+      }
+      detail.innerHTML = `
+        <div class="detail-path"><span class="mono">${esc(path)}</span></div>
+        <div class="detail-meta">
+          <div><div class="detail-field-label">Kind</div><div class="detail-field-value">dynamic</div></div>
+          <div><div class="detail-field-label">Provider</div><div class="detail-field-value">${esc(meta.provider_type || '-')}</div></div>
+          <div><div class="detail-field-label">Updated</div><div class="detail-field-value">${fmtTime(meta.updated_at)}</div></div>
+        </div>
+        ${dynMeta}
+        <div style="margin:16px 0;padding:12px;background:var(--bg-tertiary);border-radius:var(--radius);border:1px solid var(--border);font-size:12px;color:var(--text-secondary);">
+          Dynamic secrets are minted on demand via <span class="mono">gatehouse_checkout</span>, not stored values. Use the Dynamic Secrets page to manage configuration and active leases.
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="showPage('dynamic')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            Open in Dynamic Secrets
+          </button>
+        </div>
+      `;
+      return;
+    }
+
     let metaRows = '';
     if (meta.metadata && Object.keys(meta.metadata).length) {
       metaRows = `<div style="margin-bottom:16px"><div class="detail-field-label" style="margin-bottom:8px">Metadata</div><table class="meta-table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>`;
@@ -2784,6 +2817,10 @@
         <div class="reveal-value" id="secret-value-display" style="color:var(--text-tertiary)">Click reveal to decrypt and display value</div>
       </div>
       <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="window._editSecret('${esc(path)}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit
+        </button>
         <button class="btn btn-ghost btn-sm" onclick="window._leaseSecret('${esc(path)}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Create Lease
@@ -2965,6 +3002,84 @@
       }
     };
   }
+
+  window._editSecret = function(path) {
+    const meta = (window.allSecrets || allSecrets).find(s => s.path === path);
+    if (!meta) { toast('Secret not found', 'error'); return; }
+    if (meta.kind === 'dynamic') { toast('Dynamic secrets are edited on the Dynamic Secrets page', 'error'); return; }
+
+    const existingMeta = meta.metadata || {};
+    const kvRows = Object.keys(existingMeta).length
+      ? Object.entries(existingMeta).map(([k, v]) =>
+          `<div class="kv-row"><input type="text" value="${esc(k)}" style="font-family:var(--font-mono);font-size:12px"><input type="text" value="${esc(String(v))}"><button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()" style="flex-shrink:0">&times;</button></div>`
+        ).join('')
+      : '';
+
+    const html = `
+      <div class="modal-overlay" onclick="if(event.target===this)this.remove()">
+        <div class="modal">
+          <h2 class="modal-title">Edit Secret</h2>
+          <div class="form-group">
+            <label class="form-label">Path</label>
+            <input type="text" value="${esc(path)}" readonly style="font-family:var(--font-mono);font-size:12px;opacity:0.7">
+          </div>
+          <div class="form-group">
+            <label class="form-label">New Value <span style="color:var(--text-tertiary);font-weight:400;">(leave blank to keep current value and edit metadata only)</span></label>
+            <textarea id="edit-secret-value" placeholder="Leave blank to keep current value" rows="3" spellcheck="false"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Metadata</label>
+            <div id="kv-editor-edit">${kvRows}</div>
+            <button class="btn btn-ghost btn-sm" onclick="window._addKVRowEdit()" style="margin-top:4px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add field
+            </button>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+            <button class="btn btn-primary" onclick="window._saveEditSecret('${esc(path)}')">Save Changes</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modal-container').innerHTML = html;
+
+    window._addKVRowEdit = function() {
+      const editor = document.getElementById('kv-editor-edit');
+      const row = document.createElement('div');
+      row.className = 'kv-row';
+      row.innerHTML = `<input type="text" placeholder="key" style="font-family:var(--font-mono);font-size:12px"><input type="text" placeholder="value"><button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()" style="flex-shrink:0">&times;</button>`;
+      editor.appendChild(row);
+    };
+
+    window._saveEditSecret = async function(targetPath) {
+      const newValue = document.getElementById('edit-secret-value').value;
+      const metadata = {};
+      document.querySelectorAll('#kv-editor-edit .kv-row').forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        const k = inputs[0].value.trim();
+        if (k) metadata[k] = inputs[1].value;
+      });
+
+      try {
+        if (newValue) {
+          // Full put: rotates value + overwrites metadata.
+          await api(`/v1/secrets/${targetPath}`, { method: 'POST', body: { value: newValue, metadata } });
+          toast('Secret updated (new version)', 'success');
+        } else {
+          // Metadata-only update; bumps version without re-encrypting value.
+          await api(`/v1/secrets/${targetPath}`, { method: 'PATCH', body: { metadata } });
+          toast('Metadata updated', 'success');
+        }
+        document.querySelector('.modal-overlay')?.remove();
+        await loadSecrets();
+        // Keep the user on the same secret after reload.
+        window._selectSecret(targetPath);
+      } catch (e) {
+        toast('Failed: ' + e.message, 'error');
+      }
+    };
+  };
 
   // Leases
   async function loadLeases() {

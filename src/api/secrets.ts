@@ -397,6 +397,56 @@ export function secretsRouter(
     return c.json(result, 201);
   });
 
+  // Update only the metadata of an existing secret (no value rotation).
+  router.patch("/:path{.+}", async (c) => {
+    const auth = c.get("auth") as AuthContext;
+    const path = c.req.param("path");
+
+    const pathError = validatePath(path);
+    if (pathError) {
+      return c.json({ error: pathError, request_id: c.get("requestId") }, 400);
+    }
+
+    if (!policies.check(auth.policies, path, "write")) {
+      audit.log({ identity: auth.identity, action: "secret.metadata_update", path, success: false });
+      return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
+    }
+
+    let body: { metadata?: Record<string, string> };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body", request_id: c.get("requestId") }, 400);
+    }
+
+    const metadata = body.metadata;
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+      return c.json({ error: "metadata (object) is required", request_id: c.get("requestId") }, 400);
+    }
+    for (const [k, v] of Object.entries(metadata)) {
+      if (typeof v !== "string") {
+        return c.json({ error: `metadata value for "${k}" must be a string`, request_id: c.get("requestId") }, 400);
+      }
+      if (v.length > MAX_METADATA_VALUE_SIZE) {
+        return c.json({ error: `metadata value for "${k}" exceeds 1KB limit`, request_id: c.get("requestId") }, 400);
+      }
+    }
+
+    const result = secrets.setMetadata(path, metadata);
+    if (!result) {
+      return c.json({ error: "Not found", request_id: c.get("requestId") }, 404);
+    }
+
+    audit.log({
+      identity: auth.identity,
+      action: "secret.metadata_update",
+      path,
+      source_ip: c.get("sourceIp"),
+    });
+
+    return c.json(result);
+  });
+
   // Delete a secret
   router.delete("/:path{.+}", (c) => {
     const auth = c.get("auth") as AuthContext;

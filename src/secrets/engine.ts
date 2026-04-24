@@ -125,6 +125,64 @@ export class SecretsEngine {
     return this.getMeta(path)!;
   }
 
+  /**
+   * Update only the metadata of an existing secret, leaving the encrypted
+   * value/DEK untouched. Bumps the version and archives the previous state
+   * into secret_versions so the versions view stays accurate.
+   * Returns null if no secret exists at `path`.
+   */
+  setMetadata(
+    path: string,
+    metadata: Record<string, string>
+  ): StoredSecret | null {
+    const txn = this.db.transaction(() => {
+      const existing = this.db
+        .query(
+          "SELECT version, encrypted_value, nonce, encrypted_dek, dek_nonce, metadata FROM secrets WHERE path = ?"
+        )
+        .get(path) as {
+        version: number;
+        encrypted_value: Buffer;
+        nonce: Buffer;
+        encrypted_dek: Buffer;
+        dek_nonce: Buffer;
+        metadata: string;
+      } | null;
+
+      if (!existing) return null;
+
+      const newVersion = existing.version + 1;
+
+      // Archive the old version row (same pattern as put()).
+      this.db
+        .query(
+          `INSERT OR IGNORE INTO secret_versions
+             (path, version, encrypted_value, nonce, encrypted_dek, dek_nonce, metadata)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          path,
+          existing.version,
+          existing.encrypted_value,
+          existing.nonce,
+          existing.encrypted_dek,
+          existing.dek_nonce,
+          existing.metadata
+        );
+
+      this.db
+        .query(
+          "UPDATE secrets SET metadata = ?, version = ?, updated_at = datetime('now') WHERE path = ?"
+        )
+        .run(JSON.stringify(metadata), newVersion, path);
+      return true;
+    });
+
+    const updated = txn();
+    if (!updated) return null;
+    return this.getMeta(path);
+  }
+
   get(path: string): string | null {
     const row = this.db
       .query(
