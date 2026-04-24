@@ -19,6 +19,10 @@ import type { DynamicProvider, DynamicCredential } from "./provider";
  *                    e.g. "ubuntu,deploy" or "root"
  *   extensions     - Comma-separated cert extensions (default: "permit-pty")
  *                    e.g. "permit-pty,permit-port-forwarding,permit-agent-forwarding"
+ *   allowed_hosts  - Comma-separated advisory list of hosts that accept this cert.
+ *                    NOT enforced at cert-signing time (SSH certs aren't host-scoped),
+ *                    but surfaced to agents in gatehouse_list and the checkout
+ *                    response so they know where to connect. e.g. "10.0.0.107,db.lab"
  *
  * Server-side setup:
  *   1. Generate a CA keypair: ssh-keygen -t ed25519 -f gatehouse_ca -N ""
@@ -91,6 +95,8 @@ export class SSHCertProvider implements DynamicProvider {
         // Non-critical
       }
 
+      const allowedHosts = (config.allowed_hosts || "").trim();
+
       return {
         credential: {
           private_key: privateKey,
@@ -100,7 +106,8 @@ export class SSHCertProvider implements DynamicProvider {
           principals,
           valid_seconds: String(ttlSeconds),
           ca_public_key: caPublicKey,
-          usage: `Save all three files, then: ssh -i agent_key -o CertificateFile=agent_key-cert.pub user@host`,
+          ...(allowedHosts ? { allowed_hosts: allowedHosts } : {}),
+          usage: `Save private_key and certificate to files (mode 0600), then: ssh -i <key> -o CertificateFile=<cert> -o IdentitiesOnly=yes -o IdentityAgent=none <principal>@<host>. IdentitiesOnly + IdentityAgent=none prevent other keys in your SSH agent from overriding the cert.`,
         },
         revocation_handle: certId,
       };

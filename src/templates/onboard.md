@@ -206,9 +206,11 @@ below maps to an authenticated endpoint. Send `Authorization: Bearer
      exist) and `top_pattern` (the highest-confidence pattern, e.g.
      `POST http://10.0.0.102:5230/api/v1/memos`). `top_pattern` IS
      your endpoint.
-   - Dynamic only: `provider_type` (e.g. `postgresql`, `ssh-cert`).
-     These are not called via `gatehouse_proxy`; use
-     `gatehouse_checkout` to mint a credential.
+   - Dynamic only: `provider_type` (e.g. `postgresql`, `ssh-cert`) and
+     a `metadata` object with advisory routing info (`allowed_hosts`
+     for ssh-cert, `host`/`port`/`database` for DB providers). These
+     are not called via `gatehouse_proxy`; use `gatehouse_checkout` to
+     mint a credential.
    Prefix is starts-with on the full path, not a substring match.
    Use `prefix=services/` to see all `services/*`, not `prefix=memos`
    to find `services/memos-pat`.
@@ -252,6 +254,27 @@ and a clock.
 - Do NOT pass the credential to `gatehouse_proxy`. Proxy only knows
   static secrets. Consume the credential directly in your tool call
   (SSH client, DB driver).
+- **Routing**: the entry's `metadata` in `gatehouse_list` and matching
+  fields on the checkout response tell you where to connect. For
+  `ssh-cert`, read `credential.allowed_hosts` and pick one of those
+  IPs/hostnames. For DB providers, `credential.host` /
+  `credential.port` / `credential.database` are your target. If
+  `allowed_hosts` is empty or absent, ask the operator instead of
+  guessing.
+- **SSH specifics**:
+  - Read `credential.principals` and use one of those as the SSH
+    username. The cert is bound to those names.
+  - Write `credential.private_key` and `credential.certificate` to
+    separate tempfiles in one shell expansion (jq or python piped to
+    `>` redirect). Do NOT `cat` the files or echo the values; many
+    harnesses scrub credential-shaped strings from tool output, which
+    will make the files look redacted even though they're intact.
+  - Always pass `-o IdentitiesOnly=yes -o IdentityAgent=none` to
+    `ssh`. Without these, keys in your local ssh-agent get offered
+    first and sshd closes the connection for too many auth failures
+    before ever seeing the cert.
+  - `credential.usage` on the response gives you the canonical
+    command shape for the current credential.
 - `gatehouse_revoke` works on dynamic `lease_id`s too. Revoke as
   soon as you're done, don't wait for the TTL.
 - Never `gatehouse_get` or `gatehouse_lease` a dynamic path, both

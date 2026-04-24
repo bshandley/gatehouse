@@ -17,6 +17,31 @@ export interface DynamicSecretConfig {
   updated_at: string;
 }
 
+/**
+ * Config keys that are safe to surface to non-admin callers via listConfigs.
+ * These are advisory fields (not credentials): they tell agents WHERE to
+ * connect once they've checked out a credential. Indexed by provider_type.
+ *
+ * Everything not listed here is treated as sensitive and never leaves the
+ * admin surface.
+ */
+const PUBLIC_CONFIG_KEYS: Record<string, readonly string[]> = {
+  "ssh-cert": ["allowed_hosts", "principals"],
+  "postgresql": ["host", "port", "database"],
+  "mysql": ["host", "port", "database"],
+  "mongodb": ["host", "port", "database"],
+  "redis": ["host", "port"],
+};
+
+export interface DynamicSecretListEntry {
+  path: string;
+  provider_type: string;
+  created_at: string;
+  updated_at: string;
+  /** Subset of config safe for non-admin callers; see PUBLIC_CONFIG_KEYS. */
+  metadata: Record<string, string>;
+}
+
 export interface DynamicLease {
   lease_id: string;
   path: string;
@@ -227,19 +252,36 @@ export class DynamicSecretsManager {
     };
   }
 
-  listConfigs(prefix: string = ""): Omit<DynamicSecretConfig, "config">[] {
+  listConfigs(prefix: string = ""): DynamicSecretListEntry[] {
     const rows = this.db
       .query(
-        "SELECT path, provider_type, created_at, updated_at FROM dynamic_secrets WHERE path LIKE ? ORDER BY path"
+        "SELECT path, provider_type, config, created_at, updated_at FROM dynamic_secrets WHERE path LIKE ? ORDER BY path"
       )
       .all(`${prefix}%`) as any[];
 
-    return rows.map((r) => ({
-      path: r.path,
-      provider_type: r.provider_type,
-      created_at: r.created_at,
-      updated_at: r.updated_at,
-    }));
+    return rows.map((r) => {
+      const safeKeys = PUBLIC_CONFIG_KEYS[r.provider_type] || [];
+      const metadata: Record<string, string> = {};
+      if (safeKeys.length > 0) {
+        try {
+          const decrypted = this.decryptConfig(r.config);
+          for (const k of safeKeys) {
+            const v = decrypted[k];
+            if (v != null && v !== "") metadata[k] = v;
+          }
+        } catch {
+          // Config unreadable (e.g. encrypted with a rotated key); skip
+          // metadata rather than failing the whole list.
+        }
+      }
+      return {
+        path: r.path,
+        provider_type: r.provider_type,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        metadata,
+      };
+    });
   }
 
   async deleteConfig(path: string): Promise<boolean> {

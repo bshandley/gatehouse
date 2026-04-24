@@ -4,7 +4,8 @@ import { initDB } from "../src/db/init";
 import { AuditLog } from "../src/audit/logger";
 import { DynamicSecretsManager } from "../src/dynamic/manager";
 import type { DynamicProvider, DynamicCredential } from "../src/dynamic/provider";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -460,5 +461,102 @@ describe("DynamicSecretsManager", () => {
   test("rotateConfigKey returns 0 for no configs", () => {
     const newKey = Buffer.from("c".repeat(64), "hex");
     expect(manager.rotateConfigKey(newKey)).toBe(0);
+  });
+
+  // Public metadata surfaced in listConfigs — advisory routing info agents
+  // need at discovery time to pick the right host, without exposing secrets.
+
+  test("listConfigs metadata is empty for unknown provider types", () => {
+    manager.saveConfig("x/mock1", "mock", { host: "localhost" });
+    const [entry] = manager.listConfigs("x/");
+    expect(entry.metadata).toEqual({});
+  });
+
+  test("listConfigs metadata exposes postgres routing fields", () => {
+    manager.saveConfig("db/pg", "postgresql", {
+      host: "pg.lab",
+      port: "5433",
+      database: "app",
+      user: "admin",
+      password: "secretpw",
+    });
+    const [entry] = manager.listConfigs("db/");
+    expect(entry.metadata.host).toBe("pg.lab");
+    expect(entry.metadata.port).toBe("5433");
+    expect(entry.metadata.database).toBe("app");
+    // Secrets must NEVER appear in list metadata
+    expect(entry.metadata.password).toBeUndefined();
+    expect(entry.metadata.user).toBeUndefined();
+  });
+
+  test("listConfigs metadata omits empty/missing public keys", () => {
+    // redis only needs host; we leave port default to undefined
+    manager.saveConfig("cache/r", "redis", {
+      host: "redis.lab",
+      password: "pw",
+    });
+    const [entry] = manager.listConfigs("cache/");
+    expect(entry.metadata.host).toBe("redis.lab");
+    expect(entry.metadata.port).toBeUndefined();
+    expect(entry.metadata.password).toBeUndefined();
+  });
+
+  test("ssh-cert config surfaces allowed_hosts + principals in list metadata", () => {
+    // Use a real but throwaway ed25519 CA; we never call checkout here, just
+    // save the config so listConfigs can read it back.
+    const caDir = mkdtempSync(join(tmpdir(), "gh-ssh-test-ca-"));
+    try {
+      const caPath = join(caDir, "ca");
+      execSync(`ssh-keygen -t ed25519 -f ${caPath} -N "" -q`);
+      const caKey = readFileSync(caPath, "utf-8");
+
+      manager.saveConfig("ssh/lab", "ssh-cert", {
+        ca_private_key: caKey,
+        principals: "deploy,root",
+        allowed_hosts: "10.0.0.107,db.lab",
+      });
+
+      const [entry] = manager.listConfigs("ssh/");
+      expect(entry.provider_type).toBe("ssh-cert");
+      expect(entry.metadata.allowed_hosts).toBe("10.0.0.107,db.lab");
+      expect(entry.metadata.principals).toBe("deploy,root");
+      expect(entry.metadata.ca_private_key).toBeUndefined();
+    } finally {
+      rmSync(caDir, { recursive: true, force: true });
+    }
+  });
+
+  test("ssh-cert checkout echoes allowed_hosts in credential", async () => {
+    const caDir = mkdtempSync(join(tmpdir(), "gh-ssh-test-ca-"));
+    try {
+      const caPath = join(caDir, "ca");
+      execSync(`ssh-keygen -t ed25519 -f ${caPath} -N "" -q`);
+      const caKey = readFileSync(caPath, "utf-8");
+
+      manager.saveConfig("ssh/has-hosts", "ssh-cert", {
+        ca_private_key: caKey,
+        principals: "deploy",
+        allowed_hosts: "10.0.0.107",
+      });
+      const lease = await manager.checkout("ssh/has-hosts", "test-agent", 60);
+      expect(lease).not.toBeNull();
+      expect(lease!.credential.allowed_hosts).toBe("10.0.0.107");
+      expect(lease!.credential.principals).toBe("deploy");
+      expect(lease!.credential.private_key).toContain("PRIVATE KEY");
+      expect(lease!.credential.certificate).toContain("ssh-ed25519-cert");
+      // usage string should carry the IdentitiesOnly / IdentityAgent hint
+      expect(lease!.credential.usage).toContain("IdentitiesOnly=yes");
+      expect(lease!.credential.usage).toContain("IdentityAgent=none");
+
+      // Without allowed_hosts, the field must be absent (not an empty string)
+      manager.saveConfig("ssh/no-hosts", "ssh-cert", {
+        ca_private_key: caKey,
+        principals: "deploy",
+      });
+      const lease2 = await manager.checkout("ssh/no-hosts", "test-agent", 60);
+      expect(lease2!.credential.allowed_hosts).toBeUndefined();
+    } finally {
+      rmSync(caDir, { recursive: true, force: true });
+    }
   });
 });

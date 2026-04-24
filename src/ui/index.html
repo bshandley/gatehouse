@@ -4374,6 +4374,7 @@
         </div>`,
         f('principals','Principals',{placeholder:'ubuntu,deploy',hint:'comma-separated usernames',required:true}),
         f('extensions','Extensions',{value:'permit-pty',hint:'comma-separated',placeholder:'permit-pty,permit-port-forwarding'}),
+        f('allowed_hosts','Allowed Hosts',{placeholder:'10.0.0.107,db.lab',hint:'advisory: comma-separated hosts that trust this CA. Surfaced to agents in gatehouse_list and checkout; NOT enforced at the cert level.'}),
       ],
     };
 

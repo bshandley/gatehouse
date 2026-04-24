@@ -448,6 +448,7 @@ export function createMCPHandler(
             path: d.path,
             kind: "dynamic" as const,
             provider_type: d.provider_type,
+            metadata: d.metadata,
             updated_at: d.updated_at,
             caps,
           }));

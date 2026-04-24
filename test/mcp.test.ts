@@ -480,6 +480,10 @@ rules:
     expect(parsed[0].provider_type).toBe("fake-ssh");
     expect(parsed[0].caps).toContain("lease");
     expect(parsed[0]).not.toHaveProperty("value");
+    // Every dynamic entry carries a metadata object (possibly empty for
+    // unknown provider types). Agents rely on this for routing fields
+    // like allowed_hosts / host.
+    expect(parsed[0].metadata).toEqual({});
   });
 
   test("gatehouse_list with kind:'dynamic' omits pattern_count/top_pattern", async () => {
@@ -492,7 +496,10 @@ rules:
     expect(entry.kind).toBe("dynamic");
     expect(entry).not.toHaveProperty("pattern_count");
     expect(entry).not.toHaveProperty("top_pattern");
-    expect(entry).not.toHaveProperty("metadata");
+    // Dynamic entries DO carry a metadata object (routing info like
+    // allowed_hosts / host); it's the static-only shape-specific
+    // `pattern_count` and `top_pattern` that should be absent.
+    expect(entry.metadata).toBeDefined();
   });
 
   test("gatehouse_checkout mints a dynamic credential", async () => {
@@ -597,6 +604,39 @@ rules:
     );
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("not available");
+  });
+
+  test("gatehouse_list surfaces ssh-cert allowed_hosts in metadata", async () => {
+    // Seed an ssh-cert config with a real CA + allowed_hosts so the
+    // provider-type lookup in listConfigs finds it in PUBLIC_CONFIG_KEYS.
+    const { execSync } = await import("node:child_process");
+    const { readFileSync, mkdtempSync, rmSync } = await import("node:fs");
+    const caDir = mkdtempSync(join(tmpdir(), "gh-mcp-ca-"));
+    try {
+      const caPath = join(caDir, "ca");
+      execSync(`ssh-keygen -t ed25519 -f ${caPath} -N "" -q`);
+      const caKey = readFileSync(caPath, "utf-8");
+      dynamic.saveConfig("ssh/real", "ssh-cert", {
+        ca_private_key: caKey,
+        principals: "bradley",
+        allowed_hosts: "10.0.0.107,db.lab",
+      });
+
+      const result = await mcp.handleToolCall(
+        "gatehouse_list",
+        { prefix: "ssh/real" },
+        dynAgentAuth
+      );
+      const [entry] = JSON.parse(result.content[0].text);
+      expect(entry.path).toBe("ssh/real");
+      expect(entry.kind).toBe("dynamic");
+      expect(entry.provider_type).toBe("ssh-cert");
+      expect(entry.metadata.allowed_hosts).toBe("10.0.0.107,db.lab");
+      expect(entry.metadata.principals).toBe("bradley");
+      expect(entry.metadata.ca_private_key).toBeUndefined();
+    } finally {
+      rmSync(caDir, { recursive: true, force: true });
+    }
   });
 
   test("tools/list advertises gatehouse_checkout with schema", async () => {
