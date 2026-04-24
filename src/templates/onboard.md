@@ -265,16 +265,28 @@ and a clock.
   - Read `credential.principals` and use one of those as the SSH
     username. The cert is bound to those names.
   - Write `credential.private_key` and `credential.certificate` to
-    separate tempfiles in one shell expansion (jq or python piped to
-    `>` redirect). Do NOT `cat` the files or echo the values; many
-    harnesses scrub credential-shaped strings from tool output, which
-    will make the files look redacted even though they're intact.
+    TWO SEPARATE tempfiles in one shell expansion (jq or python piped
+    to `>` redirect). Do NOT concatenate them into one file: `ssh`
+    expects `-i <key>` and `-o CertificateFile=<cert>` to be distinct
+    paths, and a combined file will parse as a malformed pubkey and
+    silently skip cert auth.
+  - Do NOT `cat`, `head`, or otherwise echo the files to verify.
+    Many harnesses scrub credential-shaped strings from tool output,
+    so the content will look redacted even though the file is intact.
+    If you need to check the files landed, use `wc -c <path>` (byte
+    count) or `stat <path>`, which reveal nothing.
+  - Do NOT run `ssh-keygen -l -f <private-key>` to verify. That
+    command expects a public key or cert and will error on a private
+    key in a way that looks like corruption. Use `ssh-keygen -L -f
+    <cert>` to inspect the CERT (principals, validity, CA
+    fingerprint) — that's safe and useful for debugging.
   - Always pass `-o IdentitiesOnly=yes -o IdentityAgent=none` to
     `ssh`. Without these, keys in your local ssh-agent get offered
     first and sshd closes the connection for too many auth failures
     before ever seeing the cert.
   - `credential.usage` on the response gives you the canonical
-    command shape for the current credential.
+    command shape for the current credential. Copy it verbatim,
+    don't "improve" it.
 - `gatehouse_revoke` works on dynamic `lease_id`s too. Revoke as
   soon as you're done, don't wait for the TTL.
 - Never `gatehouse_get` or `gatehouse_lease` a dynamic path, both
