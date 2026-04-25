@@ -1731,7 +1731,7 @@
           <div class="card-body">
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Path</th><th>Identity</th><th>TTL Remaining</th><th>Expires</th><th></th></tr></thead>
+                <thead><tr><th>Kind</th><th>Path</th><th>Identity</th><th>TTL Remaining</th><th>Expires</th><th></th></tr></thead>
                 <tbody id="dash-leases-body"></tbody>
               </table>
             </div>
@@ -1808,7 +1808,7 @@
           <div class="card-body">
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Lease ID</th><th>Path</th><th>Identity</th><th>TTL Remaining</th><th>Created</th><th>Expires</th><th></th></tr></thead>
+                <thead><tr><th>Lease ID</th><th>Kind</th><th>Path</th><th>Identity</th><th>TTL Remaining</th><th>Created</th><th>Expires</th><th></th></tr></thead>
                 <tbody id="leases-active-body"></tbody>
               </table>
             </div>
@@ -3098,16 +3098,26 @@
   function renderLeaseTable(leases, tbodyId, showId = false) {
     const tbody = document.getElementById(tbodyId);
     if (!leases.length) {
-      const cols = showId ? 7 : 5;
+      // Columns: ID? + kind + path + identity + ttl + (created? + expires) + action
+      const cols = showId ? 8 : 6;
       tbody.innerHTML = `<tr><td colspan="${cols}" class="empty-state">No active leases</td></tr>`;
       return;
     }
     tbody.innerHTML = leases.map(l => {
       const ttl = ttlRemaining(l.expires_at);
       const ttlClass = ttl.seconds < 60 ? 'ttl-expiring pulse' : ttl.seconds < 300 ? 'ttl-warning' : 'ttl-ok';
+      // Server now returns merged shape with `kind` and normalized `path`.
+      // Fall back to the older `secret_path` field for compatibility with
+      // any pre-merge response (defensive only; live API is unified).
+      const kind = l.kind || 'static';
+      const path = l.path || l.secret_path || '';
+      const kindLabel = kind === 'dynamic'
+        ? `<span class="badge badge-info" title="${esc(l.provider_type || 'dynamic')}">dyn:${esc((l.provider_type || 'dynamic').replace('-cert','').replace('postgresql','pg'))}</span>`
+        : `<span class="badge">static</span>`;
       return `<tr>
         ${showId ? `<td class="mono" title="${esc(l.id)}" style="font-size:11px">${esc(l.id.slice(0, 16))}...</td>` : ''}
-        <td class="mono">${esc(l.secret_path)}</td>
+        <td>${kindLabel}</td>
+        <td class="mono">${esc(path)}</td>
         <td>${esc(l.identity)}</td>
         <td class="${ttlClass}" data-expires="${l.expires_at}">${ttl.text}</td>
         ${showId ? `<td style="white-space:nowrap">${fmtTime(l.created_at)}</td>` : ''}

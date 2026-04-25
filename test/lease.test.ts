@@ -1,10 +1,15 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { Database } from "bun:sqlite";
+import { Hono } from "hono";
 import { initDB } from "../src/db/init";
 import { SecretsEngine } from "../src/secrets/engine";
 import { LeaseManager } from "../src/lease/manager";
 import { AuditLog } from "../src/audit/logger";
-import { mkdtempSync, rmSync } from "node:fs";
+import { PolicyEngine } from "../src/policy/engine";
+import { DynamicSecretsManager } from "../src/dynamic/manager";
+import type { DynamicProvider, DynamicCredential } from "../src/dynamic/provider";
+import { leaseRouter } from "../src/api/lease";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -162,5 +167,170 @@ describe("LeaseManager", () => {
 
   test("renew returns null for unknown lease", () => {
     expect(leases.renew("lease-does-not-exist", 600, "test-agent")).toBeNull();
+  });
+});
+
+class FakeProvider implements DynamicProvider {
+  readonly type = "fake-mock";
+  revoked: Set<string> = new Set();
+  requiredConfig() { return ["host"]; }
+  async create(config: Record<string,string>, identity: string, ttl: number): Promise<DynamicCredential> {
+    const handle = `h-${crypto.randomUUID().slice(0, 8)}`;
+    return { credential: { username: identity, password: handle, host: config.host }, revocation_handle: handle };
+  }
+  async revoke(_c: Record<string,string>, h: string): Promise<void> { this.revoked.add(h); }
+  async validate() { return { ok: true }; }
+}
+
+describe("HTTP /v1/lease (unified static + dynamic)", () => {
+  let app: Hono;
+  let leases: LeaseManager;
+  let dynamic: DynamicSecretsManager;
+  let provider: FakeProvider;
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "gatehouse-leaseapi-"));
+    const configDir = join(dir, "config");
+    mkdirSync(join(configDir, "policies"), { recursive: true });
+    writeFileSync(
+      join(configDir, "policies", "agent.yaml"),
+      `name: agent
+rules:
+  - path: "*"
+    capabilities: [read, lease]
+`
+    );
+
+    const db = initDB(dir);
+    const audit = new AuditLog(db);
+    const masterKey = Buffer.from("c".repeat(64), "hex");
+    const secrets = new SecretsEngine(db, masterKey);
+    leases = new LeaseManager(db, secrets, audit);
+    const policies = new PolicyEngine(configDir);
+    dynamic = new DynamicSecretsManager(db, audit, masterKey);
+    provider = new FakeProvider();
+    dynamic.registerProvider(provider);
+
+    secrets.put("svc/static-token", "staticval");
+    dynamic.saveConfig("db/fake", "fake-mock", { host: "h" });
+
+    app = new Hono();
+    app.use("*", async (c, next) => {
+      c.set("requestId", "test-req-id");
+      c.set("sourceIp", "127.0.0.1");
+      const idHeader = c.req.header("X-Test-Identity");
+      const polHeader = c.req.header("X-Test-Policies");
+      c.set("auth", {
+        identity: idHeader || "agent-a",
+        policies: polHeader ? JSON.parse(polHeader) : ["agent"],
+      });
+      await next();
+    });
+    app.route("/v1/lease", leaseRouter(leases, policies, audit, dynamic));
+  });
+
+  afterEach(() => {
+    dynamic.stopReaper();
+    leases.stopReaper();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("GET /v1/lease merges static + dynamic for the caller", async () => {
+    leases.checkout("svc/static-token", "agent-a", 300);
+    await dynamic.checkout("db/fake", "agent-a", 300);
+
+    const res = await app.request("/v1/lease", {
+      headers: { "X-Test-Identity": "agent-a" },
+    });
+    expect(res.status).toBe(200);
+    const { leases: rows } = await res.json();
+    expect(rows).toHaveLength(2);
+    const kinds = rows.map((r: any) => r.kind).sort();
+    expect(kinds).toEqual(["dynamic", "static"]);
+    const dynRow = rows.find((r: any) => r.kind === "dynamic");
+    expect(dynRow.id).toStartWith("dlease-");
+    expect(dynRow.path).toBe("db/fake");
+    expect(dynRow.provider_type).toBe("fake-mock");
+    const stRow = rows.find((r: any) => r.kind === "static");
+    expect(stRow.id).toStartWith("lease-");
+    expect(stRow.path).toBe("svc/static-token");
+  });
+
+  test("GET /v1/lease scopes by identity for non-admin", async () => {
+    leases.checkout("svc/static-token", "agent-a", 300);
+    await dynamic.checkout("db/fake", "agent-b", 300);
+
+    const res = await app.request("/v1/lease", {
+      headers: { "X-Test-Identity": "agent-a" },
+    });
+    const { leases: rows } = await res.json();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].identity).toBe("agent-a");
+    expect(rows[0].kind).toBe("static");
+  });
+
+  test("GET /v1/lease as admin returns all identities", async () => {
+    leases.checkout("svc/static-token", "agent-a", 300);
+    await dynamic.checkout("db/fake", "agent-b", 300);
+
+    const res = await app.request("/v1/lease", {
+      headers: {
+        "X-Test-Identity": "admin-1",
+        "X-Test-Policies": JSON.stringify(["admin"]),
+      },
+    });
+    const { leases: rows } = await res.json();
+    expect(rows).toHaveLength(2);
+    const identities = rows.map((r: any) => r.identity).sort();
+    expect(identities).toEqual(["agent-a", "agent-b"]);
+  });
+
+  test("DELETE /v1/lease/<dlease-...> revokes dynamic via provider", async () => {
+    const lease = await dynamic.checkout("db/fake", "agent-a", 300);
+    expect(provider.revoked.size).toBe(0);
+
+    const res = await app.request(`/v1/lease/${lease!.lease_id}`, {
+      method: "DELETE",
+      headers: { "X-Test-Identity": "agent-a" },
+    });
+    expect(res.status).toBe(200);
+    expect(provider.revoked.size).toBe(1);
+  });
+
+  test("DELETE /v1/lease/<dlease-...> denies non-owner non-admin", async () => {
+    const lease = await dynamic.checkout("db/fake", "agent-a", 300);
+
+    const res = await app.request(`/v1/lease/${lease!.lease_id}`, {
+      method: "DELETE",
+      headers: { "X-Test-Identity": "agent-b" },
+    });
+    expect(res.status).toBe(403);
+    expect(provider.revoked.size).toBe(0);
+  });
+
+  test("DELETE /v1/lease/<lease-...> still revokes static (no regression)", async () => {
+    const checkout = leases.checkout("svc/static-token", "agent-a", 300)!;
+    const res = await app.request(`/v1/lease/${checkout.lease.id}`, {
+      method: "DELETE",
+      headers: { "X-Test-Identity": "agent-a" },
+    });
+    expect(res.status).toBe(200);
+    // Confirm it's marked revoked in the manager.
+    const after = leases.getLease(checkout.lease.id);
+    expect(after?.revoked).toBe(true);
+  });
+
+  test("DELETE /v1/lease/<unknown> returns 404 for both prefixes", async () => {
+    const r1 = await app.request(`/v1/lease/dlease-nope`, {
+      method: "DELETE",
+      headers: { "X-Test-Identity": "agent-a" },
+    });
+    expect(r1.status).toBe(404);
+    const r2 = await app.request(`/v1/lease/lease-nope`, {
+      method: "DELETE",
+      headers: { "X-Test-Identity": "agent-a" },
+    });
+    expect(r2.status).toBe(404);
   });
 });

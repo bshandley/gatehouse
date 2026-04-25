@@ -187,7 +187,8 @@ below maps to an authenticated endpoint. Send `Authorization: Bearer
 | `gatehouse_get` | `GET /v1/secrets/<path>/value` (requires `read`). Static secrets only. |
 | `gatehouse_lease` | `POST /v1/lease/<path>` with `{"ttl": 300}`. Returns `{lease, value}`. STATIC secrets only. |
 | `gatehouse_checkout` | `POST /v1/dynamic/<path>/checkout` with `{"ttl": 300}`. DYNAMIC secrets only (SSH, DB). Returns `{lease_id, path, provider_type, credential, ttl_seconds, expires_at}`. |
-| `gatehouse_revoke` | For static leases: `DELETE /v1/lease/<lease_id>`. For dynamic leases: `DELETE /v1/dynamic/lease/<lease_id>`. The MCP tool figures out which one you have; the HTTP endpoints are separate, so try dynamic if static returns 404. |
+| `gatehouse_revoke` | `DELETE /v1/lease/<lease_id>`. Works for both static and dynamic lease IDs (dispatch is by `lease-` vs `dlease-` prefix on the server). `DELETE /v1/dynamic/lease/<lease_id>` still works as an alias. |
+| (no MCP tool) | `GET /v1/lease` returns your active leases (static + dynamic merged). Each entry has `kind: "static" \| "dynamic"`, `id`, `path`, `identity`, `expires_at`, plus `provider_type` for dynamic. Useful for finding a lease ID you forgot to record. |
 | `gatehouse_scrub` | `POST /v1/scrub` with `{"text": "..."}`. |
 
 ## First call to any secret, in order

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { LeaseManager } from "../lease/manager";
+import type { DynamicSecretsManager } from "../dynamic/manager";
 import type { PolicyEngine } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 import type { AuthContext } from "../auth/middleware";
@@ -7,7 +8,8 @@ import type { AuthContext } from "../auth/middleware";
 export function leaseRouter(
   leases: LeaseManager,
   policies: PolicyEngine,
-  audit: AuditLog
+  audit: AuditLog,
+  dynamic?: DynamicSecretsManager
 ) {
   const router = new Hono();
 
@@ -68,30 +70,79 @@ export function leaseRouter(
     });
   });
 
-  // List active leases
+  // List active leases - merged static + dynamic. Each entry carries a
+  // kind discriminator and a normalized `path` field. Admin sees all
+  // identities; everyone else sees only their own. Sorted by expires_at asc.
   router.get("/", (c) => {
     const auth = c.get("auth") as AuthContext;
     const isAdmin = policies.check(auth.policies, "*", "admin");
-    const active = leases.listActive(isAdmin ? undefined : auth.identity);
-    return c.json({ leases: active });
+    const filterIdentity = isAdmin ? undefined : auth.identity;
+
+    const staticActive = leases.listActive(filterIdentity).map((l) => ({
+      id: l.id,
+      kind: "static" as const,
+      path: l.secret_path,
+      identity: l.identity,
+      ttl_seconds: l.ttl_seconds,
+      created_at: l.created_at,
+      expires_at: l.expires_at,
+    }));
+
+    const dynamicActive = dynamic
+      ? dynamic
+          .listActiveLeases()
+          .filter((l) => !filterIdentity || l.identity === filterIdentity)
+          .map((l) => ({
+            id: l.lease_id,
+            kind: "dynamic" as const,
+            path: l.path,
+            identity: l.identity,
+            provider_type: l.provider_type,
+            ttl_seconds: l.ttl_seconds,
+            created_at: l.created_at,
+            expires_at: l.expires_at,
+          }))
+      : [];
+
+    const merged = [...staticActive, ...dynamicActive].sort((a, b) => {
+      if (a.expires_at < b.expires_at) return -1;
+      if (a.expires_at > b.expires_at) return 1;
+      return 0;
+    });
+
+    return c.json({ leases: merged });
   });
 
-  // Revoke a lease
-  router.delete("/:leaseId", (c) => {
+  // Revoke a lease. Static and dynamic lease IDs are disambiguated by
+  // prefix (`lease-` vs `dlease-`) so a single endpoint dispatches to
+  // the right manager. Owner-or-admin authz applies to both.
+  router.delete("/:leaseId", async (c) => {
     const auth = c.get("auth") as AuthContext;
     const leaseId = c.req.param("leaseId");
+    const isAdmin = policies.check(auth.policies, "*", "admin");
+
+    if (leaseId.startsWith("dlease-")) {
+      if (!dynamic) {
+        return c.json({ error: "Lease not found", request_id: c.get("requestId") }, 404);
+      }
+      const dynLease = dynamic.getLease(leaseId);
+      if (!dynLease) {
+        return c.json({ error: "Lease not found", request_id: c.get("requestId") }, 404);
+      }
+      if (dynLease.identity !== auth.identity && !isAdmin) {
+        return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
+      }
+      await dynamic.revokeLease(leaseId, auth.identity);
+      return c.json({ revoked: true });
+    }
 
     const lease = leases.getLease(leaseId);
     if (!lease) {
       return c.json({ error: "Lease not found", request_id: c.get("requestId") }, 404);
     }
-
-    // Only the lease owner or admin can revoke
-    const isAdmin = policies.check(auth.policies, "*", "admin");
     if (lease.identity !== auth.identity && !isAdmin) {
       return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
     }
-
     leases.revoke(leaseId, auth.identity);
     return c.json({ revoked: true });
   });
