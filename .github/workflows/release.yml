@@ -1,0 +1,104 @@
+name: Create GitHub Release on tag
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (full history for git log)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release notes from conventional commits
+        id: notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Find the previous v*.*.* tag (lexicographic semver-friendly sort).
+          PREV_TAG=$(git tag --list 'v*.*.*' --sort=-v:refname | grep -v "^${TAG}$" | head -1 || true)
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="$TAG"
+            COMPARE=""
+          else
+            RANGE="${PREV_TAG}..${TAG}"
+            COMPARE="https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${TAG}"
+          fi
+
+          COMMITS=$(git log --pretty=format:'%s' "$RANGE")
+
+          # Group commits by conventional-commit type. Order matches
+          # the human-readable importance for downstream operators.
+          NOTES_FILE=$(mktemp)
+          declare -A SECTION_HEADINGS=(
+            [feat]="### Features"
+            [fix]="### Fixes"
+            [ui]="### UI"
+            [docs]="### Docs"
+            [build]="### Build"
+            [chore]="### Chores"
+          )
+          ORDER=(feat fix ui docs build chore)
+
+          {
+            echo "## What changed"
+            echo
+            for type in "${ORDER[@]}"; do
+              # Match `type:` or `type(scope):`
+              MATCHES=$(printf '%s\n' "$COMMITS" | grep -E "^${type}(\([a-z+_-]+\))?:" || true)
+              if [ -n "$MATCHES" ]; then
+                echo "${SECTION_HEADINGS[$type]}"
+                echo
+                printf '%s\n' "$MATCHES" | sed 's/^/- /'
+                echo
+              fi
+            done
+
+            # Anything that doesn't match a known prefix
+            UNCLASSIFIED=$(printf '%s\n' "$COMMITS" | grep -Ev "^(feat|fix|ui|docs|build|chore)(\([a-z+_-]+\))?:" || true)
+            if [ -n "$UNCLASSIFIED" ]; then
+              echo "### Other"
+              echo
+              printf '%s\n' "$UNCLASSIFIED" | sed 's/^/- /'
+              echo
+            fi
+
+            echo "## Container image"
+            echo
+            echo '```'
+            echo "docker pull ghcr.io/${GITHUB_REPOSITORY}:${TAG#v}"
+            echo '```'
+            echo
+            echo "Or pin to the release SHA for byte-stable rollback:"
+            echo '```'
+            echo "docker pull ghcr.io/${GITHUB_REPOSITORY}:sha-${GITHUB_SHA:0:7}"
+            echo '```'
+
+            if [ -n "$COMPARE" ]; then
+              echo
+              echo "**Full diff:** $COMPARE"
+            fi
+          } > "$NOTES_FILE"
+
+          # Pass the multi-line body to a later step via the file path,
+          # avoiding GITHUB_OUTPUT escaping headaches.
+          echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: ${{ steps.notes.outputs.notes_file }}
+          draft: false
+          prerelease: false
+          # Don't fail the workflow if the release already exists; just update it.
+          fail_on_unmatched_files: false

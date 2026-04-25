@@ -1707,6 +1707,18 @@
   </aside>
 
   <div class="main">
+    <!-- Update-available banner. Hidden by default; populated by
+         loadUpdateBanner() once the version-check endpoint responds. -->
+    <div id="update-banner" style="display:none;align-items:center;gap:12px;padding:10px 16px;background:var(--accent-subtle);border-bottom:1px solid var(--accent);font-size:13px;color:var(--text-primary);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--accent)"><path d="M12 2v6m0 12v2M4.93 4.93l4.24 4.24m5.66 5.66l4.24 4.24M2 12h6m8 0h6M4.93 19.07l4.24-4.24m5.66-5.66l4.24-4.24"/></svg>
+      <div style="flex:1">
+        <span style="font-weight:600">Gatehouse <span id="update-banner-version">vX.Y.Z</span> is available.</span>
+        <span id="update-banner-detail" style="color:var(--text-secondary)"></span>
+        <a id="update-banner-link" href="#" target="_blank" rel="noreferrer" style="color:var(--accent);text-decoration:none;margin-left:6px">Release notes &rarr;</a>
+      </div>
+      <button onclick="window._dismissUpdateBanner()" title="Dismiss for this session" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;padding:4px 8px;font-size:18px;line-height:1">&times;</button>
+    </div>
+
     <!-- Dashboard -->
     <div class="page active" data-page="dashboard">
       <div class="page-header">
@@ -2632,11 +2644,46 @@
       const v = document.getElementById('sidebar-version');
       if (v && d.version) v.textContent = 'v' + d.version;
     }).catch(() => {});
+    loadUpdateBanner();
     // Navigate to hash or default to dashboard
     const hashPage = location.hash.slice(1);
     const targetPage = hashPage && document.querySelector(`.page[data-page="${hashPage}"]`) ? hashPage : 'dashboard';
     showPage(targetPage);
   }
+
+  async function loadUpdateBanner() {
+    try {
+      const data = await api('/v1/version/check');
+      if (!data.has_update || !data.latest) return;
+      // Per-session dismissal: keyed by the specific upgrade target
+      // so a new release brings the banner back even after dismissal.
+      const dismissKey = `gh_update_dismissed_${data.latest}`;
+      if (sessionStorage.getItem(dismissKey)) return;
+
+      const banner = document.getElementById('update-banner');
+      const versionEl = document.getElementById('update-banner-version');
+      const detailEl = document.getElementById('update-banner-detail');
+      const linkEl = document.getElementById('update-banner-link');
+      if (!banner || !versionEl || !detailEl || !linkEl) return;
+
+      versionEl.textContent = 'v' + data.latest;
+      detailEl.textContent = ' Pull `ghcr.io/bshandley/gatehouse:' + data.latest + '` and restart the container.';
+      if (data.release_url) linkEl.href = data.release_url;
+      banner.style.display = 'flex';
+      banner.dataset.target = data.latest;
+    } catch {
+      // Network or auth glitch - silently skip; the next session will retry.
+    }
+  }
+  window.loadUpdateBanner = loadUpdateBanner;
+
+  window._dismissUpdateBanner = function () {
+    const banner = document.getElementById('update-banner');
+    if (!banner) return;
+    const target = banner.dataset.target;
+    if (target) sessionStorage.setItem(`gh_update_dismissed_${target}`, '1');
+    banner.style.display = 'none';
+  };
 
   // Page routing
   function showPage(page, fromHash = false) {

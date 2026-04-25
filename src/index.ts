@@ -7,6 +7,7 @@ import { authRouter } from "./api/auth";
 import { onboardRouter } from "./api/onboard";
 import { rotateRouter } from "./api/rotate";
 import { skillRouter } from "./api/skill";
+import { versionRouter } from "./api/version";
 import { meRouter } from "./api/me";
 import { policyRouter } from "./api/policy";
 import { auditRouter } from "./api/audit";
@@ -388,6 +389,7 @@ app.get("/v1/events", (c) => {
 });
 
 app.route("/v1/skill", skillRouter(policies, audit));
+app.route("/v1/version", versionRouter());
 app.route("/v1/secrets", secretsRouter(secrets, policies, audit, patternEngine, dynamicSecrets));
 app.route("/v1/secrets-bulk", bulkSecretsRouter(secrets, policies, audit));
 app.route("/v1/lease", leaseRouter(leases, policies, audit, dynamicSecrets));
