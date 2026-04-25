@@ -5098,10 +5098,18 @@
   };
 
   // Utilities
+  // Escape for both text-content AND attribute contexts. The previous
+  // div.textContent -> innerHTML approach skipped " and ', which silently
+  // truncated any value interpolated into an attribute (e.g. the SSH host
+  // setup commands containing `echo "TrustedUserCAKeys ..."`: the inner "
+  // closed the data-raw attribute, dataset.raw returned only the prefix).
   function esc(s) {
-    const d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function fmtTime(iso) {
