@@ -178,6 +178,61 @@
       color: var(--text-primary);
     }
 
+    /* Generic per-row action menu (kebab dropdown). Used in the AppRoles
+       table to keep secondary actions out of the row's primary surface,
+       and reusable for any other table that wants the same affordance. */
+    .action-menu-trigger {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: var(--radius);
+      line-height: 0;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .action-menu-trigger:hover,
+    .action-menu-trigger.is-open {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border-color: var(--border);
+    }
+    .action-menu {
+      position: absolute;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      padding: 4px;
+      min-width: 160px;
+      z-index: 1500;
+      animation: action-menu-pop 0.1s ease;
+    }
+    @keyframes action-menu-pop {
+      from { opacity: 0; transform: translateY(-3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .action-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 7px 10px;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 13px;
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .action-menu-item:hover { background: var(--bg-tertiary); }
+    .action-menu-item svg { width: 13px; height: 13px; flex-shrink: 0; opacity: 0.7; }
+    .action-menu-item.is-danger { color: var(--danger); }
+    .action-menu-item.is-danger:hover { background: var(--danger-subtle); }
+    .action-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
     .sidebar-nav {
       flex: 1;
       padding: 10px 8px;
@@ -3759,14 +3814,12 @@
           : '<span class="badge badge-success" style="font-size:10px">Active</span>'}</td>
         <td style="font-size:12px;color:var(--text-secondary)">${r.last_used ? fmtTime(r.last_used) : 'Never'}</td>
         <td style="font-size:12px;color:var(--text-secondary)">${fmtTime(r.created_at)}</td>
-        <td style="display:flex;gap:6px">
+        <td style="display:flex;gap:6px;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="window._openOnboardModal('${esc(r.role_id)}', '${esc(r.display_name)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Onboard</button>
-          <button class="btn btn-ghost btn-sm" onclick="window._openRotateModal('${esc(r.role_id)}', '${esc(r.display_name)}')" title="Generate a one-shot link that swaps this AppRole's secret_id without changing role_id, policies, or installed skill."><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Rotate</button>
-          <button class="btn btn-ghost btn-sm" onclick="openEditAgentModal(this)" data-rid="${esc(r.role_id)}" data-dname="${esc(r.display_name)}" data-pol='${JSON.stringify(r.policies || []).replace(/'/g, "&#39;")}'><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>
-          <button class="btn btn-ghost btn-sm" onclick="window._toggleSuspend('${esc(r.role_id)}', ${r.suspended ? 'false' : 'true'})">${r.suspended
-            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Reinstate'
-            : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Suspend'}</button>
-          <button class="btn btn-danger btn-sm" onclick="window._deleteAgent('${esc(r.role_id)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
+          <button class="action-menu-trigger" aria-label="More actions" title="More actions"
+            onclick="window._showRoleActionMenu(this, '${esc(r.role_id)}', '${esc(r.display_name)}', '${JSON.stringify(r.policies || []).replace(/'/g, "&#39;")}', '${r.suspended ? 'true' : 'false'}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+          </button>
         </td>
       </tr>`).join('');
     } catch (e) {
@@ -4178,10 +4231,24 @@
     }
   };
 
-  async function openEditAgentModal(btn) {
-    const roleId = btn.dataset.rid;
-    const displayName = btn.dataset.dname;
-    const currentPolicies = JSON.parse(btn.dataset.pol);
+  // Accepts either an HTMLElement carrying data-rid/data-dname/data-pol
+  // (legacy inline-button call), or a plain object {roleId, displayName,
+  // policies} used by the action menu helper. Single function to avoid
+  // duplicating the modal logic in two places.
+  async function openEditAgentModal(arg) {
+    let roleId, displayName, currentPolicies;
+    if (arg && arg.dataset) {
+      roleId = arg.dataset.rid;
+      displayName = arg.dataset.dname;
+      currentPolicies = JSON.parse(arg.dataset.pol);
+    } else if (arg && arg.roleId !== undefined) {
+      roleId = arg.roleId;
+      displayName = arg.displayName;
+      currentPolicies = arg.policies || [];
+    } else {
+      toast('openEditAgentModal: invalid arguments', 'error');
+      return;
+    }
     let availablePolicies = [];
     try {
       const data = await api('/v1/policy');
@@ -5341,6 +5408,98 @@
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m`;
   }
+
+  // Generic per-row action menu (kebab dropdown). Pass a trigger button
+  // and an items array. Items may include {label, icon, onClick, danger}
+  // or {divider:true}. Click outside or Escape closes the menu; clicking
+  // an item runs onClick and closes. Re-clicking the same trigger toggles.
+  let _openActionMenu = null;
+  let _openActionMenuTrigger = null;
+  function _closeActionMenu() {
+    if (_openActionMenu) {
+      _openActionMenu.remove();
+      _openActionMenu = null;
+    }
+    if (_openActionMenuTrigger) {
+      _openActionMenuTrigger.classList.remove('is-open');
+      _openActionMenuTrigger = null;
+    }
+    document.removeEventListener('mousedown', _menuOutsideHandler, true);
+    document.removeEventListener('keydown', _menuKeyHandler, true);
+    window.removeEventListener('scroll', _closeActionMenu, true);
+    window.removeEventListener('resize', _closeActionMenu);
+  }
+  function _menuOutsideHandler(e) {
+    if (_openActionMenu && !_openActionMenu.contains(e.target) && e.target !== _openActionMenuTrigger) {
+      _closeActionMenu();
+    }
+  }
+  function _menuKeyHandler(e) {
+    if (e.key === 'Escape') _closeActionMenu();
+  }
+  window._actionMenu = function(triggerEl, items) {
+    if (_openActionMenuTrigger === triggerEl) { _closeActionMenu(); return; }
+    _closeActionMenu();
+    const menu = document.createElement('div');
+    menu.className = 'action-menu';
+    for (const item of items) {
+      if (item.divider) {
+        const d = document.createElement('div');
+        d.className = 'action-menu-divider';
+        menu.appendChild(d);
+        continue;
+      }
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'action-menu-item' + (item.danger ? ' is-danger' : '');
+      btn.innerHTML = `${item.icon || ''}<span>${esc(item.label)}</span>`;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const fn = item.onClick;
+        _closeActionMenu();
+        if (typeof fn === 'function') fn();
+      });
+      menu.appendChild(btn);
+    }
+    document.body.appendChild(menu);
+    // Position: align right edge under the trigger.
+    const rect = triggerEl.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
+    menu.style.left = `${rect.right + window.scrollX - menuRect.width}px`;
+    triggerEl.classList.add('is-open');
+    _openActionMenu = menu;
+    _openActionMenuTrigger = triggerEl;
+    // Defer the listener so the click that opened the menu doesn't close it.
+    setTimeout(() => {
+      document.addEventListener('mousedown', _menuOutsideHandler, true);
+      document.addEventListener('keydown', _menuKeyHandler, true);
+      window.addEventListener('scroll', _closeActionMenu, true);
+      window.addEventListener('resize', _closeActionMenu);
+    }, 0);
+  };
+
+  // Common SVG icons used by row menus.
+  const _ICON_ROTATE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>';
+  const _ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  const _ICON_SUSPEND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
+  const _ICON_REINSTATE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+  const _ICON_DELETE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
+  // Per-row action menu for AppRoles. Inline button stays "Onboard" (the
+  // primary post-create action); everything else lives behind the kebab.
+  window._showRoleActionMenu = function(triggerEl, roleId, displayName, policiesJson, suspendedFlag) {
+    let policies = [];
+    try { policies = JSON.parse((policiesJson || '[]').replace(/&#39;/g, "'")); } catch {}
+    const suspended = suspendedFlag === 'true' || suspendedFlag === true;
+    window._actionMenu(triggerEl, [
+      { label: 'Rotate secret', icon: _ICON_ROTATE, onClick: () => window._openRotateModal(roleId, displayName) },
+      { label: 'Edit', icon: _ICON_EDIT, onClick: () => openEditAgentModal({ roleId, displayName, policies }) },
+      { label: suspended ? 'Reinstate' : 'Suspend', icon: suspended ? _ICON_REINSTATE : _ICON_SUSPEND, onClick: () => window._toggleSuspend(roleId, !suspended) },
+      { divider: true },
+      { label: 'Delete', icon: _ICON_DELETE, danger: true, onClick: () => window._deleteAgent(roleId) },
+    ]);
+  };
 
   function toast(msg, type = 'success') {
     const container = document.getElementById('toast-container');
