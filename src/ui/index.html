@@ -3679,6 +3679,7 @@
         <td style="font-size:12px;color:var(--text-secondary)">${fmtTime(r.created_at)}</td>
         <td style="display:flex;gap:6px">
           <button class="btn btn-ghost btn-sm" onclick="window._openOnboardModal('${esc(r.role_id)}', '${esc(r.display_name)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Onboard</button>
+          <button class="btn btn-ghost btn-sm" onclick="window._openRotateModal('${esc(r.role_id)}', '${esc(r.display_name)}')" title="Generate a one-shot link that swaps this AppRole's secret_id without changing role_id, policies, or installed skill."><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Rotate</button>
           <button class="btn btn-ghost btn-sm" onclick="openEditAgentModal(this)" data-rid="${esc(r.role_id)}" data-dname="${esc(r.display_name)}" data-pol='${JSON.stringify(r.policies || []).replace(/'/g, "&#39;")}'><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>
           <button class="btn btn-ghost btn-sm" onclick="window._toggleSuspend('${esc(r.role_id)}', ${r.suspended ? 'false' : 'true'})">${r.suspended
             ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Reinstate'
@@ -3811,6 +3812,108 @@
             toast('Revoke failed: ' + e.message, 'error');
           }
         };
+      } catch (e) {
+        toast('Generate failed: ' + e.message, 'error');
+      }
+    };
+  };
+
+  window._openRotateModal = async function(roleId, displayName) {
+    const html = `
+      <div class="modal-overlay" onclick="if(event.target===this)window._closeRotateModal()">
+        <div class="modal modal-wide">
+          <h2 class="modal-title" style="display:flex;align-items:center;gap:10px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Rotate "${esc(displayName)}"
+          </h2>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;line-height:1.5">Generate a single-use link that swaps this AppRole's <span class="mono">secret_id</span>. The agent fetches the link, exchanges it once, and writes only the new <span class="mono">GATEHOUSE_SECRET_ID</span> line in its env file. Role ID, policies, and installed skill are unchanged. Any JWT the agent currently holds keeps working until its 24h TTL.</p>
+          <div id="rotate-form-panel">
+            <div class="form-group">
+              <label class="form-label">Link TTL</label>
+              <select id="rotate-ttl" class="input">
+                <option value="300">5 minutes</option>
+                <option value="900" selected>15 minutes</option>
+                <option value="1800">30 minutes</option>
+                <option value="3600">1 hour</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label (optional)</label>
+              <input type="text" id="rotate-label" class="input" placeholder="e.g. quarterly rotation 2026Q2" maxlength="200">
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-ghost" onclick="window._closeRotateModal()">Cancel</button>
+              <button class="btn btn-primary" id="rotate-generate-btn">Generate Link</button>
+            </div>
+          </div>
+          <div id="rotate-result-panel" style="display:none">
+            <div class="form-group">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <label class="form-label" style="margin:0">Paste this to the agent</label>
+                <button class="btn btn-primary btn-sm" onclick="copyCredField('rotate-prompt-field')">Copy Prompt</button>
+              </div>
+              <p style="font-size:11px;color:var(--text-tertiary);margin:0 0 8px 0">Framed as a shell command so the agent curls the URL instead of opening it in a browser.</p>
+              <textarea id="rotate-prompt-field" readonly class="input" style="width:100%;min-height:140px;font-family:var(--font-mono);font-size:11px;line-height:1.5;white-space:pre-wrap"></textarea>
+              <p id="rotate-countdown" style="margin-top:8px;font-size:12px;color:var(--text-secondary)"></p>
+            </div>
+            <details style="margin-bottom:12px">
+              <summary style="font-size:11px;color:var(--text-tertiary);cursor:pointer">Just the URL (for QR codes or manual paste)</summary>
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <input type="text" class="input" readonly id="rotate-url-field" style="font-family:var(--font-mono);font-size:12px">
+                <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('rotate-url-field')">Copy</button>
+              </div>
+            </details>
+            <p style="font-size:11px;color:var(--text-secondary);padding:8px 10px;background:var(--bg-tertiary);border-radius:6px;margin-bottom:16px">After exchange, the previous <span class="mono">secret_id</span> stops working immediately. Any JWT the agent already minted keeps working until its 24h TTL (stateless JWTs aren't revocable).</p>
+            <div class="modal-actions">
+              <button class="btn btn-primary" onclick="window._closeRotateModal()">Done</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modal-container').innerHTML = html;
+
+    window._closeRotateModal = function() {
+      const overlay = document.querySelector('#modal-container .modal-overlay');
+      if (overlay) overlay.remove();
+      loadAgents();
+    };
+
+    document.getElementById('rotate-generate-btn').onclick = async () => {
+      const ttl = parseInt(document.getElementById('rotate-ttl').value, 10);
+      const label = document.getElementById('rotate-label').value.trim();
+      try {
+        const data = await api('/v1/rotate', {
+          method: 'POST',
+          body: { role_id: roleId, ttl_seconds: ttl, label: label || undefined },
+        });
+        document.getElementById('rotate-form-panel').style.display = 'none';
+        document.getElementById('rotate-result-panel').style.display = 'block';
+        document.getElementById('rotate-url-field').value = data.rotate_url;
+        document.getElementById('rotate-prompt-field').value =
+          `Run this in your shell, then follow the instructions in the output:\n\n` +
+          `curl -fsSL "${data.rotate_url}" > /tmp/gatehouse-rotate.md\n` +
+          `cat /tmp/gatehouse-rotate.md\n\n` +
+          `This rotates only your secret_id. Your role_id, policies, ` +
+          `and installed skill stay the same. Do not open the URL in a ` +
+          `browser; the body is markdown instructions with a one-time ` +
+          `token, not a web page.`;
+        const expiresAt = new Date(data.expires_at.replace(' ', 'T') + 'Z');
+        const tick = () => {
+          const remaining = Math.max(0, Math.floor((expiresAt - new Date()) / 1000));
+          const el = document.getElementById('rotate-countdown');
+          if (!el) { clearInterval(timer); return; }
+          if (remaining <= 0) {
+            el.textContent = 'Expired';
+            clearInterval(timer);
+            return;
+          }
+          const m = Math.floor(remaining / 60);
+          const s = remaining % 60;
+          el.textContent = `Expires in ${m}m ${s.toString().padStart(2, '0')}s`;
+        };
+        tick();
+        const timer = setInterval(tick, 1000);
       } catch (e) {
         toast('Generate failed: ' + e.message, 'error');
       }
