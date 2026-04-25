@@ -46,6 +46,28 @@ Authorization: Bearer eyJhbGciOi...
 
 The token expires after 24 hours. When you get a `401` response, re-login to get a fresh token.
 
+### Refreshing the JWT before it expires
+
+For long-running agents, exchange a still-valid JWT for a new one with a fresh 24h TTL using `POST /v1/auth/refresh`. This avoids re-reading `role_id` / `secret_id` from your environment on every cycle.
+
+```bash
+curl -X POST http://localhost:3100/v1/auth/refresh \
+  -H "Authorization: Bearer eyJhbGciOi..."
+```
+
+Response shape matches `/v1/auth/approle/login`:
+
+```json
+{
+  "token": "eyJhbGciOi...",
+  "identity": "approle:your-agent-name",
+  "policies": ["agent-readonly"],
+  "expires_in": 86400
+}
+```
+
+Refresh re-checks AppRole suspension, IP allowlist, and the current policy list, so the new token reflects any operator changes since your last login. Refresh **does not** issue a new JWT from an expired one — `401` from `/refresh` means the token is past its TTL or the AppRole was deleted/suspended; fall back to a full re-login from `role_id` / `secret_id`.
+
 ## Important: secrets are accessed by path, not by ID
 
 Secrets in Gatehouse have human-readable paths like `api-keys/openai` or `services/memos-token`. You always use the **path** in API URLs, never a UUID.

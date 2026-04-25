@@ -165,6 +165,122 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     });
   });
 
+  // Anticipatory JWT refresh: a still-valid bearer JWT is exchanged for a
+  // new one with a full 24h TTL. Lets long-running agents extend before
+  // expiry without re-reading role_id/secret_id from the environment.
+  //
+  // Threat model: a compromised JWT can already be used for its full TTL
+  // by the attacker, and the attacker would also have role_id/secret_id
+  // (they live in the same env file), so refresh doesn't extend the
+  // breach window beyond what re-login would. We do NOT issue refresh
+  // from EXPIRED tokens - that would be a refresh-token model. Expired
+  // means re-login from environment.
+  //
+  // For AppRole tokens we re-check role suspension and IP allowlist on
+  // every refresh, so suspending a role takes effect at the next refresh
+  // (or sooner if the operator revokes via other means) instead of having
+  // to wait out a full 24h.
+  router.post("/refresh", async (c) => {
+    const ip = c.get("sourceIp") || "unknown";
+
+    if (!checkRateLimit(ip)) {
+      const retry = retryAfterSeconds(ip);
+      c.header("Retry-After", String(retry));
+      return c.json(
+        { error: "Too many failed attempts. Try again later.", retry_after: retry, request_id: c.get("requestId") },
+        429
+      );
+    }
+
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      recordFailure(ip);
+      return c.json({ error: "Missing or invalid Authorization header", request_id: c.get("requestId") }, 401);
+    }
+    const tokenStr = authHeader.slice(7);
+
+    let payload: any;
+    try {
+      const verified = await jwtVerify(tokenStr, secret, { issuer: "gatehouse" });
+      payload = verified.payload;
+    } catch {
+      recordFailure(ip);
+      return c.json(
+        { error: "Token expired or invalid; re-login from role_id + secret_id", request_id: c.get("requestId") },
+        401
+      );
+    }
+
+    // Pre-auth TOTP tokens are a separate lifecycle; refusing here keeps
+    // the contract narrow.
+    if (payload.purpose === "totp-pending") {
+      return c.json(
+        { error: "TOTP-pending tokens cannot be refreshed; complete TOTP first", request_id: c.get("requestId") },
+        400
+      );
+    }
+
+    if (payload.role_id) {
+      const role = db
+        .query("SELECT suspended, ip_allowlist, display_name, policies FROM app_roles WHERE role_id = ?")
+        .get(payload.role_id) as any;
+      if (!role) {
+        recordFailure(ip);
+        return c.json({ error: "AppRole no longer exists", request_id: c.get("requestId") }, 401);
+      }
+      if (role.suspended) {
+        return c.json({ error: "AppRole is suspended", request_id: c.get("requestId") }, 403);
+      }
+      const allowlist: string[] = role.ip_allowlist ? JSON.parse(role.ip_allowlist) : [];
+      if (allowlist.length > 0 && !ipMatchesAllowlist(ip, allowlist)) {
+        recordFailure(ip);
+        return c.json({ error: "Source IP not permitted for this AppRole", request_id: c.get("requestId") }, 403);
+      }
+
+      const policies = JSON.parse(role.policies);
+      const newToken = await new SignJWT({
+        sub: `approle:${role.display_name}`,
+        role_id: payload.role_id,
+        policies,
+        ip_allowlist: allowlist.length > 0 ? allowlist : undefined,
+      })
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuer("gatehouse")
+        .setIssuedAt()
+        .setExpirationTime("24h")
+        .sign(secret);
+
+      db.query("UPDATE app_roles SET last_used = datetime('now') WHERE role_id = ?").run(payload.role_id);
+
+      return c.json({
+        token: newToken,
+        identity: `approle:${role.display_name}`,
+        policies,
+        expires_in: 86400,
+      });
+    }
+
+    // Non-AppRole JWTs (user logins). Re-sign with the same claims; the
+    // user-management surface lives elsewhere and isn't suspended via
+    // app_roles.
+    const newToken = await new SignJWT({
+      sub: payload.sub,
+      policies: payload.policies,
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuer("gatehouse")
+      .setIssuedAt()
+      .setExpirationTime("24h")
+      .sign(secret);
+
+    return c.json({
+      token: newToken,
+      identity: payload.sub,
+      policies: payload.policies,
+      expires_in: 86400,
+    });
+  });
+
   // List all AppRoles (requires root token)
   router.get("/approle", async (c) => {
     if (!(await requireAdmin(c))) {

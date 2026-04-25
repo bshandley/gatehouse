@@ -168,10 +168,20 @@ you exchange them for a JWT.
 
 Login: `POST {GATEHOUSE_URL}/v1/auth/approle/login` with body
 `{"role_id": "$GATEHOUSE_ROLE_ID", "secret_id": "$GATEHOUSE_SECRET_ID"}`.
-Store the returned JWT in memory only. The JWT expires in 24h; re-login
-on 401. Prefer the streamable HTTP MCP endpoint at
-`{GATEHOUSE_URL}/v1/mcp` when your harness supports it. The tools
-listed below are exposed there natively.
+Store the returned JWT in memory only. The JWT expires in 24h.
+
+To extend a session before expiry without re-reading role_id/secret_id,
+call `POST {GATEHOUSE_URL}/v1/auth/refresh` with the current valid JWT
+as `Authorization: Bearer <jwt>`. The response is a fresh JWT with a
+full 24h TTL. Refresh is the recommended path for long-running agents
+(it also re-checks AppRole suspension and IP allowlist, so a revoked
+role can't keep refreshing). On 401 from `/refresh`, the token is
+already expired or the role was deleted, fall back to a full re-login
+from role_id/secret_id.
+
+Prefer the streamable HTTP MCP endpoint at `{GATEHOUSE_URL}/v1/mcp`
+when your harness supports it. The tools listed below are exposed
+there natively.
 
 ## HTTP fallback (when MCP tools aren't wired up)
 

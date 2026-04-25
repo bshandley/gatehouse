@@ -639,4 +639,137 @@ describe("Auth API", () => {
     expect(body.identity).toBe("root");
     expect(body.policies).toEqual(["admin"]);
   });
+
+  // JWT refresh - anticipatory renewal for long-running agents.
+  //
+  // The auth router's rate limiter is module-level state shared across
+  // every test run. Each refresh test uses a unique X-Forwarded-For so
+  // failure-bucket from earlier tests can't poison this block.
+  async function loginAsAgent(displayName: string, ip: string, policies: string[] = ["agent"]): Promise<string> {
+    const createRes = await app.request("/v1/auth/approle", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: displayName, policies }),
+    });
+    const { role_id, secret_id } = await createRes.json();
+    const loginRes = await app.request("/v1/auth/approle/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-For": ip },
+      body: JSON.stringify({ role_id, secret_id }),
+    });
+    return (await loginRes.json()).token;
+  }
+
+  test("POST /auth/refresh returns a new JWT for a valid AppRole token", async () => {
+    const ip = "10.20.0.1";
+    const token = await loginAsAgent("refresh-test", ip, ["agent-readonly"]);
+
+    const res = await app.request("/v1/auth/refresh", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "X-Forwarded-For": ip },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.token).toBeDefined();
+    // Note: when refresh is called within the same second as login, the
+    // JWT is byte-identical (same iat -> same exp -> same signature). What
+    // matters is the contract: a valid 24h token comes back, not that the
+    // string differs. The /v1/whoami check below proves the token works.
+    expect(body.identity).toBe("approle:refresh-test");
+    expect(body.policies).toEqual(["agent-readonly"]);
+    expect(body.expires_in).toBe(86400);
+
+    const who = await app.request("/v1/whoami", {
+      headers: { Authorization: `Bearer ${body.token}` },
+    });
+    expect(who.status).toBe(200);
+    expect((await who.json()).identity).toBe("approle:refresh-test");
+  });
+
+  test("POST /auth/refresh rejects missing Authorization header", async () => {
+    const res = await app.request("/v1/auth/refresh", {
+      method: "POST",
+      headers: { "X-Forwarded-For": "10.20.0.2" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("POST /auth/refresh rejects garbage tokens", async () => {
+    const res = await app.request("/v1/auth/refresh", {
+      method: "POST",
+      headers: { Authorization: "Bearer not-a-real-jwt", "X-Forwarded-For": "10.20.0.3" },
+    });
+    expect(res.status).toBe(401);
+    expect((await res.json()).error).toContain("Token expired or invalid");
+  });
+
+  test("POST /auth/refresh re-checks suspension and refuses if AppRole is suspended", async () => {
+    const ip = "10.20.0.4";
+    const token = await loginAsAgent("susp-test", ip, ["agent"]);
+    const list = await app.request("/v1/auth/approle", {
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}` },
+    });
+    const { roles } = await list.json();
+    const role = roles.find((r: any) => r.display_name === "susp-test");
+    expect(role).toBeDefined();
+
+    await app.request(`/v1/auth/approle/${role.role_id}/suspend`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ suspended: true }),
+    });
+
+    const res = await app.request("/v1/auth/refresh", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "X-Forwarded-For": ip },
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toContain("suspended");
+  });
+
+  test("POST /auth/refresh refuses if AppRole no longer exists", async () => {
+    const ip = "10.20.0.5";
+    const token = await loginAsAgent("delete-me", ip, ["agent"]);
+    const list = await app.request("/v1/auth/approle", {
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}` },
+    });
+    const { roles } = await list.json();
+    const role = roles.find((r: any) => r.display_name === "delete-me");
+
+    await app.request(`/v1/auth/approle/${role.role_id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}` },
+    });
+
+    const res = await app.request("/v1/auth/refresh", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "X-Forwarded-For": ip },
+    });
+    expect(res.status).toBe(401);
+    expect((await res.json()).error).toContain("no longer exists");
+  });
+
+  test("POST /auth/refresh picks up policy changes (re-signs with current state)", async () => {
+    const ip = "10.20.0.6";
+    const token = await loginAsAgent("policy-shift", ip, ["agent-readonly"]);
+    const list = await app.request("/v1/auth/approle", {
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}` },
+    });
+    const { roles } = await list.json();
+    const role = roles.find((r: any) => r.display_name === "policy-shift");
+
+    await app.request(`/v1/auth/approle/${role.role_id}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ policies: ["agent-readonly", "agent-write"] }),
+    });
+
+    const res = await app.request("/v1/auth/refresh", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "X-Forwarded-For": ip },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.policies).toEqual(["agent-readonly", "agent-write"]);
+  });
 });
