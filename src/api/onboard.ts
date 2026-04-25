@@ -70,7 +70,7 @@ function originFromRequest(c: any, config: GatehouseConfig): string {
   return `${proto}://${host}`;
 }
 
-function renderSituationTable(policies: PolicyEngine, roleNames: string[]): string {
+export function renderSituationTable(policies: PolicyEngine, roleNames: string[]): string {
   const rows: string[] = [];
   const push = (situation: string, tool: string) => rows.push(`| ${situation} | ${tool} |`);
 

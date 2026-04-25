@@ -68,6 +68,48 @@ Response shape matches `/v1/auth/approle/login`:
 
 Refresh re-checks AppRole suspension, IP allowlist, and the current policy list, so the new token reflects any operator changes since your last login. Refresh **does not** issue a new JWT from an expired one — `401` from `/refresh` means the token is past its TTL or the AppRole was deleted/suspended; fall back to a full re-login from `role_id` / `secret_id`.
 
+### Refreshing the installed skill (without re-onboarding)
+
+When the operator ships an updated Gatehouse skill template, existing agents stay on whatever skill they got at first install until they re-onboard. Re-onboarding side-effects a `secret_id` rotation. To pick up skill improvements without rotating credentials, fetch the current skill body for your policies:
+
+```bash
+curl http://localhost:3100/v1/skill \
+  -H "Authorization: Bearer eyJhbGciOi..."
+```
+
+The response is `text/markdown` containing the same skill content the onboarding flow would install for an AppRole with your policies, with the situation table rendered against your current capabilities. Overwrite your installed skill file in place. No credential changes happen.
+
+### Credential rotation (operator-initiated)
+
+The operator generates a one-shot rotate URL via the admin UI or `POST /v1/rotate` (admin-auth). They hand the URL to you (out-of-band, the same way they handed you the original onboarding link).
+
+Fetch the URL to receive markdown instructions:
+
+```bash
+curl http://localhost:3100/v1/rotate/<rotate-token>
+```
+
+Then exchange exactly once to receive the new `secret_id`:
+
+```bash
+curl -X POST http://localhost:3100/v1/rotate/<rotate-token>/exchange
+```
+
+Response:
+
+```json
+{
+  "role_id": "role-...",
+  "secret_id": "<new-secret-id>",
+  "base_url": "http://localhost:3100",
+  "role_display_name": "your-agent-name"
+}
+```
+
+The `role_id`, your policies, and the installed skill are unchanged. Only `GATEHOUSE_SECRET_ID` in your env file needs to be rewritten with the new value. Any JWT you currently hold remains valid until its 24h TTL.
+
+If exchange returns `410 Gone`, the rotate token is consumed or expired. The operator must generate a new one.
+
 ### Checking your current identity and token expiry
 
 `GET /v1/auth/whoami` introspects the current bearer token. Useful for confirming who you are, what policies are attached, and how much time is left before you need to `/refresh`.

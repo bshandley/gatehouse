@@ -200,6 +200,8 @@ below maps to an authenticated endpoint. Send `Authorization: Bearer
 | `gatehouse_revoke` | `DELETE /v1/lease/<lease_id>`. Works for both static and dynamic lease IDs (dispatch is by `lease-` vs `dlease-` prefix on the server). `DELETE /v1/dynamic/lease/<lease_id>` still works as an alias. |
 | (no MCP tool) | `GET /v1/lease` returns your active leases (static + dynamic merged). Each entry has `kind: "static" \| "dynamic"`, `id`, `path`, `identity`, `expires_at`, plus `provider_type` for dynamic. Useful for finding a lease ID you forgot to record. |
 | `gatehouse_status` | `GET /v1/auth/whoami` returns `{identity, policies, source, expires_at, expires_in}` for the current bearer token. Use it to check who you are, what you're allowed to do, and how long until your JWT expires (so you can `/v1/auth/refresh` before it does). |
+| (no MCP tool) | `GET /v1/skill` returns the current skill body rendered for your policies. Overwrite your installed skill file with the response to pick up template improvements without re-onboarding. Auth: your normal Bearer JWT. |
+| (no MCP tool) | `POST /v1/rotate/<token>/exchange` is the consume endpoint of the operator-initiated rotate flow. The operator hands you a one-shot rotate URL when your `secret_id` needs to change; you fetch the URL for instructions, then call exchange to receive the new `secret_id` (your `role_id` and policies stay the same). |
 | `gatehouse_scrub` | `POST /v1/scrub` with `{"text": "..."}`. |
 
 ## First call to any secret, in order

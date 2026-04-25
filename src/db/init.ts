@@ -193,6 +193,30 @@ export function initDB(dataDir: string): Database {
   );
   db.run("CREATE INDEX IF NOT EXISTS idx_onboard_role ON onboarding_tokens(role_id)");
 
+  // Rotate tokens: one-shot links that swap an existing AppRole's
+  // secret_id without changing role_id, policies, or the installed skill.
+  // Schema mirrors onboarding_tokens since the lifecycle is identical:
+  // operator creates, agent fetches markdown, agent exchanges once.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS rotate_tokens (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      role_id TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      label TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      consumed_at TEXT,
+      creator_ip TEXT,
+      consumer_ip TEXT,
+      FOREIGN KEY (role_id) REFERENCES app_roles(role_id) ON DELETE CASCADE
+    )
+  `);
+  db.run(
+    "CREATE INDEX IF NOT EXISTS idx_rotate_expires ON rotate_tokens(expires_at) WHERE consumed_at IS NULL"
+  );
+  db.run("CREATE INDEX IF NOT EXISTS idx_rotate_role ON rotate_tokens(role_id)");
+
   // Migrations: handle schema changes on existing databases
   const userCols = db.query("PRAGMA table_info(users)").all() as { name: string }[];
   const userColNames = userCols.map((c) => c.name);

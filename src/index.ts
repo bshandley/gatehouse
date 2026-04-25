@@ -5,6 +5,8 @@ import { secretsRouter, bulkSecretsRouter } from "./api/secrets";
 import { leaseRouter } from "./api/lease";
 import { authRouter } from "./api/auth";
 import { onboardRouter } from "./api/onboard";
+import { rotateRouter } from "./api/rotate";
+import { skillRouter } from "./api/skill";
 import { meRouter } from "./api/me";
 import { policyRouter } from "./api/policy";
 import { auditRouter } from "./api/audit";
@@ -169,6 +171,11 @@ app.route("/v1/auth", authRouter(db, config));
 // auth for public routes, and admin-gated routes verify the bearer token
 // themselves (same pattern as /v1/auth). Do NOT read c.get("auth") here.
 app.route("/v1/onboard", onboardRouter(db, audit, policies, config));
+
+// Rotate routes (same pattern as onboard - public fetch/exchange + admin
+// create). One-shot link rotates an existing AppRole's secret_id without
+// touching role_id, policies, or the installed skill.
+app.route("/v1/rotate", rotateRouter(db, audit, config));
 
 // Protected routes
 app.use("/v1/*", authMiddleware(config));
@@ -380,6 +387,7 @@ app.get("/v1/events", (c) => {
   });
 });
 
+app.route("/v1/skill", skillRouter(policies, audit));
 app.route("/v1/secrets", secretsRouter(secrets, policies, audit, patternEngine, dynamicSecrets));
 app.route("/v1/secrets-bulk", bulkSecretsRouter(secrets, policies, audit));
 app.route("/v1/lease", leaseRouter(leases, policies, audit, dynamicSecrets));
