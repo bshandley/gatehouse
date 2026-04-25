@@ -53,4 +53,13 @@ export interface DynamicProvider {
    * Return the required config keys for this provider.
    */
   requiredConfig(): string[];
+
+  /**
+   * Optional: normalize incoming config values before storage. Providers
+   * use this to canonicalize CSV-style fields (trim whitespace, drop
+   * empties) so a value like " root, deploy " gets stored as "root,deploy"
+   * and the cert-signing call doesn't end up with a literal " root"
+   * principal that no Unix user matches.
+   */
+  normalizeConfig?(config: Record<string, string>): Record<string, string>;
 }

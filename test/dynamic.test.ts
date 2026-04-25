@@ -501,6 +501,64 @@ describe("DynamicSecretsManager", () => {
     expect(entry.metadata.password).toBeUndefined();
   });
 
+  test("ssh-cert saveConfig trims whitespace from CSV fields", () => {
+    const caDir = mkdtempSync(join(tmpdir(), "gh-ssh-csvtrim-"));
+    try {
+      const caPath = join(caDir, "ca");
+      execSync(`ssh-keygen -t ed25519 -f ${caPath} -N "" -q`);
+      const caKey = readFileSync(caPath, "utf-8");
+
+      // Save with deliberately sloppy whitespace and an empty trailing entry.
+      manager.saveConfig("ssh/sloppy", "ssh-cert", {
+        ca_private_key: caKey,
+        principals: "  deploy ,  root,  ,",
+        extensions: " permit-pty , permit-port-forwarding ",
+        allowed_hosts: "10.0.0.107 ,  10.0.0.108  ",
+      });
+
+      const stored = manager.getConfig("ssh/sloppy");
+      expect(stored!.config.principals).toBe("deploy,root");
+      expect(stored!.config.extensions).toBe("permit-pty,permit-port-forwarding");
+      expect(stored!.config.allowed_hosts).toBe("10.0.0.107,10.0.0.108");
+    } finally {
+      rmSync(caDir, { recursive: true, force: true });
+    }
+  });
+
+  test("ssh-cert: normalized principals flow into the issued cert", async () => {
+    const caDir = mkdtempSync(join(tmpdir(), "gh-ssh-norm-"));
+    try {
+      const caPath = join(caDir, "ca");
+      execSync(`ssh-keygen -t ed25519 -f ${caPath} -N "" -q`);
+      const caKey = readFileSync(caPath, "utf-8");
+
+      manager.saveConfig("ssh/clean", "ssh-cert", {
+        ca_private_key: caKey,
+        principals: " bradley ",
+      });
+      const lease = await manager.checkout("ssh/clean", "agent", 60);
+      expect(lease!.credential.principals).toBe("bradley");
+
+      // Inspect the actual cert principal list - regression catches a
+      // future change that signs with an untrimmed principal.
+      const workDir = mkdtempSync(join(tmpdir(), "gh-ssh-norm-work-"));
+      try {
+        const certPath = join(workDir, "k-cert.pub");
+        const fs = require("node:fs");
+        fs.writeFileSync(certPath, lease!.credential.certificate);
+        const out = execSync(`ssh-keygen -L -f ${certPath}`, { encoding: "utf-8" });
+        const principalsBlock = out.split(/Principals:\s*\n/)[1].split(/\n[A-Z]/)[0];
+        const lines = principalsBlock.split("\n").map((l: string) => l.trim()).filter(Boolean);
+        expect(lines).toContain("bradley");
+        expect(lines).not.toContain(" bradley");
+      } finally {
+        rmSync(workDir, { recursive: true, force: true });
+      }
+    } finally {
+      rmSync(caDir, { recursive: true, force: true });
+    }
+  });
+
   test("ssh-cert config surfaces allowed_hosts + principals in list metadata", () => {
     // Use a real but throwaway ed25519 CA; we never call checkout here, just
     // save the config so listConfigs can read it back.

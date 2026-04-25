@@ -1,3 +1,3 @@
 // Single source of truth for the Gatehouse version.
 // Update this value when cutting a release, then tag the commit.
-export const VERSION = "0.7.1";
+export const VERSION = "0.7.2";

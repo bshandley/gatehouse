@@ -218,7 +218,13 @@ export class DynamicSecretsManager {
       );
     }
 
-    const encryptedConfig = this.encryptConfig(config);
+    // Per-provider normalization (e.g. trim CSV fields). Defaults to
+    // identity if the provider doesn't implement the hook.
+    const normalized = provider.normalizeConfig
+      ? provider.normalizeConfig(config)
+      : config;
+
+    const encryptedConfig = this.encryptConfig(normalized);
 
     this.db
       .query(

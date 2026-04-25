@@ -38,6 +38,27 @@ export class SSHCertProvider implements DynamicProvider {
     return ["ca_private_key"];
   }
 
+  /**
+   * Normalize CSV fields: trim each entry, drop blanks, rejoin. Without
+   * this, a UI submission like "deploy, root" stores the literal
+   * " root" (leading space) and ssh-keygen signs the cert for a
+   * principal no Unix account matches.
+   */
+  normalizeConfig(config: Record<string, string>): Record<string, string> {
+    const csvKeys = ["principals", "extensions", "allowed_hosts"];
+    const out = { ...config };
+    for (const k of csvKeys) {
+      if (typeof out[k] === "string" && out[k].length > 0) {
+        out[k] = out[k]
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .join(",");
+      }
+    }
+    return out;
+  }
+
   async create(
     config: Record<string, string>,
     identity: string,
