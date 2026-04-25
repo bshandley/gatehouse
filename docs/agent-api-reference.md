@@ -68,6 +68,29 @@ Response shape matches `/v1/auth/approle/login`:
 
 Refresh re-checks AppRole suspension, IP allowlist, and the current policy list, so the new token reflects any operator changes since your last login. Refresh **does not** issue a new JWT from an expired one — `401` from `/refresh` means the token is past its TTL or the AppRole was deleted/suspended; fall back to a full re-login from `role_id` / `secret_id`.
 
+### Checking your current identity and token expiry
+
+`GET /v1/auth/whoami` introspects the current bearer token. Useful for confirming who you are, what policies are attached, and how much time is left before you need to `/refresh`.
+
+```bash
+curl http://localhost:3100/v1/auth/whoami \
+  -H "Authorization: Bearer eyJhbGciOi..."
+```
+
+Response:
+
+```json
+{
+  "identity": "approle:your-agent-name",
+  "policies": ["agent-readonly"],
+  "source": "approle",
+  "expires_at": "2026-04-26T00:00:00.000Z",
+  "expires_in": 86345
+}
+```
+
+`source` is one of `"approle"`, `"user"`, or `"root"`. Root tokens never expire, so `expires_at` and `expires_in` are absent in that case.
+
 ## Important: secrets are accessed by path, not by ID
 
 Secrets in Gatehouse have human-readable paths like `api-keys/openai` or `services/memos-token`. You always use the **path** in API URLs, never a UUID.

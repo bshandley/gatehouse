@@ -281,6 +281,52 @@ export function authRouter(db: Database, config: GatehouseConfig) {
     });
   });
 
+  // Identity introspection: who am I, what can I do, when does my token
+  // expire. Useful for HTTP-only agents that don't have gatehouse_status
+  // available via MCP. Same threat surface as login - reveals nothing the
+  // caller doesn't already control.
+  router.get("/whoami", async (c) => {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return c.json({ error: "Missing or invalid Authorization header", request_id: c.get("requestId") }, 401);
+    }
+    const tokenStr = authHeader.slice(7);
+
+    // Root token: no expiry, full admin.
+    const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
+    if (rootToken && tokenStr.length === rootToken.length && safeEqual(tokenStr, rootToken)) {
+      return c.json({
+        identity: "root",
+        policies: ["admin"],
+        source: "root",
+      });
+    }
+
+    let payload: any;
+    try {
+      const verified = await jwtVerify(tokenStr, secret, { issuer: "gatehouse" });
+      payload = verified.payload;
+    } catch {
+      return c.json({ error: "Token expired or invalid", request_id: c.get("requestId") }, 401);
+    }
+
+    if (payload.purpose === "totp-pending") {
+      return c.json({ error: "TOTP-pending tokens cannot introspect; complete TOTP first", request_id: c.get("requestId") }, 400);
+    }
+
+    const expSec = typeof payload.exp === "number" ? payload.exp : null;
+    const expiresAt = expSec ? new Date(expSec * 1000).toISOString() : null;
+    const expiresIn = expSec ? Math.max(0, expSec - Math.floor(Date.now() / 1000)) : null;
+
+    return c.json({
+      identity: payload.sub,
+      policies: payload.policies || [],
+      source: payload.role_id ? "approle" : "user",
+      expires_at: expiresAt,
+      expires_in: expiresIn,
+    });
+  });
+
   // List all AppRoles (requires root token)
   router.get("/approle", async (c) => {
     if (!(await requireAdmin(c))) {

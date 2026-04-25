@@ -749,6 +749,52 @@ describe("Auth API", () => {
     expect((await res.json()).error).toContain("no longer exists");
   });
 
+  test("GET /auth/whoami returns identity, policies, and expiry for an AppRole JWT", async () => {
+    const ip = "10.21.0.1";
+    const token = await loginAsAgent("whoami-test", ip, ["agent-readonly"]);
+
+    const res = await app.request("/v1/auth/whoami", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.identity).toBe("approle:whoami-test");
+    expect(body.policies).toEqual(["agent-readonly"]);
+    expect(body.source).toBe("approle");
+    expect(body.expires_at).toBeDefined();
+    expect(body.expires_in).toBeGreaterThan(86000);
+    expect(body.expires_in).toBeLessThanOrEqual(86400);
+    // expires_at should be ~24h from now
+    const eta = new Date(body.expires_at).getTime();
+    expect(eta - Date.now()).toBeGreaterThan(86000 * 1000);
+  });
+
+  test("GET /auth/whoami works with the root token (no expiry)", async () => {
+    const res = await app.request("/v1/auth/whoami", {
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.identity).toBe("root");
+    expect(body.policies).toEqual(["admin"]);
+    expect(body.source).toBe("root");
+    // Root token never expires; expiry fields are absent.
+    expect(body.expires_at).toBeUndefined();
+    expect(body.expires_in).toBeUndefined();
+  });
+
+  test("GET /auth/whoami rejects missing Authorization header", async () => {
+    const res = await app.request("/v1/auth/whoami");
+    expect(res.status).toBe(401);
+  });
+
+  test("GET /auth/whoami rejects garbage tokens", async () => {
+    const res = await app.request("/v1/auth/whoami", {
+      headers: { Authorization: "Bearer not-a-real-jwt" },
+    });
+    expect(res.status).toBe(401);
+  });
+
   test("POST /auth/refresh picks up policy changes (re-signs with current state)", async () => {
     const ip = "10.20.0.6";
     const token = await loginAsAgent("policy-shift", ip, ["agent-readonly"]);
