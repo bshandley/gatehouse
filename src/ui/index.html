@@ -4971,14 +4971,14 @@
     let html = '';
     for (const [secret, pats] of Object.entries(groups)) {
       html += `<div class="card pattern-group">
-        <div class="card-header" onclick="togglePatternGroup(this)">
+        <div class="card-header group-collapsed" onclick="togglePatternGroup(this)">
           <div style="display:flex;align-items:center;gap:10px">
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
             <span class="card-title" style="font-family:var(--font-mono)">${esc(secret)}</span>
           </div>
           <span class="badge badge-neutral">${pats.length} pattern${pats.length === 1 ? '' : 's'}</span>
         </div>
-        <div class="card-body pattern-group-body">`;
+        <div class="card-body pattern-group-body collapsed">`;
 
       for (const p of pats) {
         const confPct = Math.round(p.confidence * 100);
