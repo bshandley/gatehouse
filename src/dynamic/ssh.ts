@@ -107,7 +107,7 @@ export class SSHCertProvider implements DynamicProvider {
           valid_seconds: String(ttlSeconds),
           ca_public_key: caPublicKey,
           ...(allowedHosts ? { allowed_hosts: allowedHosts } : {}),
-          usage: `Save private_key and certificate to files (mode 0600), then: ssh -i <key> -o CertificateFile=<cert> -o IdentitiesOnly=yes -o IdentityAgent=none <principal>@<host>. IdentitiesOnly + IdentityAgent=none prevent other keys in your SSH agent from overriding the cert.`,
+          usage: `Write private_key to <path> (mode 0600) and certificate to <path>-cert.pub (the same prefix with -cert.pub appended). Then: ssh -i <path> -o IdentitiesOnly=yes -o IdentityAgent=none <principal>@<host>. SSH auto-discovers the cert from the -cert.pub sibling. IdentitiesOnly + IdentityAgent=none prevent other keys in the local SSH agent from overriding the cert. Avoid -o CertificateFile=<path>: some OpenSSH builds error out with "Load key: error in libcrypto" if the cert file ordering is unusual; the sibling-file convention works everywhere.`,
         },
         revocation_handle: certId,
       };

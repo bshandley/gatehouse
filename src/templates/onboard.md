@@ -265,11 +265,19 @@ and a clock.
   - Read `credential.principals` and use one of those as the SSH
     username. The cert is bound to those names.
   - Write `credential.private_key` and `credential.certificate` to
-    TWO SEPARATE tempfiles in one shell expansion (jq or python piped
-    to `>` redirect). Do NOT concatenate them into one file: `ssh`
-    expects `-i <key>` and `-o CertificateFile=<cert>` to be distinct
-    paths, and a combined file will parse as a malformed pubkey and
-    silently skip cert auth.
+    TWO SEPARATE files using the OpenSSH sibling convention: pick a
+    base path like `/tmp/gh_key` and write the private key there
+    (mode 0600), then write the certificate to the same path with
+    `-cert.pub` appended (e.g. `/tmp/gh_key-cert.pub`). `ssh -i
+    /tmp/gh_key ...` will auto-discover the cert. Use one shell
+    expansion (jq or python piped to `>` redirect). Do NOT
+    concatenate the two contents into one file — it will parse as a
+    malformed pubkey and SSH will silently skip cert auth.
+  - Prefer the sibling convention above to `-o CertificateFile=`.
+    Some OpenSSH builds error out with `Load key: error in libcrypto`
+    when the cert is passed via the explicit flag depending on file
+    ordering or trailing-whitespace edge cases. The sibling
+    convention always works.
   - Do NOT `cat`, `head`, or otherwise echo the files to verify.
     Many harnesses scrub credential-shaped strings from tool output,
     so the content will look redacted even though the file is intact.
@@ -280,6 +288,14 @@ and a clock.
     key in a way that looks like corruption. Use `ssh-keygen -L -f
     <cert>` to inspect the CERT (principals, validity, CA
     fingerprint) — that's safe and useful for debugging.
+  - Do NOT try to "verify cert and key match" by extracting base64
+    blobs from the cert file and comparing to the private key. The
+    cert is a wire-format SSH structure, not a bare pubkey, so any
+    naive comparison will look like a mismatch. The credential
+    Gatehouse returns is always internally consistent (private_key,
+    public_key, and certificate are a matched triple, asserted by a
+    test). If SSH still fails, the cause is somewhere else: wrong
+    username, wrong host, agent interference, server CA trust, etc.
   - Always pass `-o IdentitiesOnly=yes -o IdentityAgent=none` to
     `ssh`. Without these, keys in your local ssh-agent get offered
     first and sshd closes the connection for too many auth failures

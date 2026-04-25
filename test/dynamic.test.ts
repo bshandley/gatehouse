@@ -545,8 +545,10 @@ describe("DynamicSecretsManager", () => {
       expect(lease!.credential.private_key).toContain("PRIVATE KEY");
       expect(lease!.credential.certificate).toContain("ssh-ed25519-cert");
       // usage string should carry the IdentitiesOnly / IdentityAgent hint
+      // and the sibling-cert convention.
       expect(lease!.credential.usage).toContain("IdentitiesOnly=yes");
       expect(lease!.credential.usage).toContain("IdentityAgent=none");
+      expect(lease!.credential.usage).toContain("-cert.pub");
 
       // Without allowed_hosts, the field must be absent (not an empty string)
       manager.saveConfig("ssh/no-hosts", "ssh-cert", {
@@ -555,6 +557,64 @@ describe("DynamicSecretsManager", () => {
       });
       const lease2 = await manager.checkout("ssh/no-hosts", "test-agent", 60);
       expect(lease2!.credential.allowed_hosts).toBeUndefined();
+    } finally {
+      rmSync(caDir, { recursive: true, force: true });
+    }
+  });
+
+  // Regression: the certificate must be signed against the SAME public key
+  // that we return as private_key. An agent reported a "key/cert mismatch"
+  // claim that turned out to be a misreading of the cert's wire format,
+  // but the underlying invariant is load-bearing: derive pub from priv,
+  // compare to credential.public_key AND to the cert's embedded pubkey.
+  test("ssh-cert checkout: private_key, public_key, and certificate are a consistent triple", async () => {
+    const caDir = mkdtempSync(join(tmpdir(), "gh-ssh-pair-"));
+    try {
+      const caPath = join(caDir, "ca");
+      execSync(`ssh-keygen -t ed25519 -f ${caPath} -N "" -q`);
+      const caKey = readFileSync(caPath, "utf-8");
+
+      manager.saveConfig("ssh/pair", "ssh-cert", {
+        ca_private_key: caKey,
+        principals: "deploy",
+      });
+      const lease = await manager.checkout("ssh/pair", "test-agent", 60);
+      expect(lease).not.toBeNull();
+
+      // Write priv + cert to disk so we can run ssh-keygen against them.
+      const workDir = mkdtempSync(join(tmpdir(), "gh-ssh-pair-work-"));
+      try {
+        const privPath = join(workDir, "k");
+        const certPath = join(workDir, "k-cert.pub");
+        const fs = require("node:fs");
+        fs.writeFileSync(privPath, lease!.credential.private_key, { mode: 0o600 });
+        fs.writeFileSync(certPath, lease!.credential.certificate);
+
+        // Pub derived from the private key.
+        const derivedPub = execSync(`ssh-keygen -y -f ${privPath}`, {
+          encoding: "utf-8",
+        }).trim();
+        const derivedFp = execSync(`ssh-keygen -lf ${privPath}`, {
+          encoding: "utf-8",
+        })
+          .trim()
+          .split(/\s+/)[1]; // "256 SHA256:... comment (ED25519)"
+
+        // The credential.public_key field must match exactly.
+        expect(lease!.credential.public_key.split(/\s+/).slice(0, 2).join(" "))
+          .toBe(derivedPub.split(/\s+/).slice(0, 2).join(" "));
+
+        // The cert's embedded pubkey fingerprint (from -L output) must
+        // match the derived pubkey fingerprint. Same key => same SHA256.
+        const certInspect = execSync(`ssh-keygen -L -f ${certPath}`, {
+          encoding: "utf-8",
+        });
+        const certPubFpMatch = certInspect.match(/Public key:\s+\S+\s+(SHA256:\S+)/);
+        expect(certPubFpMatch).not.toBeNull();
+        expect(certPubFpMatch![1]).toBe(derivedFp);
+      } finally {
+        rmSync(workDir, { recursive: true, force: true });
+      }
     } finally {
       rmSync(caDir, { recursive: true, force: true });
     }
