@@ -155,6 +155,11 @@
       padding: 2px 6px;
       border-radius: 4px;
       letter-spacing: 0.02em;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .sidebar-version:hover {
+      color: var(--accent);
     }
 
     .sidebar-nav {
@@ -1643,7 +1648,7 @@
     <div class="sidebar-header">
       <div class="sidebar-logo"><svg viewBox="190 50 220 230" width="32" height="32" preserveAspectRatio="xMidYMid meet"><g transform="translate(0,328) scale(0.1,-0.1)"><path fill="#6c63ff" d="M2490 2696 l-485 -122 0 -519 c0 -471 2 -528 19 -605 73 -333 278 -607 608 -812 134 -83 327 -172 373 -172 48 0 282 114 411 199 257 171 449 412 528 661 52 167 51 156 51 719 l0 529 -485 123 c-267 67 -496 122 -510 122 -14 0 -243 -55 -510 -123z"/><path fill="#ffffff" d="M2935 2303 c-278 -41 -485 -277 -485 -553 0 -259 188 -492 439 -545 89 -19 137 -19 224 0 105 22 192 70 272 150 107 106 165 235 165 366 0 89 1 89 -242 89 -192 0 -206 1 -223 20 -31 34 -86 45 -127 26 -85 -40 -92 -154 -12 -207 48 -32 119 -19 147 28 6 10 47 13 169 13 l160 0 -7 -37 c-32 -172 -206 -321 -386 -331 -323 -19 -548 312 -413 607 115 254 444 331 654 155 57 -48 120 -29 120 36 0 46 -102 121 -219 159 -60 20 -183 32 -236 24z"/></g></svg></div>
       <span class="sidebar-title">Gatehouse</span>
-      <span class="sidebar-version" id="sidebar-version">v0.2.1</span>
+      <a class="sidebar-version" id="sidebar-version" href="https://github.com/bshandley/gatehouse/releases" target="_blank" rel="noreferrer" title="View release notes on GitHub">v0.2.1</a>
     </div>
     <nav class="sidebar-nav">
       <div class="sidebar-section">Overview</div>
@@ -2046,7 +2051,7 @@
             <div class="settings-grid">
               <div class="settings-item">
                 <div class="detail-field-label">Server Version</div>
-                <div class="detail-field-value mono" id="settings-version">-</div>
+                <div class="detail-field-value mono"><a id="settings-version" href="https://github.com/bshandley/gatehouse/releases" target="_blank" rel="noreferrer" title="View release notes on GitHub" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--border)">-</a></div>
               </div>
               <div class="settings-item">
                 <div class="detail-field-label">Uptime</div>
@@ -2641,8 +2646,14 @@
     }
     document.getElementById('sidebar-identity').textContent = identity;
     fetch('/health').then(r => r.json()).then(d => {
+      if (!d.version) return;
+      const tag = 'v' + d.version;
+      const releaseUrl = `https://github.com/bshandley/gatehouse/releases/tag/${tag}`;
       const v = document.getElementById('sidebar-version');
-      if (v && d.version) v.textContent = 'v' + d.version;
+      if (v) {
+        v.textContent = tag;
+        if (v.tagName === 'A') v.setAttribute('href', releaseUrl);
+      }
     }).catch(() => {});
     loadUpdateBanner();
     // Navigate to hash or default to dashboard
@@ -5085,7 +5096,13 @@
     // Health
     try {
       const data = await fetch('/health').then(r => r.json());
-      document.getElementById('settings-version').textContent = data.version || '-';
+      const verEl = document.getElementById('settings-version');
+      if (verEl) {
+        verEl.textContent = data.version || '-';
+        if (data.version) {
+          verEl.setAttribute('href', `https://github.com/bshandley/gatehouse/releases/tag/v${data.version}`);
+        }
+      }
       document.getElementById('settings-uptime').textContent = formatUptime(data.uptime_seconds || 0);
       document.getElementById('settings-status-badge').innerHTML = '<span class="badge-dot"></span> Healthy';
       document.getElementById('settings-status-badge').className = 'badge badge-success';
