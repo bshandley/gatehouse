@@ -178,7 +178,7 @@ app.route("/v1/onboard", onboardRouter(db, audit, policies, config));
 app.route("/v1/rotate", rotateRouter(db, audit, config));
 
 // Protected routes
-app.use("/v1/*", authMiddleware(config));
+app.use("/v1/*", authMiddleware(config, db));
 
 // Server config (non-sensitive values only, requires auth)
 app.get("/v1/config", (c) => {

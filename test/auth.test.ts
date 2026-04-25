@@ -36,8 +36,9 @@ function buildApp(db: Database) {
 
   app.route("/v1/auth", authRouter(db, config));
 
-  // Protected test route to verify tokens work
-  app.use("/v1/*", authMiddleware(config));
+  // Protected test route to verify tokens work. Pass db so the middleware
+  // exercises the per-request user.enabled check that disable/delete rely on.
+  app.use("/v1/*", authMiddleware(config, db));
   app.get("/v1/whoami", (c) => {
     const auth = c.get("auth") as any;
     return c.json({ identity: auth.identity, policies: auth.policies });
@@ -793,6 +794,114 @@ describe("Auth API", () => {
       headers: { Authorization: "Bearer not-a-real-jwt" },
     });
     expect(res.status).toBe(401);
+  });
+
+  // Regression coverage for the user-disable bypass: prior to the fix,
+  // POST /v1/auth/refresh would re-sign a user JWT for another full 24h
+  // without checking the underlying user row, and the global middleware
+  // never re-checked enabled per request, so a disabled or deleted user
+  // could perpetually self-renew admin.
+  let _userTestIpCounter = 0;
+  async function createAndLoginUser(username: string): Promise<string> {
+    _userTestIpCounter++;
+    const ip = `10.50.${(_userTestIpCounter >> 8) & 0xff}.${_userTestIpCounter & 0xff}`;
+    const createRes = await app.request("/v1/auth/users", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password: "securepass123", display_name: username }),
+    });
+    expect(createRes.status).toBe(201);
+    // Unique source IP per login because the auth.ts rate limiter is
+    // module-level state shared across the whole test process.
+    const loginRes = await app.request("/v1/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-For": ip },
+      body: JSON.stringify({ username, password: "securepass123" }),
+    });
+    expect(loginRes.status).toBe(200);
+    return (await loginRes.json()).token;
+  }
+
+  test("POST /auth/refresh refuses to renew a disabled user's JWT", async () => {
+    const token = await createAndLoginUser("user-disable-refresh");
+    await app.request(`/v1/auth/users/user-disable-refresh`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: false }),
+    });
+
+    const res = await app.request("/v1/auth/refresh", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "X-Forwarded-For": "10.50.99.1" },
+    });
+    expect(res.status).toBe(401);
+    expect((await res.json()).error).toContain("disabled");
+  });
+
+  test("POST /auth/refresh refuses to renew a deleted user's JWT", async () => {
+    const token = await createAndLoginUser("user-delete-refresh");
+    await app.request(`/v1/auth/users/user-delete-refresh`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}` },
+    });
+
+    const res = await app.request("/v1/auth/refresh", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "X-Forwarded-For": "10.50.99.2" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("authMiddleware rejects a disabled user's JWT on protected routes", async () => {
+    const token = await createAndLoginUser("user-disable-mw");
+    // Token works pre-disable.
+    const before = await app.request("/v1/whoami", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(before.status).toBe(200);
+
+    // Disable.
+    await app.request(`/v1/auth/users/user-disable-mw`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: false }),
+    });
+
+    // Same JWT, same route - now rejected by middleware on the very next
+    // request (no waiting for the 24h JWT TTL).
+    const after = await app.request("/v1/whoami", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(after.status).toBe(401);
+    expect((await after.json()).error).toContain("disabled or removed");
+  });
+
+  test("authMiddleware rejects a deleted user's JWT on protected routes", async () => {
+    const token = await createAndLoginUser("user-delete-mw");
+    await app.request(`/v1/auth/users/user-delete-mw`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${TEST_ROOT_TOKEN}` },
+    });
+    const res = await app.request("/v1/whoami", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("POST /auth/refresh re-derives policies from current user.role state", async () => {
+    // Refreshed token's policies must come from the DB, not the inbound
+    // JWT payload. Today every user is admin, so this just asserts the
+    // claim is present and matches DB state. If a richer role model lands,
+    // this test should be expanded to verify role downgrade takes effect.
+    const token = await createAndLoginUser("user-policy-derive");
+    const res = await app.request("/v1/auth/refresh", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "X-Forwarded-For": "10.50.99.3" },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.policies).toEqual(["admin"]);
+    expect(body.identity).toBe("user:user-policy-derive");
   });
 
   test("POST /auth/refresh picks up policy changes (re-signs with current state)", async () => {

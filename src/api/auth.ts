@@ -260,12 +260,38 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       });
     }
 
-    // Non-AppRole JWTs (user logins). Re-sign with the same claims; the
-    // user-management surface lives elsewhere and isn't suspended via
-    // app_roles.
+    // Non-AppRole JWTs (user logins). Re-check the underlying user row
+    // before re-signing: a disabled or deleted user holding a still-valid
+    // JWT must not be able to perpetually self-renew it. Re-derive the
+    // policy claim from the current users.role rather than echoing
+    // payload.policies, so a role downgrade also takes effect at refresh.
+    const sub = String(payload.sub || "");
+    const username = sub.startsWith("user:") ? sub.slice(5) : null;
+    if (!username) {
+      return c.json(
+        { error: "Unrecognized subject; re-login from credentials", request_id: c.get("requestId") },
+        401
+      );
+    }
+    const userRow = db
+      .query("SELECT username, display_name, enabled, role FROM users WHERE username = ?")
+      .get(username) as { username: string; display_name: string; enabled: number; role: string } | null;
+    if (!userRow || !userRow.enabled) {
+      return c.json(
+        { error: "User account is disabled or removed", request_id: c.get("requestId") },
+        401
+      );
+    }
+
+    // Current role->policy mapping mirrors the user-login handlers:
+    // every UI user is granted ["admin"] today. Keep this in lockstep
+    // if a richer role model ever lands.
+    const freshPolicies = ["admin"];
+
     const newToken = await new SignJWT({
-      sub: payload.sub,
-      policies: payload.policies,
+      sub: `user:${userRow.username}`,
+      policies: freshPolicies,
+      display_name: userRow.display_name,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuer("gatehouse")
@@ -275,8 +301,8 @@ export function authRouter(db: Database, config: GatehouseConfig) {
 
     return c.json({
       token: newToken,
-      identity: payload.sub,
-      policies: payload.policies,
+      identity: `user:${userRow.username}`,
+      policies: freshPolicies,
       expires_in: 86400,
     });
   });

@@ -1,6 +1,7 @@
 import type { Context, Next } from "hono";
 import { jwtVerify } from "jose";
 import { timingSafeEqual } from "crypto";
+import type { Database } from "bun:sqlite";
 import type { GatehouseConfig } from "../config";
 import { ipMatchesAllowlist } from "./cidr";
 
@@ -26,8 +27,19 @@ export function safeEqual(a: string, b: string): boolean {
  * - Root token (GATEHOUSE_ROOT_TOKEN env var, for bootstrapping)
  *
  * Sets c.set("auth", AuthContext) for downstream handlers.
+ *
+ * When `db` is provided, user JWTs (sub starts with "user:") are
+ * re-checked against the users table on EVERY request: if the row is
+ * missing or `enabled = 0`, the JWT is rejected. This means disabling
+ * or deleting a user takes effect immediately, not at the end of the
+ * 24h JWT TTL. AppRole JWT validity is unaffected here (suspension is
+ * enforced at /refresh and at login; per-request DB hits for AppRoles
+ * would add latency to the agent hot path without a comparable revocation
+ * win, since AppRoles are revoked by deleting the role - which evicts
+ * future logins - and operators can rotate the secret_id via /v1/rotate
+ * to invalidate any in-flight JWTs at next refresh).
  */
-export function authMiddleware(config: GatehouseConfig) {
+export function authMiddleware(config: GatehouseConfig, db?: Database) {
   const rootToken = process.env.GATEHOUSE_ROOT_TOKEN;
   const secret = new TextEncoder().encode(config.jwtSecret);
 
@@ -75,6 +87,26 @@ export function authMiddleware(config: GatehouseConfig) {
 
       // AppRole JWTs carry role_id in the payload; user JWTs do not.
       const isApprole = typeof payload.role_id === "string";
+
+      // For user JWTs, recheck the underlying user row on every request
+      // so disable/delete takes effect immediately. Without this, a JWT
+      // minted before disable keeps working until its 24h TTL, and an
+      // attacker with a stolen JWT could even self-renew via /refresh
+      // to retain admin indefinitely (see auth.ts /refresh fix).
+      if (!isApprole && db) {
+        const sub = String(payload.sub || "");
+        const username = sub.startsWith("user:") ? sub.slice(5) : null;
+        if (!username) {
+          return c.json({ error: "Unrecognized user subject", request_id: c.get("requestId") }, 401);
+        }
+        const userRow = db
+          .query("SELECT enabled FROM users WHERE username = ?")
+          .get(username) as { enabled: number } | null;
+        if (!userRow || !userRow.enabled) {
+          return c.json({ error: "User account is disabled or removed", request_id: c.get("requestId") }, 401);
+        }
+      }
+
       c.set("auth", {
         identity: payload.sub || "unknown",
         policies: (payload.policies as string[]) || [],
