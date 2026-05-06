@@ -217,6 +217,16 @@ export function initDB(dataDir: string): Database {
   );
   db.run("CREATE INDEX IF NOT EXISTS idx_rotate_role ON rotate_tokens(role_id)");
 
+  // SSO login state (one-shot per /v1/auth/sso/start; reaped at 10 minutes)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sso_login_state (
+      state          TEXT PRIMARY KEY,
+      nonce          TEXT NOT NULL,
+      code_verifier  TEXT NOT NULL,
+      created_at     INTEGER NOT NULL  -- unix seconds; INTEGER (not TEXT) so the reaper can compare numerically
+    )
+  `);
+
   // Migrations: handle schema changes on existing databases
   const userCols = db.query("PRAGMA table_info(users)").all() as { name: string }[];
   const userColNames = userCols.map((c) => c.name);
@@ -266,6 +276,9 @@ export function initDB(dataDir: string): Database {
   );
   db.run(
     "CREATE INDEX IF NOT EXISTS idx_patterns_secret ON proxy_patterns(secret_path)"
+  );
+  db.run(
+    "CREATE INDEX IF NOT EXISTS idx_sso_login_state_created_at ON sso_login_state(created_at)"
   );
 
   return db;

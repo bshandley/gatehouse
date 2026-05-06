@@ -1,6 +1,6 @@
 ---
 title: "Authentication"
-description: "Root token, user accounts, AppRoles for agents, and TOTP two-factor auth."
+description: "Root token, user accounts, AppRoles for agents, OIDC SSO, and TOTP two-factor auth."
 sidebar_order: 1
 sidebar_group: "USING GATEHOUSE"
 ---
@@ -158,6 +158,67 @@ curl http://localhost:3100/v1/onboard -H "Authorization: Bearer $ADMIN_JWT"
 curl -X DELETE http://localhost:3100/v1/onboard/<id> \
   -H "Authorization: Bearer $ADMIN_JWT"
 ```
+
+## SSO (OpenID Connect)
+
+Gatehouse supports OIDC single sign-on for the web UI. The login page shows a `Sign in with SSO` button when SSO is configured; the username and token tabs continue to work for non-SSO users. Tested against PocketID, Authentik, Keycloak, and Google.
+
+**Account model: link-by-verified-email.** SSO is *not* a way to create new accounts. The IdP-asserted email must match an existing Gatehouse user's `email` field, and the user must be `enabled = 1`. Admins pre-create the user (Users tab) and populate `email`; the next time that person clicks `Sign in with SSO`, they land in their existing Gatehouse account.
+
+### Configure
+
+1. Sign in with the bootstrap root token or an admin user.
+2. Go to **Settings → SSO / OAuth Configuration** and toggle **Enable SSO** on.
+3. Fill in:
+   - **Issuer URL** — the IdP's base URL (e.g. `https://id.example.com`). Gatehouse fetches `<issuer>/.well-known/openid-configuration` when you save and refuses the save if discovery fails.
+   - **Client ID / Client Secret** — from your IdP's OIDC client registration.
+   - **Redirect URI** — `https://<your-gatehouse-host>/v1/auth/sso/callback`. Configure the same string in the IdP's allowed redirect URIs.
+   - **Scopes** — defaults to `openid profile email`. The `openid` scope is required.
+4. Save. Use the **Test SSO** link to dry-run the IdP redirect in a new tab without logging out.
+5. On each user record (Users tab), populate **Email** to match what the IdP will assert.
+
+### `email_verified` enforcement
+
+By default, Gatehouse requires the IdP's userinfo to include `email_verified: true`. This is the safety net against an IdP that lets users self-attest emails.
+
+Some IdPs (notably **PocketID**) intentionally omit the `email_verified` claim because their threat model is "the admin invited you, the email is administrator-controlled." For those, enable **Trust email without `email_verified` claim** in the SSO settings card. The hint text on the toggle spells out the tradeoff. Default-safe; only flip it when you trust your IdP's email setup.
+
+### Bootstrap via environment variables (optional)
+
+If you'd rather automate first-boot setup, set these on the container:
+
+```yaml
+- GATEHOUSE_OAUTH_ISSUER=https://id.example.com
+- GATEHOUSE_OAUTH_CLIENT_ID=gatehouse
+- GATEHOUSE_OAUTH_CLIENT_SECRET=...
+- GATEHOUSE_OAUTH_REDIRECT_URI=https://gatehouse.example.com/v1/auth/sso/callback
+```
+
+If no `settings/sso` row exists at boot, Gatehouse seeds one with `enabled: true` and these values. After boot, the database is the single source of truth and the env vars are ignored — manage SSO from the UI.
+
+### Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/v1/auth/sso/status` | Public. Returns `{enabled: boolean}`. Used by the unauth login page. |
+| GET | `/v1/auth/sso/start` | Public. Mints state + nonce + PKCE verifier, 302s to the IdP authorize URL. |
+| GET | `/v1/auth/sso/callback` | Public. Verifies signature/iss/aud/exp/nonce, cross-checks userinfo `sub` (OIDC §5.3.2), links by email, mints a Gatehouse JWT, 302s to `/#sso=<jwt>` so the JWT lands in the URL fragment (not query string, not access logs). |
+
+### Audit events
+
+Each callback path emits exactly one audit event. Sift `/v1/audit?action=...` or container stdout to debug:
+
+| Event | When |
+|---|---|
+| `sso.start` | `/start` route mints a state row and redirects. |
+| `sso.callback.success` | All checks passed; JWT minted. |
+| `sso.callback.invalid_state` | State row missing, expired (>10 min), or already consumed. |
+| `sso.callback.exchange_failed` | Code exchange failed, ID token verification failed, JWKS signature failed, or userinfo fetch failed. The audit row's `metadata.error` carries the upstream error string. |
+| `sso.callback.unverified_email` | IdP's `email_verified` is not `true` and `trust_unverified_email` is off. |
+| `sso.callback.no_user_match` | No enabled Gatehouse user has the IdP-asserted email. |
+| `sso.callback.email_collision` | Two or more Gatehouse users share the IdP-asserted email (admin error). |
+
+The user-visible error page is intentionally vague ("Sign-in failed", "Login link expired", "No Gatehouse account is linked to this identity"). The audit log is the source of truth for which path actually fired.
 
 ## TOTP (two-factor auth)
 

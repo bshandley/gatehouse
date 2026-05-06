@@ -22,6 +22,7 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 - **Per-agent identity.** Each agent gets its own AppRole with scoped policies and a full audit trail.
 - **Key rotation.** Rotate the master key and re-wrap all DEKs in one API call, zero downtime.
 - **Web UI.** Dark-themed control panel with command palette (Cmd/Ctrl+K) for managing secrets, leases, agents, patterns, and audit logs.
+- **SSO.** Optional OpenID Connect single sign-on for human admins. Works with PocketID, Authentik, Keycloak, Google, and any other OIDC provider. Strict link-by-verified-email account model; configure once in Settings.
 - **Homelab-first.** Single Docker container. Runs on a Raspberry Pi, Proxmox LXC, or Jetson Orin Nano. AGPL-3.0.
 
 ## Quick start

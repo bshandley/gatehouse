@@ -23,6 +23,9 @@ All REST routes under `/v1/` require `Authorization: Bearer <token>` except `/v1
 |---|---|---|
 | POST | `/v1/auth/login` | User login (username + password → JWT). |
 | POST | `/v1/auth/login/totp` | Exchange pre-auth token + TOTP code for a full JWT. |
+| GET | `/v1/auth/sso/status` | Public. Returns `{enabled}` so the unauth login page can decide whether to show the SSO button. |
+| GET | `/v1/auth/sso/start` | Public. Mints state+nonce+PKCE, redirects (302) to the IdP authorize URL. |
+| GET | `/v1/auth/sso/callback` | Public. OIDC redirect target. Verifies the ID token, links by IdP-verified email, and 302s to `/#sso=<jwt>`. |
 | POST | `/v1/auth/approle/login` | Exchange role_id + secret_id for a JWT. |
 | GET | `/v1/auth/approle` | List AppRoles (admin). |
 | POST | `/v1/auth/approle` | Create AppRole (admin). |

@@ -12,6 +12,7 @@ import { meRouter } from "./api/me";
 import { policyRouter } from "./api/policy";
 import { auditRouter } from "./api/audit";
 import { authMiddleware } from "./auth/middleware";
+import { validateOidcIssuerForSettings, reapExpiredSsoState, seedSsoFromEnv } from "./auth/sso";
 import { mcpHttpRouter } from "./mcp/server";
 import { proxyRouter } from "./api/proxy";
 import { dynamicRouter } from "./api/dynamic";
@@ -32,6 +33,7 @@ import { hkdfSync } from "crypto";
 
 const config = loadConfig();
 const db = initDB(config.dataDir);
+seedSsoFromEnv(db);
 const eventBus = new EventBus();
 const audit = new AuditLog(db, eventBus);
 const secrets = new SecretsEngine(db, config.masterKey);
@@ -43,6 +45,13 @@ const patternEngine = new PatternEngine(db);
 // Start lease reapers (check for expired leases every 30s)
 leases.startReaper(30_000);
 dynamicSecrets.startReaper(30_000);
+
+const ssoStateReaperInterval = setInterval(() => {
+  const removed = reapExpiredSsoState(db);
+  if (removed > 0) {
+    console.log(`[gatehouse:sso] reaped ${removed} stale state row(s)`);
+  }
+}, 60_000);
 
 // Audit log retention purge + onboarding token cleanup (check every hour)
 const auditPurgeInterval = setInterval(() => {
@@ -165,7 +174,7 @@ app.get("/", async (c) => {
 });
 
 // Auth routes (login, token exchange - no auth middleware)
-app.route("/v1/auth", authRouter(db, config));
+app.route("/v1/auth", authRouter(db, config, audit));
 
 // Onboarding routes (public fetch/exchange + admin-gated create/list/revoke).
 // Mounted BEFORE authMiddleware: the onboarding token in the URL path is the
@@ -183,11 +192,23 @@ app.use("/v1/*", authMiddleware(config, db));
 
 // Server config (non-sensitive values only, requires auth)
 app.get("/v1/config", (c) => {
+  const ssoRow = db
+    .query("SELECT value FROM settings WHERE key = 'sso'")
+    .get() as { value: string } | null;
+  let ssoEnabled = false;
+  let ssoIssuer = "";
+  if (ssoRow) {
+    try {
+      const s = JSON.parse(ssoRow.value);
+      ssoEnabled = s.enabled === true && !!s.issuer && !!s.client_id;
+      ssoIssuer = s.issuer || "";
+    } catch { /* malformed; leave defaults */ }
+  }
   return c.json({
     port: config.port,
     jwt_expiry: "24h",
-    oauth_enabled: !!config.oauth,
-    oauth_issuer: config.oauth?.issuer ?? "",
+    oauth_enabled: ssoEnabled,
+    oauth_issuer: ssoIssuer,
     root_token_set: !!process.env.GATEHOUSE_ROOT_TOKEN,
     lease_reaper_interval: 30,
     max_lease_ttl: 86400,
@@ -232,6 +253,17 @@ app.post("/v1/settings/sso", async (c) => {
   const existing = db.query("SELECT value FROM settings WHERE key = 'sso'").get() as { value: string } | null;
   const current = existing ? JSON.parse(existing.value) : {};
 
+  if ((body.enabled ?? current.enabled) && (body.issuer ?? current.issuer)) {
+    try {
+      await validateOidcIssuerForSettings(body.issuer ?? current.issuer);
+    } catch (err: any) {
+      return c.json(
+        { error: `Issuer validation failed: ${err?.message || err}`, request_id: c.get("requestId") },
+        400
+      );
+    }
+  }
+
   // If client_secret is empty string, keep existing
   if (body.client_secret === "") {
     body.client_secret = current.client_secret || "";
@@ -244,6 +276,7 @@ app.post("/v1/settings/sso", async (c) => {
     client_secret: body.client_secret ?? current.client_secret ?? "",
     redirect_uri: body.redirect_uri ?? current.redirect_uri ?? "",
     scopes: body.scopes ?? current.scopes ?? "openid profile email",
+    trust_unverified_email: body.trust_unverified_email ?? current.trust_unverified_email ?? false,
   };
 
   db.query(
@@ -408,6 +441,7 @@ process.on("SIGTERM", () => {
   leases.stopReaper();
   dynamicSecrets.stopReaper();
   clearInterval(auditPurgeInterval);
+  clearInterval(ssoStateReaperInterval);
   db.close();
   process.exit(0);
 });
@@ -417,6 +451,7 @@ process.on("SIGINT", () => {
   leases.stopReaper();
   dynamicSecrets.stopReaper();
   clearInterval(auditPurgeInterval);
+  clearInterval(ssoStateReaperInterval);
   db.close();
   process.exit(0);
 });

@@ -1250,7 +1250,7 @@
       padding-bottom: 16px; border-bottom: 1px solid var(--border);
     }
     .sso-enable-label { font-size: 13px; font-weight: 500; }
-    .sso-save-row { display: flex; justify-content: flex-end; margin-top: 16px; }
+    .sso-save-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
     /* Capability badges */
     .cap-badge {
@@ -1668,6 +1668,13 @@
       <div class="login-mark"><svg viewBox="190 50 220 230" width="60" height="60" preserveAspectRatio="xMidYMid meet"><g transform="translate(0,328) scale(0.1,-0.1)"><path fill="#6c63ff" d="M2490 2696 l-485 -122 0 -519 c0 -471 2 -528 19 -605 73 -333 278 -607 608 -812 134 -83 327 -172 373 -172 48 0 282 114 411 199 257 171 449 412 528 661 52 167 51 156 51 719 l0 529 -485 123 c-267 67 -496 122 -510 122 -14 0 -243 -55 -510 -123z"/><path fill="#ffffff" d="M2935 2303 c-278 -41 -485 -277 -485 -553 0 -259 188 -492 439 -545 89 -19 137 -19 224 0 105 22 192 70 272 150 107 106 165 235 165 366 0 89 1 89 -242 89 -192 0 -206 1 -223 20 -31 34 -86 45 -127 26 -85 -40 -92 -154 -12 -207 48 -32 119 -19 147 28 6 10 47 13 169 13 l160 0 -7 -37 c-32 -172 -206 -321 -386 -331 -323 -19 -548 312 -413 607 115 254 444 331 654 155 57 -48 120 -29 120 36 0 46 -102 121 -219 159 -60 20 -183 32 -236 24z"/></g></svg></div>
       <h1 class="login-title">Gatehouse</h1>
       <p class="login-sub">Sign in to the secrets vault</p>
+
+      <!-- SSO (visible only if /v1/auth/sso/status returns enabled:true) -->
+      <button id="login-sso-btn" class="btn btn-primary login-btn-full hidden"
+              onclick="doSSOLogin()">
+        Sign in with SSO
+      </button>
+      <div id="login-sso-divider" class="login-divider hidden">or</div>
 
       <!-- Tab toggle -->
       <div class="login-tabs">
@@ -2200,7 +2207,13 @@
                 <label>Scopes</label>
                 <input type="text" class="input" id="sso-scopes" placeholder="openid profile email">
               </div>
+              <div class="sso-toggle-row" style="margin-top: 16px; margin-bottom: 4px; padding-bottom: 0; border-bottom: 0;">
+                <label class="sso-enable-label" for="sso-trust-unverified-toggle">Trust email without <code>email_verified</code> claim</label>
+                <div class="toggle" id="sso-trust-unverified-toggle" onclick="toggleSSOTrustUnverified()"></div>
+              </div>
+              <p class="login-totp-hint" style="margin: 0 0 16px 0;">Enable for IdPs that don't emit <code>email_verified</code> (e.g. PocketID). Leave off for IdPs that DO emit it (Google, Authentik, Keycloak), since the strict check is your safety net against an IdP that lets users self-attest emails.</p>
               <div class="sso-save-row">
+                <a class="btn btn-ghost" href="/v1/auth/sso/start" target="_blank" rel="noreferrer">Test SSO</a>
                 <button class="btn btn-primary" onclick="saveSSOSettings()">Save SSO Settings</button>
               </div>
             </div>
@@ -2311,6 +2324,8 @@
 
   if (token) showApp();
 
+  initLoginScreen();
+
   // Handle hash routing on page load and hash change
   window.addEventListener('hashchange', () => {
     const page = location.hash.slice(1) || 'dashboard';
@@ -2321,11 +2336,11 @@
 
   // Expose to global scope for inline handlers
   Object.assign(window, {
-    doLogin, doLogout, showPage, filterSecretTree,
+    doLogin, doLogout, doSSOLogin, showPage, filterSecretTree,
     openCreateSecretModal, openCreateAgentModal,
     reloadPolicies, toggleAuditLive, exportAuditLog,
     loadDashboard, loadAuditLog, purgeExpiredLeases, purgeAuditLog, openRotateKeyModal, toast, toggleTheme,
-    openPolicyEditor, saveSSOSettings, toggleSSOEnabled,
+    openPolicyEditor, saveSSOSettings, toggleSSOEnabled, toggleSSOTrustUnverified,
     switchLoginTab, openCreateUserModal,
     submitTotpCode, cancelTotpLogin,
     startTotpSetup, disableTotp, regenerateRecoveryCodes
@@ -2360,6 +2375,38 @@
     document.getElementById('login-error').classList.add('hidden');
   }
 
+  async function initLoginScreen() {
+    // Land any SSO callback first so a fresh JWT-bearing redirect lands the app.
+    const m = location.hash.match(/^#sso=([^&]+)/);
+    if (m) {
+      const jwt = decodeURIComponent(m[1]);
+      history.replaceState(null, '', location.pathname);
+      completeLogin(jwt);
+      return;
+    }
+    // Otherwise, ask the server whether SSO is configured and reveal the button.
+    try {
+      const res = await fetch('/v1/auth/sso/status');
+      if (!res.ok) return;
+      const body = await res.json();
+      if (body.enabled) {
+        document.getElementById('login-sso-btn').classList.remove('hidden');
+        document.getElementById('login-sso-divider').classList.remove('hidden');
+      }
+    } catch { /* ignore - SSO stays hidden */ }
+  }
+
+  function doSSOLogin() {
+    window.location.href = '/v1/auth/sso/start';
+  }
+
+  function completeLogin(jwt) {
+    token = jwt;
+    localStorage.setItem('gatehouseToken', jwt);
+    document.getElementById('login-error').classList.add('hidden');
+    showApp();
+  }
+
   async function doLogin() {
     const err = document.getElementById('login-error');
 
@@ -2389,10 +2436,7 @@
           return;
         }
 
-        token = data.token;
-        localStorage.setItem('gatehouseToken', data.token);
-        err.classList.add('hidden');
-        showApp();
+        completeLogin(data.token);
       } catch (e) {
         err.textContent = 'Server unreachable';
         err.classList.remove('hidden');
@@ -2405,11 +2449,8 @@
       try {
         const res = await fetch('/health');
         if (!res.ok) throw new Error('Server unreachable');
-        token = t;
-        localStorage.setItem('gatehouseToken', t);
         await api('/v1/audit?limit=1');
-        err.classList.add('hidden');
-        showApp();
+        completeLogin(t);
       } catch (e) {
         if (e.message.includes('401') || e.message.includes('Invalid') || e.message.includes('Missing')) {
           localStorage.removeItem('gatehouseToken');
@@ -2439,6 +2480,10 @@
     document.getElementById('login-submit-btn').style.display = '';
     document.getElementById('login-form-user').style.display = loginMode === 'user' ? 'block' : 'none';
     history.replaceState(null, '', '/');
+    // Re-probe SSO status so the button reappears without a page reload, in
+    // case admin enabled SSO during this session (or it was already enabled
+    // when the page first loaded but the in-memory state went stale).
+    initLoginScreen();
   }
 
   // TOTP second-factor login helpers
@@ -5259,6 +5304,11 @@
       document.getElementById('sso-client-secret').placeholder = sso.client_secret_set ? '••••••••  (leave blank to keep)' : 'Enter client secret';
       document.getElementById('sso-redirect-uri').value = sso.redirect_uri || '';
       document.getElementById('sso-scopes').value = sso.scopes || 'openid profile email';
+      const trustToggle = document.getElementById('sso-trust-unverified-toggle');
+      if (trustToggle) {
+        if (sso.trust_unverified_email) trustToggle.classList.add('on');
+        else trustToggle.classList.remove('on');
+      }
     } catch {
       // SSO settings may not be accessible if not admin
     }
@@ -5274,6 +5324,10 @@
     fields.classList.toggle('hidden', !toggle.classList.contains('on'));
   }
 
+  function toggleSSOTrustUnverified() {
+    document.getElementById('sso-trust-unverified-toggle').classList.toggle('on');
+  }
+
   async function saveSSOSettings() {
     const sso = {
       enabled: document.getElementById('sso-enabled-toggle').classList.contains('on'),
@@ -5282,6 +5336,7 @@
       client_secret: document.getElementById('sso-client-secret').value,
       redirect_uri: document.getElementById('sso-redirect-uri').value.trim(),
       scopes: document.getElementById('sso-scopes').value.trim() || 'openid profile email',
+      trust_unverified_email: document.getElementById('sso-trust-unverified-toggle').classList.contains('on'),
     };
 
     if (sso.enabled && (!sso.issuer || !sso.client_id)) {
@@ -5618,6 +5673,7 @@
 
   // Expose settings functions (defined after the main exposure block)
   window.toggleSSOEnabled = toggleSSOEnabled;
+  window.toggleSSOTrustUnverified = toggleSSOTrustUnverified;
   window.saveSSOSettings = saveSSOSettings;
   window.purgeExpiredLeases = purgeExpiredLeases;
   window.purgeAuditLog = purgeAuditLog;

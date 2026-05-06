@@ -5,12 +5,6 @@ export interface GatehouseConfig {
   masterKey: Buffer;
   jwtSecret: string;
   publicUrl?: string;
-  oauth?: {
-    issuer: string;
-    clientId: string;
-    clientSecret: string;
-    redirectUri: string;
-  };
 }
 
 export function loadConfig(): GatehouseConfig {
@@ -23,13 +17,12 @@ export function loadConfig(): GatehouseConfig {
 
   const masterKey = Buffer.from(masterKeyHex, "hex");
 
-  // Derive JWT secret via HKDF with domain separation (not raw master key)
   const { deriveKey } = require("./secrets/engine");
   const jwtSecret =
     process.env.GATEHOUSE_JWT_SECRET ||
     Buffer.from(deriveKey(masterKey, "gatehouse-jwt")).toString("hex");
 
-  const config: GatehouseConfig = {
+  return {
     port: parseInt(process.env.GATEHOUSE_PORT || "3100", 10),
     dataDir: process.env.GATEHOUSE_DATA_DIR || "/data",
     configDir: process.env.GATEHOUSE_CONFIG_DIR || "/config",
@@ -37,16 +30,4 @@ export function loadConfig(): GatehouseConfig {
     jwtSecret,
     publicUrl: process.env.GATEHOUSE_PUBLIC_URL?.replace(/\/$/, "") || undefined,
   };
-
-  // Optional OAuth (PocketID)
-  if (process.env.GATEHOUSE_OAUTH_ISSUER) {
-    config.oauth = {
-      issuer: process.env.GATEHOUSE_OAUTH_ISSUER,
-      clientId: process.env.GATEHOUSE_OAUTH_CLIENT_ID || "",
-      clientSecret: process.env.GATEHOUSE_OAUTH_CLIENT_SECRET || "",
-      redirectUri: process.env.GATEHOUSE_OAUTH_REDIRECT_URI || "",
-    };
-  }
-
-  return config;
 }

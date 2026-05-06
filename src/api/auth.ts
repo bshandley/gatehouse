@@ -2,14 +2,21 @@ import { Hono } from "hono";
 import { SignJWT, jwtVerify } from "jose";
 import { Database } from "bun:sqlite";
 import type { GatehouseConfig } from "../config";
+import type { AuditLog } from "../audit/logger";
 import { safeEqual } from "../auth/middleware";
 import { verifyTotp, verifyRecoveryCode } from "../auth/totp";
 import { ipMatchesAllowlist, validateCIDRs } from "../auth/cidr";
+import { generateLoginParams, buildAuthUrl, exchangeAndVerify, fetchUserinfo } from "../auth/oidc";
 
 // Simple in-memory rate limiter: 5 failed attempts per IP per 60s window
 const failedAttempts = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_MS = 60_000;
+
+/** Test-only: clear all rate-limit state. */
+export function _resetRateLimitForTests() {
+  failedAttempts.clear();
+}
 
 // Periodic cleanup to prevent memory leak from accumulated stale entries
 setInterval(() => {
@@ -48,7 +55,7 @@ function recordFailure(ip: string) {
   }
 }
 
-export function authRouter(db: Database, config: GatehouseConfig) {
+export function authRouter(db: Database, config: GatehouseConfig, audit: AuditLog) {
   const router = new Hono();
   const secret = new TextEncoder().encode(config.jwtSecret);
 
@@ -83,6 +90,255 @@ export function authRouter(db: Database, config: GatehouseConfig) {
       return false;
     }
   }
+
+  // Public: report whether SSO is configured. Used by the unauth login page to
+  // decide whether to show the "Sign in with SSO" button. Returns nothing else
+  // (issuer, client_id) to avoid leaking config to anonymous callers.
+  router.get("/sso/status", (c) => {
+    const ip = c.get("sourceIp") || "unknown";
+    if (!checkRateLimit(ip)) {
+      const retry = retryAfterSeconds(ip);
+      c.header("Retry-After", String(retry));
+      return c.json(
+        { error: "Too many requests. Try again later.", retry_after: retry, request_id: c.get("requestId") },
+        429
+      );
+    }
+    const row = db
+      .query("SELECT value FROM settings WHERE key = 'sso'")
+      .get() as { value: string } | null;
+    if (!row) return c.json({ enabled: false });
+    let s: any;
+    try { s = JSON.parse(row.value); } catch { return c.json({ enabled: false }); }
+    const enabled = s.enabled === true && !!s.issuer && !!s.client_id;
+    return c.json({ enabled });
+  });
+
+  router.get("/sso/start", async (c) => {
+    const ip = c.get("sourceIp") || "unknown";
+    if (!checkRateLimit(ip)) {
+      const retry = retryAfterSeconds(ip);
+      c.header("Retry-After", String(retry));
+      return c.json(
+        { error: "Too many requests. Try again later.", retry_after: retry, request_id: c.get("requestId") },
+        429
+      );
+    }
+    const row = db
+      .query("SELECT value FROM settings WHERE key = 'sso'")
+      .get() as { value: string } | null;
+    if (!row) return c.json({ error: "SSO not configured" }, 404);
+
+    let cfg: any;
+    try { cfg = JSON.parse(row.value); } catch { return c.json({ error: "SSO not configured" }, 404); }
+    if (!cfg.enabled || !cfg.issuer || !cfg.client_id || !cfg.redirect_uri) {
+      return c.json({ error: "SSO not configured" }, 404);
+    }
+
+    const params = await generateLoginParams();
+    db.query(
+      "INSERT INTO sso_login_state (state, nonce, code_verifier, created_at) VALUES (?, ?, ?, ?)"
+    ).run(params.state, params.nonce, params.codeVerifier, Math.floor(Date.now() / 1000));
+
+    const url = await buildAuthUrl({
+      config: {
+        issuer: cfg.issuer,
+        client_id: cfg.client_id,
+        client_secret: cfg.client_secret || "",
+        redirect_uri: cfg.redirect_uri || "",
+        scopes: cfg.scopes || "openid profile email",
+      },
+      state: params.state,
+      nonce: params.nonce,
+      codeVerifier: params.codeVerifier,
+    });
+
+    audit.log({
+      identity: "anonymous",
+      action: "sso.start",
+      source_ip: c.get("sourceIp") || null,
+    });
+
+    return c.redirect(url.toString(), 302);
+  });
+
+  function ssoErrorPage(c: any, message: string, status = 400) {
+    const requestId = c.get("requestId") || "";
+    const html = `<!doctype html><meta charset="utf-8"><title>Sign-in error</title>
+<style>body{font-family:system-ui;background:#0d0e14;color:#e5e7eb;padding:48px 24px;max-width:520px;margin:auto;text-align:center}
+h1{font-size:18px;margin:0 0 12px}p{color:#9ca3af;margin:0 0 24px}a{color:#6c63ff;text-decoration:none}small{color:#6b7280;display:block;margin-top:32px;font-size:11px}</style>
+<h1>${escapeHtml(message)}</h1>
+<p><a href="/">Back to login</a></p>
+<small>request id: ${escapeHtml(requestId)}</small>`;
+    return c.html(html, status);
+  }
+
+  function escapeHtml(s: string): string {
+    return s.replace(/[&<>"']/g, (ch) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] || ch)
+    );
+  }
+
+  router.get("/sso/callback", async (c) => {
+    const sourceIp = c.get("sourceIp") || null;
+    const ip = sourceIp || "unknown";
+    if (!checkRateLimit(ip)) {
+      const retry = retryAfterSeconds(ip);
+      c.header("Retry-After", String(retry));
+      return c.json(
+        { error: "Too many requests. Try again later.", retry_after: retry, request_id: c.get("requestId") },
+        429
+      );
+    }
+    // Build callbackParams from the full request URL so RFC 9207 `iss` and
+    // any other AS-required response params survive into validateAuthResponse.
+    const reqUrl = new URL(c.req.url);
+    const callbackParams = reqUrl.searchParams;
+    const state = callbackParams.get("state") || "";
+
+    // Step 1: Load + delete state row (one-shot).
+    const stateRow = db
+      .query("SELECT nonce, code_verifier, created_at FROM sso_login_state WHERE state = ?")
+      .get(state) as { nonce: string; code_verifier: string; created_at: number } | null;
+
+    const tooOld = stateRow && Date.now() / 1000 - stateRow.created_at > 600;
+    if (!stateRow || tooOld) {
+      audit.log({ identity: "anonymous", action: "sso.callback.invalid_state", source_ip: sourceIp });
+      recordFailure(ip);
+      return ssoErrorPage(c, "Login link expired. Please try again.", 400);
+    }
+    db.query("DELETE FROM sso_login_state WHERE state = ?").run(state);
+
+    // Load SSO config.
+    const cfgRow = db
+      .query("SELECT value FROM settings WHERE key = 'sso'")
+      .get() as { value: string } | null;
+    if (!cfgRow) {
+      audit.log({ identity: "anonymous", action: "sso.callback.exchange_failed", source_ip: sourceIp });
+      recordFailure(ip);
+      return ssoErrorPage(c, "Sign-in failed. Please try again.");
+    }
+    let cfgJson: any;
+    try { cfgJson = JSON.parse(cfgRow.value); } catch {
+      audit.log({ identity: "anonymous", action: "sso.callback.exchange_failed", source_ip: sourceIp });
+      recordFailure(ip);
+      return ssoErrorPage(c, "Sign-in failed. Please try again.");
+    }
+    const cfg = {
+      issuer: cfgJson.issuer,
+      client_id: cfgJson.client_id,
+      client_secret: cfgJson.client_secret || "",
+      redirect_uri: cfgJson.redirect_uri || "",
+      scopes: cfgJson.scopes || "openid profile email",
+    };
+
+    // Step 2 + 3 + 4: Exchange + verify ID token (oauth4webapi enforces signature, iss, aud, exp, nonce).
+    let tokens: { accessToken: string; claims: any };
+    try {
+      tokens = await exchangeAndVerify({
+        config: cfg,
+        callbackParams,
+        codeVerifier: stateRow.code_verifier,
+        expectedNonce: stateRow.nonce,
+      });
+    } catch (err: any) {
+      audit.log({
+        identity: "anonymous",
+        action: "sso.callback.exchange_failed",
+        source_ip: sourceIp,
+        metadata: { error: String(err?.message || err).slice(0, 200) },
+      });
+      recordFailure(ip);
+      return ssoErrorPage(c, "Sign-in failed. Please try again.");
+    }
+
+    // Step 5 + 6: Userinfo, then email + email_verified (fall back to ID token claims).
+    let userinfo: Record<string, unknown> = {};
+    try {
+      userinfo = await fetchUserinfo({
+        config: cfg,
+        accessToken: tokens.accessToken,
+        expectedSubject: tokens.claims.sub as string,
+      });
+    } catch (err: any) {
+      audit.log({
+        identity: "anonymous",
+        action: "sso.callback.exchange_failed",
+        source_ip: sourceIp,
+        metadata: { error: "userinfo: " + String(err?.message || err).slice(0, 180) },
+      });
+      recordFailure(ip);
+      return ssoErrorPage(c, "Sign-in failed. Please try again.");
+    }
+
+    const email = (userinfo.email ?? tokens.claims.email) as string | undefined;
+    const emailVerified = (userinfo.email_verified ?? tokens.claims.email_verified) as unknown;
+    const trustUnverified = cfgJson.trust_unverified_email === true;
+    if (!trustUnverified && emailVerified !== true) {
+      audit.log({
+        identity: "anonymous",
+        action: "sso.callback.unverified_email",
+        source_ip: sourceIp,
+        metadata: { email: email || "" },
+      });
+      recordFailure(ip);
+      return ssoErrorPage(c, "Your identity provider didn't confirm your email. Contact your admin.", 403);
+    }
+
+    // Step 7: Look up user.
+    if (!email) {
+      audit.log({ identity: "anonymous", action: "sso.callback.no_user_match", source_ip: sourceIp });
+      recordFailure(ip);
+      return ssoErrorPage(c, "No Gatehouse account is linked to this identity.", 403);
+    }
+    const matches = db
+      .query("SELECT username, display_name FROM users WHERE email = ? AND enabled = 1")
+      .all(email) as Array<{ username: string; display_name: string }>;
+    if (matches.length === 0) {
+      audit.log({
+        identity: "anonymous",
+        action: "sso.callback.no_user_match",
+        source_ip: sourceIp,
+        metadata: { email },
+      });
+      recordFailure(ip);
+      return ssoErrorPage(c, "No Gatehouse account is linked to this identity.", 403);
+    }
+    if (matches.length > 1) {
+      audit.log({
+        identity: "anonymous",
+        action: "sso.callback.email_collision",
+        source_ip: sourceIp,
+        metadata: { email },
+      });
+      recordFailure(ip);
+      return ssoErrorPage(c, "No Gatehouse account is linked to this identity.", 403);
+    }
+    const user = matches[0];
+
+    // Step 8 + 9: Mint JWT (same shape as password login), update last_login, audit success.
+    const jwt = await new SignJWT({
+      sub: `user:${user.username}`,
+      policies: ["admin"],
+      display_name: user.display_name,
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuer("gatehouse")
+      .setIssuedAt()
+      .setExpirationTime("24h")
+      .sign(secret);
+
+    db.query("UPDATE users SET last_login = datetime('now') WHERE username = ?").run(user.username);
+
+    audit.log({
+      identity: `user:${user.username}`,
+      action: "sso.callback.success",
+      source_ip: sourceIp,
+    });
+
+    // Step 10: Redirect via URL fragment so JWT does not appear in Referer or access logs.
+    return c.redirect(`/#sso=${encodeURIComponent(jwt)}`, 302);
+  });
 
   // AppRole login: exchange role_id + secret for a JWT
   router.post("/approle/login", async (c) => {

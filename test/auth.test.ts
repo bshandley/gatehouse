@@ -9,6 +9,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { deriveKey } from "../src/secrets/engine";
+import { AuditLog } from "../src/audit/logger";
 
 const TEST_MASTER_KEY = Buffer.from("a".repeat(64), "hex");
 const TEST_ROOT_TOKEN = "test-root-token-for-auth-tests";
@@ -34,7 +35,7 @@ function buildApp(db: Database) {
     await next();
   });
 
-  app.route("/v1/auth", authRouter(db, config));
+  app.route("/v1/auth", authRouter(db, config, new AuditLog(db)));
 
   // Protected test route to verify tokens work. Pass db so the middleware
   // exercises the per-request user.enabled check that disable/delete rely on.

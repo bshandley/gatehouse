@@ -21,11 +21,15 @@ services:
       - GATEHOUSE_LOG_LEVEL=${GATEHOUSE_LOG_LEVEL:-info}
       # CORS origins (comma-separated). Only needed behind a reverse proxy.
       # - GATEHOUSE_CORS_ORIGINS=https://gatehouse.yourdomain.com
-      # Optional: PocketID / OIDC SSO
-      # - GATEHOUSE_OAUTH_ISSUER=https://auth.yourdomain.com
+      # Optional: OIDC SSO bootstrap. These env vars seed the settings/sso DB
+      # row on FIRST boot if no row exists. After that, the database is the
+      # single source of truth and these vars are ignored. Configure SSO from
+      # the web UI (Settings -> SSO / OAuth Configuration) once you're up.
+      # Leave these commented unless you want to automate first-boot setup.
+      # - GATEHOUSE_OAUTH_ISSUER=https://id.yourdomain.com
       # - GATEHOUSE_OAUTH_CLIENT_ID=gatehouse
       # - GATEHOUSE_OAUTH_CLIENT_SECRET=your-secret
-      # - GATEHOUSE_OAUTH_REDIRECT_URI=https://gatehouse.yourdomain.com/v1/auth/callback
+      # - GATEHOUSE_OAUTH_REDIRECT_URI=https://gatehouse.yourdomain.com/v1/auth/sso/callback
     healthcheck:
       test: ["CMD", "bun", "-e", "const r = await fetch('http://localhost:3100/health'); process.exit(r.ok ? 0 : 1)"]
       interval: 30s
