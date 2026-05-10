@@ -28,7 +28,7 @@ curl -fsSL "https://gatehouse.example/v1/onboard/<token>" > /tmp/gatehouse-onboa
 cat /tmp/gatehouse-onboard.md
 ```
 
-The fetched markdown detects the harness (Hermes, OpenClaw, Claude Code, Codex/Cursor/Windsurf, or "no filesystem" fallback), calls `POST /v1/onboard/<token>/exchange` to receive rotated AppRole credentials and a 24h JWT, persists the env vars into the harness's credential path, and installs a `gatehouse` skill. Exchange is single-use and rotates the AppRole's `secret_id` — any agent already holding the previous `secret_id` will need to re-onboard.
+The fetched markdown detects the harness (Hermes, OpenClaw, Claude Code, Codex/Cursor/Windsurf, or "no filesystem" fallback), calls `POST /v1/onboard/<token>/exchange` to receive rotated AppRole credentials and a 24h JWT, persists the env vars into the harness's credential path, and installs a `gatehouse` skill. Exchange is single-use and rotates the AppRole's `secret_id`: any agent already holding the previous `secret_id` will need to re-onboard.
 
 Behind a reverse proxy? Set `GATEHOUSE_PUBLIC_URL=https://gatehouse.yourdomain.com` so the generated links use the public origin instead of whatever `Host` header Hono observes.
 
@@ -424,7 +424,7 @@ The tool supports two injection styles:
   "method": "POST",
   "url": "https://api.openai.com/v1/chat/completions",
   "headers": {
-    "Authorization": "Bearer {{secret:api-keys/openai}}",
+    "Authorization": "Bearer {{secret:api-keys/example}}",
     "Content-Type": "application/json"
   },
   "body": {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
@@ -508,6 +508,40 @@ Match is path-segment aligned: a prefix `/repos/bshandley/gatehouse` matches
 `/repos/bshandley/gatehouse` exactly and `/repos/bshandley/gatehouse/<anything>`,
 but NOT `/repos/bshandley/gatehouse-evil`. Trailing slashes in stored prefixes
 are normalized at check time.
+
+### Proxy runtime limits
+
+Two global, runtime-configurable limits apply to every proxy call:
+
+- **Maximum request timeout** (default 120 seconds; range 1 second to 30 minutes).
+  Gatehouse will not wait longer than this for an upstream response.
+  Agent-requested timeouts above the ceiling are clamped down.
+- **Maximum response body** (default 10 MiB; range 1 KiB to 100 MiB).
+  Upstream responses larger than this are rejected with a 502, which the
+  proxy turns into an `Upstream response exceeds N bytes` error so the
+  agent can fail fast instead of hanging on a stream.
+
+Both are admin-editable from **Settings → Proxy Limits** in the web UI, or
+via the REST API:
+
+```bash
+curl -H "Authorization: Bearer $ADMIN_JWT" \
+  http://localhost:3100/v1/settings/proxy-limits
+# => {"max_timeout_ms": 120000, "max_body_bytes": 10485760}
+
+curl -X POST http://localhost:3100/v1/settings/proxy-limits \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"max_timeout_ms": 600000, "max_body_bytes": 52428800}'
+```
+
+Changes take effect on the next proxy request, no restart needed. Useful
+for endpoints that legitimately return large payloads (file fetches, audio
+transcription, image generation).
+
+The values are cached in memory so the proxy hot path doesn't hit SQLite
+per request, and every change writes a `settings.proxy_limits.update`
+audit row with `old_*` and `new_*` values for forensics.
 
 ---
 
@@ -696,8 +730,8 @@ MCP (`gatehouse_scrub`) and REST API.
 curl -X POST http://gatehouse.local:3100/v1/scrub \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"text": "My OpenAI key is sk-proj-abc123..."}'
-# Returns: { "scrubbed": "My OpenAI key is sk-pro***REDACTED***", "redactions": [...] }
+  -d '{"text": "My OpenAI key is <your-openai-key>"}'
+# Returns: { "scrubbed": "My OpenAI key is ***REDACTED***", "redactions": [...] }
 
 # Quick check - just returns whether credentials were detected
 curl -X POST http://gatehouse.local:3100/v1/scrub/check \

@@ -5,8 +5,6 @@ sidebar_order: 2
 sidebar_group: "USING GATEHOUSE"
 ---
 
-{/* Generated from CLAUDE.md + screenshots 2026-04-10 */}
-
 The Gatehouse web UI is a single-page app served from the same container as the API. It's dark by default, built with vanilla HTML, CSS, and JS (no framework), and loads JetBrains Mono for code and Instrument Sans for headings.
 
 Press **Cmd/Ctrl+K** anywhere in the UI to open a command palette that fuzzy-searches every page and common action.
@@ -57,8 +55,15 @@ Full audit log with filtering by identity, action, path, and date range. Live ta
 
 ## Settings
 
-Server version, uptime, database size, and last master key rotation date. The Danger Zone at the bottom has three wired actions:
+The Settings page is a stack of admin-only cards. From top to bottom:
 
-- **Purge Expired Leases** — drop lease rows whose TTL has elapsed.
-- **Purge Old Audit Entries** — trim the audit log past a chosen retention cutoff (`POST /v1/audit/purge`).
-- **Rotate Encryption Key** — swap the master key and re-wrap every DEK and dynamic config in one atomic operation (`POST /v1/admin/rotate-key`). Back up the old key before running this.
+- **Health Status**: live server version, uptime, database size, master key fingerprint, and last key rotation date.
+- **Appearance**: toggle the dark / light theme. The choice persists per-browser in `localStorage`.
+- **Server Configuration**: read-only readout of the active runtime config: port, JWT expiry, root-token-set flag, lease reaper interval, default and bounding lease TTLs, and SSO enabled state. Reflects what `GET /v1/config` returns.
+- **SSO / OAuth Configuration**: full OIDC setup: enable toggle, issuer URL, client ID and secret, redirect URI, scopes, and a "Trust email without `email_verified` claim" toggle for IdPs (notably PocketID) that omit that claim. A **Test SSO** link opens the IdP authorize URL in a new tab so you can probe the flow without logging out. Saving validates the issuer's `.well-known/openid-configuration` discovery doc before persisting; bad URLs fail loudly.
+- **Proxy Limits**: two number inputs that override the proxy's request-timeout ceiling (default 120 seconds, range 1 second to 30 minutes) and upstream-response body cap (default 10 MiB, range 1 KiB to 100 MiB). Changes take effect on the next proxy request, no restart needed. Useful for endpoints that legitimately return large payloads (file fetches, audio transcription, image generation).
+- **Two-Factor Authentication**: your own TOTP enrollment status. From here you can enable 2FA (scan a QR with any RFC 6238 authenticator), regenerate recovery codes, or disable. Admins manage other users' 2FA from the Users tab.
+- **Danger Zone**: three wired actions, each behind a confirm:
+  - **Purge Expired Leases**: drop lease rows whose TTL has elapsed.
+  - **Purge Old Audit Entries**: trim the audit log past a chosen retention cutoff (`POST /v1/audit/purge`).
+  - **Rotate Encryption Key**: swap the master key and re-wrap every DEK and dynamic config in one atomic operation (`POST /v1/admin/rotate-key`). Back up the old key before running this.

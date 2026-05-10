@@ -5,8 +5,6 @@ sidebar_order: 1
 sidebar_group: "GETTING STARTED"
 ---
 
-{/* Generated from README 2026-04-10 */}
-
 import Callout from "../../components/Callout.astro";
 
 Gatehouse runs in a single Docker container. You don't need a cluster, a sidecar, or an external key store. This page walks through installing it, getting a root token, and storing your first secret.
@@ -83,4 +81,6 @@ Response:
 
 - Read the [Core Concepts](/docs/concepts/) to understand proxy mode, dynamic secrets, and pattern learning.
 - Set up [Authentication](/docs/authentication/) with user accounts, AppRoles for agents, and optional TOTP.
+- Plug in your OIDC provider (PocketID, Authentik, Keycloak, Google) for [SSO](/docs/authentication/#sso-openid-connect).
 - Browse the [Web UI tour](/docs/web-ui/) to see what each panel does.
+- Review the [Security & Threat Model](/docs/security/) before exposing Gatehouse beyond your LAN.

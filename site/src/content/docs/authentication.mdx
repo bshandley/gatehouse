@@ -5,8 +5,6 @@ sidebar_order: 1
 sidebar_group: "USING GATEHOUSE"
 ---
 
-{/* Generated from README 2026-04-10 */}
-
 import Callout from "../../components/Callout.astro";
 
 Gatehouse supports three authentication methods. They all produce (or are) a bearer token that goes in the `Authorization` header.
@@ -170,10 +168,10 @@ Gatehouse supports OIDC single sign-on for the web UI. The login page shows a `S
 1. Sign in with the bootstrap root token or an admin user.
 2. Go to **Settings → SSO / OAuth Configuration** and toggle **Enable SSO** on.
 3. Fill in:
-   - **Issuer URL** — the IdP's base URL (e.g. `https://id.example.com`). Gatehouse fetches `<issuer>/.well-known/openid-configuration` when you save and refuses the save if discovery fails.
-   - **Client ID / Client Secret** — from your IdP's OIDC client registration.
-   - **Redirect URI** — `https://<your-gatehouse-host>/v1/auth/sso/callback`. Configure the same string in the IdP's allowed redirect URIs.
-   - **Scopes** — defaults to `openid profile email`. The `openid` scope is required.
+   - **Issuer URL**: the IdP's base URL (e.g. `https://id.example.com`). Gatehouse fetches `<issuer>/.well-known/openid-configuration` when you save and refuses the save if discovery fails.
+   - **Client ID / Client Secret**: from your IdP's OIDC client registration.
+   - **Redirect URI**: `https://<your-gatehouse-host>/v1/auth/sso/callback`. Configure the same string in the IdP's allowed redirect URIs.
+   - **Scopes**: defaults to `openid profile email`. The `openid` scope is required.
 4. Save. Use the **Test SSO** link to dry-run the IdP redirect in a new tab without logging out.
 5. On each user record (Users tab), populate **Email** to match what the IdP will assert.
 
@@ -194,7 +192,7 @@ If you'd rather automate first-boot setup, set these on the container:
 - GATEHOUSE_OAUTH_REDIRECT_URI=https://gatehouse.example.com/v1/auth/sso/callback
 ```
 
-If no `settings/sso` row exists at boot, Gatehouse seeds one with `enabled: true` and these values. After boot, the database is the single source of truth and the env vars are ignored — manage SSO from the UI.
+If no `settings/sso` row exists at boot, Gatehouse seeds one with `enabled: true` and these values. After boot, the database is the single source of truth and the env vars are ignored - manage SSO from the UI.
 
 ### Endpoints
 

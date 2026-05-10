@@ -5,6 +5,21 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.13.2] - 2026-05-10
+
+### Documentation
+
+- **Web UI tour Settings section rewritten** to reflect the current set of cards: Health Status, Appearance, Server Configuration, SSO / OAuth Configuration, Proxy Limits, Two-Factor Authentication, and Danger Zone. Previously listed only the Danger Zone actions.
+- **Security & Threat Model expanded** with a "Proxy hardening" subsection covering the three scoping layers (policy, `allowed_domains`, `allowed_path_prefixes`), the `GATEHOUSE_PROXY_ALLOW_PRIVATE` default and how to invert it for public-internet deployments, and a "SSO assurance shift" subsection documenting that SSO bypasses local TOTP by design.
+- **Integrations page** gains a "Proxy runtime limits" subsection describing the configurable timeout and body cap, with the REST API examples and the cache invariant.
+- **For Agents** mentions `metadata.allowed_path_prefixes` as a hint to scope outbound URLs without probing.
+- **Getting Started** Next Steps points at the SSO setup pathway and the Security & Threat Model page.
+- **README** drops the now-redundant `GATEHOUSE_PROXY_ALLOW_PRIVATE=true` line from the Quick Start (private networks are allowed by default since 0.11.x). Adds a Changelog row to the docs table.
+- **API reference** proxy-limits row range wording cleaned up (`1 second to 30 minutes; 1 KiB to 100 MiB`).
+- Stale "Generated from README/CLAUDE.md 2026-04-10" markers removed from seven docs pages; the docs have evolved well past that date.
+
+No code changes; the running container is functionally identical to v0.13.1.
+
 ## [0.13.1] - 2026-05-09
 
 ### Internal

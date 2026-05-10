@@ -5,8 +5,6 @@ sidebar_order: 4
 sidebar_group: "USING GATEHOUSE"
 ---
 
-{/* Generated from README 2026-04-10 */}
-
 import Callout from "../../components/Callout.astro";
 
 Gatehouse is designed for the homelab threat model: a single operator, one or more AI agents with varying degrees of trust, and a small set of credentials worth protecting. This page documents what the system protects against and the assumptions it relies on.
@@ -56,6 +54,28 @@ Give each agent its own AppRole with the minimum capabilities it needs. An agent
 ### Network exposure
 
 Gatehouse listens on port 3100 by default. For homelab use, keep it on a private network. If you must expose it to the internet, put it behind a reverse proxy with TLS (Caddy, nginx, Traefik) and consider IP allowlisting on the proxy.
+
+### Proxy hardening
+
+The proxy (`POST /v1/proxy` and the MCP `gatehouse_proxy` tool) lets agents call upstream HTTP APIs without ever holding the credential. Three layers of scoping apply, in order:
+
+1. **Policy.** The agent's AppRole must have the `proxy` capability on the secret it wants to inject. No policy match, no proxy call.
+2. **`allowed_domains` per secret.** Restricts which hostnames the secret can be forwarded to. A secret with `allowed_domains = "api.openai.com"` cannot be used to call `evil.com` even if the agent's policy allows proxy on it.
+3. **`allowed_path_prefixes` per secret.** Restricts which URL paths a secret can hit, useful for scoping a broad credential (e.g. a fine-grained GitHub PAT) to a single repo's API surface. Match is path-segment aligned.
+
+**Private-network access** is allowed by default (`GATEHOUSE_PROXY_ALLOW_PRIVATE` is unset or anything other than `"false"`). This matches the homelab posture where your services live on `10.x` or `192.168.x` and blocking them by default would make the proxy useless. For deployments exposed to the public internet, set `GATEHOUSE_PROXY_ALLOW_PRIVATE=false` to fail-closed against `127.x`, `169.254.169.254`, `10.0.0.0/8`, etc., and selectively re-enable per secret with `metadata.allow_private=true`.
+
+The per-secret `allowed_domains` allowlist is the primary host-scoping control. The private-network flag is defense-in-depth for the SSRF class specifically.
+
+### SSO assurance shift
+
+When SSO is enabled, the IdP becomes the identity authority for the human-account login path. Specifically:
+
+- **Local TOTP is bypassed** for SSO logins, even if the user has TOTP enrolled at Gatehouse. The assumption is the IdP is enforcing its own MFA.
+- The `email_verified` claim on the OIDC userinfo response is the safety net against IdPs that let users self-attest emails. Default-strict; the per-deployment `trust_unverified_email` opt-in exists for IdPs (PocketID) that intentionally omit the claim because the email is administrator-controlled at the IdP.
+- Username and access-token login paths still require local TOTP per the user's enrollment. SSO is the only path that defers MFA to the IdP.
+
+If your IdP's authentication assurance is weaker than your local TOTP setup, leave SSO disabled. The SSO docs page details the model.
 
 ## Cryptographic details
 

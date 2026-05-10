@@ -34,7 +34,6 @@ docker run -d \
   -v gatehouse-data:/data \
   -e GATEHOUSE_MASTER_KEY="$(openssl rand -hex 32)" \
   -e GATEHOUSE_ROOT_TOKEN="$(openssl rand -hex 16)" \
-  -e GATEHOUSE_PROXY_ALLOW_PRIVATE=true \
   ghcr.io/bshandley/gatehouse:latest
 ```
 
@@ -82,6 +81,7 @@ Full documentation lives at **[gatehouse.to](https://gatehouse.to)**.
 | [API Reference](https://gatehouse.to/docs/api-reference/) | Every REST endpoint and MCP tool. |
 | [For Agents](https://gatehouse.to/docs/for-agents/) | Hand this URL to an agent. It's written for them. |
 | [Integrations](https://gatehouse.to/docs/integrations/) | Claude Code, Codex, Cursor, Windsurf, OpenCode, Hermes, OpenClaw. |
+| [Changelog](https://github.com/bshandley/gatehouse/blob/main/CHANGELOG.md) | Per-release summary; full per-commit log lives in GitHub Releases. |
 
 ## Tech stack
 
