@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
+import type { Database } from "bun:sqlite";
 import type { SecretsEngine } from "../secrets/engine";
 import type { LeaseManager } from "../lease/manager";
 import type { PolicyEngine } from "../policy/engine";
@@ -10,8 +11,9 @@ import type { DynamicSecretsManager } from "../dynamic/manager";
 import { scrubValue } from "../scrub/scrubber";
 import { v4 as uuid } from "uuid";
 import type { PatternEngine } from "../patterns/engine";
-import { isPrivateHost, scrubResponseBody, readCappedText, MAX_UPSTREAM_BODY_BYTES } from "../security/ssrf";
+import { isPrivateHost, scrubResponseBody, readCappedText } from "../security/ssrf";
 import { checkPrivateNetworkPolicy, resolveAutoInject } from "../api/proxy";
+import { getProxyLimits } from "../settings/proxyLimits";
 import { VERSION } from "../version";
 
 /**
@@ -224,7 +226,7 @@ const TOOLS: MCPTool[] = [
         timeout: {
           type: "number",
           description:
-            "Timeout in milliseconds (default: 30000, max: 120000)",
+            "Timeout in milliseconds (default: 30000, capped by /v1/settings/proxy-limits)",
         },
       },
       required: ["method", "url"],
@@ -262,7 +264,8 @@ export function createMCPHandler(
   policies: PolicyEngine,
   audit: AuditLog,
   patterns?: PatternEngine,
-  dynamic?: DynamicSecretsManager
+  dynamic?: DynamicSecretsManager,
+  db?: Database
 ) {
   async function handleToolCall(
     toolName: string,
@@ -495,6 +498,9 @@ export function createMCPHandler(
         }
 
         case "gatehouse_proxy": {
+          const limits = db
+            ? getProxyLimits(db)
+            : { max_timeout_ms: 120_000, max_body_bytes: 10 * 1024 * 1024 };
           // Validate required fields
           if (!args.url) return error("url is required");
           if (!args.method) return error("method is required");
@@ -631,7 +637,7 @@ export function createMCPHandler(
             }
           }
 
-          const timeout = Math.min(args.timeout || 30_000, 120_000);
+          const timeout = Math.min(args.timeout || 30_000, limits.max_timeout_ms);
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), timeout);
 
@@ -659,7 +665,7 @@ export function createMCPHandler(
             });
 
             // Cap upstream body + scrub any injected secret values echoed back
-            const rawBody = await readCappedText(upstream, MAX_UPSTREAM_BODY_BYTES);
+            const rawBody = await readCappedText(upstream, limits.max_body_bytes);
             const responseBody = scrubResponseBody(rawBody, resolved.values());
             let parsed: any;
             try { parsed = JSON.parse(responseBody); } catch { parsed = responseBody; }
@@ -678,7 +684,7 @@ export function createMCPHandler(
               success: false,
             });
             if (e.name === "AbortError") return error(`Request timed out after ${timeout}ms`);
-            if (e.code === "BODY_TOO_LARGE") return error(`Upstream response exceeds ${MAX_UPSTREAM_BODY_BYTES} bytes`);
+            if (e.code === "BODY_TOO_LARGE") return error(`Upstream response exceeds ${limits.max_body_bytes} bytes`);
             return error(`Upstream request failed: ${e.message}`);
           }
         }
@@ -807,10 +813,11 @@ export function mcpHttpRouter(
   policies: PolicyEngine,
   audit: AuditLog,
   patterns?: PatternEngine,
-  dynamic?: DynamicSecretsManager
+  dynamic?: DynamicSecretsManager,
+  db?: Database
 ) {
   const router = new Hono();
-  const mcp = createMCPHandler(secrets, leases, policies, audit, patterns, dynamic);
+  const mcp = createMCPHandler(secrets, leases, policies, audit, patterns, dynamic, db);
 
   // Streamable HTTP endpoint (POST /mcp)
   router.post("/", async (c) => {
@@ -874,9 +881,10 @@ export async function runStdioTransport(
   policies: PolicyEngine,
   audit: AuditLog,
   auth: AuthContext,
-  dynamic?: DynamicSecretsManager
+  dynamic?: DynamicSecretsManager,
+  db?: Database
 ) {
-  const mcp = createMCPHandler(secrets, leases, policies, audit, undefined, dynamic);
+  const mcp = createMCPHandler(secrets, leases, policies, audit, undefined, dynamic, db);
 
   const decoder = new TextDecoder();
   let buffer = "";

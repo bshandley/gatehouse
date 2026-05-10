@@ -140,6 +140,8 @@ One-time bootstrap tokens that hand an agent durable AppRole credentials without
 | POST | `/v1/admin/rotate-key` | Rotate master key, re-wrap all DEKs (admin). |
 | GET | `/v1/settings/sso` | Get SSO config (admin). |
 | POST | `/v1/settings/sso` | Update SSO config (admin). |
+| GET | `/v1/settings/proxy-limits` | Get proxy timeout + body-size limits (admin). |
+| POST | `/v1/settings/proxy-limits` | Update proxy limits (admin). Body: `{max_timeout_ms, max_body_bytes}`. Range: 1 s-30 min and 1 KiB-100 MiB. |
 
 ## MCP
 

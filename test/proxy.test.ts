@@ -63,7 +63,7 @@ describe("Proxy Router", () => {
       await next();
     });
 
-    app.route("/v1/proxy", proxyRouter(secrets, policies, audit));
+    app.route("/v1/proxy", proxyRouter(secrets, policies, audit, undefined, db));
   });
 
   afterEach(() => {

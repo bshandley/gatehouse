@@ -1252,6 +1252,55 @@
     .sso-enable-label { font-size: 13px; font-weight: 500; }
     .sso-save-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
+    /* Hide number-input spinners. Validation is explicit (min/max + JS check).
+       Spinners look out of place in a settings panel and the user said so. */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+    /* Help paragraph below an .sso-form .form-row, aligned under the input
+       column. Mirrors the grid columns (160px label + 12px gap) so the
+       alignment stays correct if the grid ever changes. */
+    .sso-form .form-help {
+      padding-left: calc(160px + 12px);
+      margin: -4px 0 14px 0;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      max-width: 720px;
+    }
+
+    /* Compact numeric input with a visible unit suffix (s, MiB, ...). */
+    .input-with-suffix { display: inline-flex; align-items: stretch; gap: 8px; }
+    .input-with-suffix .input {
+      width: 140px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .input-with-suffix .input-suffix {
+      align-self: center;
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Inline form error pill (e.g. validation errors below a form). */
+    .form-error {
+      display: block;
+      margin: 4px 0 14px 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--danger-subtle);
+      border: 1px solid var(--danger-subtle);
+      color: var(--danger);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .form-error.hidden { display: none; }
+
     /* Capability badges */
     .cap-badge {
       display: inline-flex;
@@ -2176,6 +2225,39 @@
           </div>
         </div>
 
+        <!-- Proxy Limits -->
+        <div class="card config-section">
+          <div class="card-header">
+            <span class="card-title">Proxy Limits</span>
+          </div>
+          <div class="card-body-padded sso-form" id="proxy-limits-form">
+            <div class="form-row">
+              <label for="proxy-limit-timeout">Maximum request timeout</label>
+              <div class="input-with-suffix">
+                <input type="number" class="input" id="proxy-limit-timeout" min="1" max="1800" step="1" inputmode="numeric">
+                <span class="input-suffix">seconds</span>
+              </div>
+            </div>
+            <p class="form-help">
+              Hard ceiling on how long Gatehouse will wait for an upstream response. Agent-requested timeouts are clamped to this value. Range: 1 second to 30 minutes.
+            </p>
+            <div class="form-row">
+              <label for="proxy-limit-body">Maximum response body</label>
+              <div class="input-with-suffix">
+                <input type="number" class="input" id="proxy-limit-body" min="1" max="100" step="1" inputmode="numeric">
+                <span class="input-suffix">MiB</span>
+              </div>
+            </div>
+            <p class="form-help">
+              Upstream responses larger than this are rejected with a 502. Increase for endpoints that legitimately return large payloads (file fetches, audio transcription, image generation). Range: 1 to 100 MiB.
+            </p>
+            <p id="proxy-limits-error" class="form-error hidden"></p>
+            <div class="sso-save-row">
+              <button class="btn btn-primary" onclick="saveProxyLimits()">Save Proxy Limits</button>
+            </div>
+          </div>
+        </div>
+
         <!-- SSO / OAuth Configuration -->
         <div class="card config-section">
           <div class="card-header">
@@ -2341,6 +2423,7 @@
     reloadPolicies, toggleAuditLive, exportAuditLog,
     loadDashboard, loadAuditLog, purgeExpiredLeases, purgeAuditLog, openRotateKeyModal, toast, toggleTheme,
     openPolicyEditor, saveSSOSettings, toggleSSOEnabled, toggleSSOTrustUnverified,
+    saveProxyLimits, loadProxyLimits,
     switchLoginTab, openCreateUserModal,
     submitTotpCode, cancelTotpLogin,
     startTotpSetup, disableTotp, regenerateRecoveryCodes
@@ -2359,7 +2442,12 @@
       throw new Error('Session expired');
     }
     const data = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+    if (!res.ok) {
+      const msg = data?.error
+        || (Array.isArray(data?.errors) ? data.errors.join('; ') : null)
+        || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
     return data;
   }
 
@@ -5313,6 +5401,9 @@
       // SSO settings may not be accessible if not admin
     }
 
+    // Load proxy limits
+    await loadProxyLimits();
+
     // Load TOTP (2FA) settings for current user
     loadTotpSettings();
   }
@@ -5352,6 +5443,69 @@
       document.getElementById('sso-client-secret').placeholder = '••••••••  (leave blank to keep)';
     } catch (e) {
       toast('Failed to save SSO settings: ' + e.message, 'error');
+    }
+  }
+
+  async function loadProxyLimits() {
+    try {
+      const limits = await api('/v1/settings/proxy-limits');
+      // Convert ms -> seconds for the timeout input.
+      const timeoutSec = Math.round(limits.max_timeout_ms / 1000);
+      document.getElementById('proxy-limit-timeout').value = String(timeoutSec);
+      // Convert bytes -> MiB for the body input.
+      const bodyMib = Math.round(limits.max_body_bytes / (1024 * 1024));
+      document.getElementById('proxy-limit-body').value = String(bodyMib);
+      const errEl = document.getElementById('proxy-limits-error');
+      if (errEl) { errEl.textContent = ''; errEl.classList.add('hidden'); }
+    } catch {
+      // GET fails for non-admins; that's fine, the card is a no-op for them.
+    }
+  }
+
+  async function saveProxyLimits() {
+    const errEl = document.getElementById('proxy-limits-error');
+    const timeoutInput = document.getElementById('proxy-limit-timeout');
+    const bodyInput = document.getElementById('proxy-limit-body');
+
+    function showError(msg) {
+      errEl.textContent = msg;
+      errEl.classList.remove('hidden');
+    }
+    function clearError() {
+      errEl.textContent = '';
+      errEl.classList.add('hidden');
+    }
+    clearError();
+
+    const timeoutSec = Number(timeoutInput.value);
+    const bodyMib = Number(bodyInput.value);
+
+    // Client-side guard for the same hard ceilings the server enforces.
+    // Inputs already have min/max, but users can paste values; double-check.
+    if (!Number.isInteger(timeoutSec) || timeoutSec < 1 || timeoutSec > 1800) {
+      showError('Timeout must be a whole number of seconds between 1 and 1800 (30 minutes).');
+      return;
+    }
+    if (!Number.isInteger(bodyMib) || bodyMib < 1 || bodyMib > 100) {
+      showError('Body size must be a whole number of MiB between 1 and 100.');
+      return;
+    }
+
+    const max_timeout_ms = timeoutSec * 1000;
+    const max_body_bytes = bodyMib * 1024 * 1024;
+
+    try {
+      await api('/v1/settings/proxy-limits', {
+        method: 'POST',
+        body: { max_timeout_ms, max_body_bytes },
+      });
+      toast('Proxy limits saved', 'success');
+    } catch (e) {
+      // Server-side validator rejected: surface its error array if present.
+      // The api() helper throws an Error whose message is the server's `error`
+      // string. For 400 responses with `{errors: [...]}` the helper may have
+      // joined those into the message; if so, just show it verbatim.
+      showError('Failed to save: ' + (e?.message || 'unknown error'));
     }
   }
 

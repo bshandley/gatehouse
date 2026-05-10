@@ -1,9 +1,11 @@
 import { Hono } from "hono";
+import type { Database } from "bun:sqlite";
 import type { SecretsEngine } from "../secrets/engine";
 import type { PolicyEngine } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 import type { PatternEngine } from "../patterns/engine";
-import { isPrivateHost, scrubResponseBody, readCappedText, MAX_UPSTREAM_BODY_BYTES } from "../security/ssrf";
+import { isPrivateHost, scrubResponseBody, readCappedText } from "../security/ssrf";
+import { getProxyLimits } from "../settings/proxyLimits";
 
 /**
  * Proxy request format - three injection styles supported:
@@ -197,7 +199,8 @@ export function proxyRouter(
   secrets: SecretsEngine,
   policies: PolicyEngine,
   audit: AuditLog,
-  patterns?: PatternEngine
+  patterns: PatternEngine | undefined,
+  db: Database
 ) {
   const router = new Hono();
 
@@ -255,6 +258,7 @@ export function proxyRouter(
   router.post("/", async (c) => {
     const auth = c.get("auth") as { identity: string; policies: string[] };
     const sourceIp = c.get("sourceIp") || "unknown";
+    const limits = getProxyLimits(db);
 
     // Parse request
     let req: ProxyRequest;
@@ -290,7 +294,7 @@ export function proxyRouter(
     }
 
     // Validate timeout
-    const timeout = Math.min(req.timeout || 30_000, 120_000); // max 2 minutes
+    const timeout = Math.min(req.timeout || 30_000, limits.max_timeout_ms);
 
     // Extract secret references (both template and inject styles)
     const secretPaths = extractSecretRefs(req);
@@ -524,7 +528,7 @@ export function proxyRouter(
       // Return the upstream response. Read with a hard body cap so an
       // oversized/hostile upstream can't exhaust memory, then scrub any
       // injected secret values that the upstream echoed back.
-      const rawResponseBody = await readCappedText(upstream, MAX_UPSTREAM_BODY_BYTES);
+      const rawResponseBody = await readCappedText(upstream, limits.max_body_bytes);
       const responseBody = scrubResponseBody(rawResponseBody, resolved.values());
       const responseHeaders: Record<string, string> = {};
 
@@ -618,7 +622,7 @@ export function proxyRouter(
       if (err.code === "BODY_TOO_LARGE") {
         return c.json(
           {
-            error: `Upstream response exceeds ${MAX_UPSTREAM_BODY_BYTES} bytes`,
+            error: `Upstream response exceeds ${limits.max_body_bytes} bytes`,
             request_id: c.get("requestId"),
           },
           502

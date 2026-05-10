@@ -15,6 +15,7 @@ import { authMiddleware } from "./auth/middleware";
 import { validateOidcIssuerForSettings, reapExpiredSsoState, seedSsoFromEnv } from "./auth/sso";
 import { mcpHttpRouter } from "./mcp/server";
 import { proxyRouter } from "./api/proxy";
+import { handleGetProxyLimits, handlePostProxyLimits } from "./api/settings.proxyLimits";
 import { dynamicRouter } from "./api/dynamic";
 import { scrubRouter } from "./api/scrub";
 import { DynamicSecretsManager } from "./dynamic/manager";
@@ -293,6 +294,11 @@ app.post("/v1/settings/sso", async (c) => {
   return c.json({ saved: true });
 });
 
+// Proxy runtime limits: max upstream timeout + max upstream response body.
+// Module: src/settings/proxyLimits.ts owns validation + cache + audit.
+app.get("/v1/settings/proxy-limits", (c) => handleGetProxyLimits(c, db, policies));
+app.post("/v1/settings/proxy-limits", (c) => handlePostProxyLimits(c, db, policies, audit));
+
 // Non-reversible fingerprint of the active master key. Useful for operators
 // to confirm which key a running instance has loaded without revealing it.
 app.get("/v1/admin/key-fingerprint", (c) => {
@@ -428,9 +434,9 @@ app.route("/v1/secrets-bulk", bulkSecretsRouter(secrets, policies, audit));
 app.route("/v1/lease", leaseRouter(leases, policies, audit, dynamicSecrets));
 app.route("/v1/policy", policyRouter(policies, audit));
 app.route("/v1/audit", auditRouter(audit, policies));
-app.route("/v1/mcp", mcpHttpRouter(secrets, leases, policies, audit, patternEngine, dynamicSecrets));
+app.route("/v1/mcp", mcpHttpRouter(secrets, leases, policies, audit, patternEngine, dynamicSecrets, db));
 app.route("/v1/proxy/patterns", patternsRouter(patternEngine, policies));
-app.route("/v1/proxy", proxyRouter(secrets, policies, audit, patternEngine));
+app.route("/v1/proxy", proxyRouter(secrets, policies, audit, patternEngine, db));
 app.route("/v1/dynamic", dynamicRouter(dynamicSecrets, policies, audit));
 app.route("/v1/scrub", scrubRouter());
 app.route("/v1/me", meRouter(db, audit));

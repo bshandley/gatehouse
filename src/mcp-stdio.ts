@@ -49,4 +49,4 @@ console.error(
   `[gatehouse:mcp] stdio transport started for identity="${auth.identity}"`
 );
 
-await runStdioTransport(secrets, leases, policies, audit, auth, dynamicSecrets);
+await runStdioTransport(secrets, leases, policies, audit, auth, dynamicSecrets, db);

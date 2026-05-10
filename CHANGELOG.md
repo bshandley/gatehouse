@@ -5,6 +5,62 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.12.0] - 2026-05-09
+
+### Added
+
+- **Configurable proxy runtime limits.** The previously-hardcoded 120-second
+  upstream timeout cap and 10 MiB upstream-response body cap are now editable
+  from a new "Proxy Limits" card in the Settings UI. Useful when an agent
+  legitimately needs to call a slow upstream (large file fetches, audio
+  transcription, image generation) without raising every limit globally at
+  the binary level.
+- **New endpoints**: `GET /v1/settings/proxy-limits` and
+  `POST /v1/settings/proxy-limits` (both admin-only). Body shape:
+  `{"max_timeout_ms": 120000, "max_body_bytes": 10485760}`. Validation
+  enforces a 1 second to 30 minute timeout range and a 1 KiB to 100 MiB body
+  range; values outside the range are rejected with HTTP 400 plus an
+  `errors[]` array.
+- **Cache + audit.** Settings are cached in memory (the proxy is in the hot
+  path); `setProxyLimits` invalidates on save. Every change writes a
+  `settings.proxy_limits.update` audit row with old + new values as
+  `metadata`.
+- **Both proxy code paths honor the same setting.** Regression-guard tests
+  assert that no `Math.min(..., 120_000)` cap remains in either
+  `src/api/proxy.ts` (REST `/v1/proxy`) or `src/mcp/server.ts` (MCP
+  `gatehouse_proxy` tool); both consult `getProxyLimits(db)` per request.
+
+### Changed
+
+- The web UI's `api()` helper now surfaces a server-returned `errors[]` array
+  in the thrown error message (joined with `; `). Saving with an out-of-range
+  value now shows the actual server validation message instead of `HTTP 400`.
+
+### UI polish
+
+- Removed up/down spinners from `<input type="number">` site-wide via
+  `appearance: textfield`. Validation is explicit (min/max + JS check), so the
+  spinners just added visual noise.
+- Numeric settings inputs are now compact (140px) with a visible unit suffix
+  (`seconds`, `MiB`) and right-aligned tabular numerals, instead of
+  full-width text boxes with the unit baked into the label.
+- Trust-email toggle in the SSO card no longer inherits the form-row grid's
+  160px label column (was rendered slightly off from the other toggles).
+- Inline form errors use the theme `--danger` / `--danger-subtle` variables
+  so the alert state reads correctly in both dark and light themes.
+
+### Database
+
+- No schema changes. Settings persist in the existing `settings` table under
+  key `proxy_limits`; the row is absent until first save and the proxy falls
+  back to the original 120 s / 10 MiB defaults.
+
+### Notes for upgrading
+
+- Pure additive. No migration; no behavior change until an admin saves new
+  values from the UI. Existing deployments continue to use the 120 s / 10 MiB
+  defaults.
+
 ## [0.11.0] - 2026-05-06
 
 ### Added
