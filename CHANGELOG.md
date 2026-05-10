@@ -5,6 +5,47 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.13.0] - 2026-05-09
+
+### Added
+
+- **Per-secret URL path-prefix allowlist (`allowed_path_prefixes` metadata).**
+  Parallel to `allowed_domains`. When set on a secret, the proxy enforces
+  that the upstream URL's path matches one of the listed comma-separated
+  prefixes. Match is path-segment aligned: a prefix
+  `/repos/bshandley/gatehouse` matches `/repos/bshandley/gatehouse` exactly
+  and `/repos/bshandley/gatehouse/<anything>`, but NOT
+  `/repos/bshandley/gatehouse-evil`. Trailing slashes in stored prefixes
+  are normalized at check time.
+
+  Useful for scoping a broad PAT (e.g. a GitHub fine-grained token that
+  has `contents:write` on multiple repos) to a single repository's API
+  surface without minting a new credential.
+
+  Example: a `git/github-pat` secret with metadata
+  `allowed_path_prefixes = "/repos/bshandley/gatehouse/,/user"` permits
+  Git Database calls against the gatehouse repo and a self-info read,
+  but rejects `/orgs/<x>/members` or `/repos/bshandley/some-other-repo/...`.
+
+- **`target_path` field in proxy audit metadata.** Every `proxy.forward`
+  and `proxy.forward.mcp` audit row now includes `target_path` (the URL
+  pathname, query-string-stripped) alongside the existing `target_url`.
+  Lets operators filter audits by which API surface was hit
+  (`SELECT * FROM audit_log WHERE json_extract(metadata, '$.target_path')
+  LIKE '/repos/%'`) without parsing the full URL.
+
+### Changed
+
+- Proxy denial paths (policy, domain, path-prefix, SSRF) all log the same
+  metadata shape now, including `target_url` and `target_path`. Previously
+  some paths logged only one of those.
+
+### Notes for upgrading
+
+- Pure additive. Secrets without `allowed_path_prefixes` metadata behave
+  exactly as before. Existing audit consumers see one new field; nothing
+  else moves.
+
 ## [0.12.1] - 2026-05-09
 
 ### Fixed

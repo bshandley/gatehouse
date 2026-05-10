@@ -485,6 +485,30 @@ curl -X POST http://gatehouse.local:3100/v1/secrets/api-keys/openai \
 
 If an agent tries to proxy this secret to `evil.com`, Gatehouse blocks it with a 403.
 
+### Path-prefix allowlisting
+
+For broad credentials (e.g. a GitHub fine-grained PAT with `contents:write` on
+multiple repos), pair `allowed_domains` with `allowed_path_prefixes` to scope
+the secret to a single API surface without minting a new credential:
+
+```bash
+curl -X POST http://gatehouse.local:3100/v1/secrets/git/github-pat \
+  -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
+  -d '{"value": "ghp_...", "metadata": {
+        "allowed_domains": "api.github.com",
+        "allowed_path_prefixes": "/repos/bshandley/gatehouse/,/user"
+      }}'
+```
+
+The agent can call `https://api.github.com/repos/bshandley/gatehouse/...` and
+`https://api.github.com/user`, but `/orgs/<x>/members` or
+`/repos/bshandley/some-other-repo/...` returns 403.
+
+Match is path-segment aligned: a prefix `/repos/bshandley/gatehouse` matches
+`/repos/bshandley/gatehouse` exactly and `/repos/bshandley/gatehouse/<anything>`,
+but NOT `/repos/bshandley/gatehouse-evil`. Trailing slashes in stored prefixes
+are normalized at check time.
+
 ---
 
 ## Dynamic secrets

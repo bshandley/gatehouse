@@ -740,4 +740,135 @@ describe("Proxy Router", () => {
     });
     expect(res.status).toBe(404);
   });
+
+  // --- Path prefix allowlist tests
+  test("allows request when URL path matches an allowed_path_prefix", async () => {
+    secrets.put("api-keys/scoped", "scoped-key", {
+      allowed_path_prefixes: "/v1/models/,/v1/chat/",
+    });
+    policies.savePolicy("proxy-agent", [
+      { paths: ["api-keys/*"], capabilities: ["proxy"] },
+    ]);
+
+    const res = await app.request("/v1/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "GET",
+        url: "https://api.openai.com/v1/models",
+        inject: { Authorization: "api-keys/scoped" },
+        timeout: 500,
+      }),
+    });
+    expect(res.status).not.toBe(403);
+  });
+
+  test("denies request when URL path is outside allowed_path_prefixes", async () => {
+    secrets.put("api-keys/scoped", "scoped-key", {
+      allowed_path_prefixes: "/v1/models/",
+    });
+    policies.savePolicy("proxy-agent", [
+      { paths: ["api-keys/*"], capabilities: ["proxy"] },
+    ]);
+
+    const res = await app.request("/v1/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "GET",
+        url: "https://api.openai.com/v1/files",
+        inject: { Authorization: "api-keys/scoped" },
+        timeout: 500,
+      }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toContain("allowed_path_prefixes");
+  });
+
+  test("path prefix matches at boundary (no false-extension match)", async () => {
+    // Prefix "/repos/bshandley/gatehouse" must NOT match "/repos/bshandley/gatehouse-evil"
+    secrets.put("api-keys/repo-scoped", "scoped-key", {
+      allowed_path_prefixes: "/repos/bshandley/gatehouse",
+    });
+    policies.savePolicy("proxy-agent", [
+      { paths: ["api-keys/*"], capabilities: ["proxy"] },
+    ]);
+
+    const res = await app.request("/v1/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "GET",
+        url: "https://api.github.com/repos/bshandley/gatehouse-evil/contents",
+        inject: { Authorization: "api-keys/repo-scoped" },
+        timeout: 500,
+      }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  test("path prefix matches the bare prefix exactly (without trailing slash)", async () => {
+    secrets.put("api-keys/repo-scoped2", "scoped-key", {
+      allowed_path_prefixes: "/repos/bshandley/gatehouse",
+    });
+    policies.savePolicy("proxy-agent", [
+      { paths: ["api-keys/*"], capabilities: ["proxy"] },
+    ]);
+
+    const res = await app.request("/v1/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "GET",
+        url: "https://api.github.com/repos/bshandley/gatehouse",
+        inject: { Authorization: "api-keys/repo-scoped2" },
+        timeout: 500,
+      }),
+    });
+    expect(res.status).not.toBe(403);
+  });
+
+  test("no allowed_path_prefixes => no path restriction (regression)", async () => {
+    secrets.put("api-keys/unrestricted", "key", {});
+    policies.savePolicy("proxy-agent", [
+      { paths: ["api-keys/*"], capabilities: ["proxy"] },
+    ]);
+
+    const res = await app.request("/v1/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "GET",
+        url: "https://api.openai.com/anywhere",
+        inject: { Authorization: "api-keys/unrestricted" },
+        timeout: 500,
+      }),
+    });
+    expect(res.status).not.toBe(403);
+  });
+
+  test("audit log includes target_path for proxy.forward events", async () => {
+    secrets.put("api-keys/audit-test", "k", {});
+    policies.savePolicy("proxy-agent", [
+      { paths: ["api-keys/*"], capabilities: ["proxy"] },
+    ]);
+
+    await app.request("/v1/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "GET",
+        url: "https://api.openai.com/v1/some/path?ignored=query",
+        inject: { Authorization: "api-keys/audit-test" },
+        timeout: 500,
+      }),
+    });
+
+    const row = db
+      .query("SELECT metadata FROM audit_log WHERE action = 'proxy.forward' ORDER BY id DESC LIMIT 1")
+      .get() as { metadata: string };
+    const meta = JSON.parse(row.metadata);
+    expect(meta.target_path).toBe("/v1/some/path");
+  });
 });

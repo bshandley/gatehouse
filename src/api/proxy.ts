@@ -4,7 +4,7 @@ import type { SecretsEngine } from "../secrets/engine";
 import type { PolicyEngine } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 import type { PatternEngine } from "../patterns/engine";
-import { isPrivateHost, scrubResponseBody, readCappedText } from "../security/ssrf";
+import { isPrivateHost, scrubResponseBody, readCappedText, pathMatchesAnyPrefix } from "../security/ssrf";
 import { getProxyLimits } from "../settings/proxyLimits";
 
 /**
@@ -300,6 +300,13 @@ export function proxyRouter(
       );
     }
 
+    // Extract the URL path from the user-supplied URL for audit metadata.
+    // Computed once here; the resolved (post-substitution) pathname is used
+    // separately during per-secret checks below.
+    const targetPath = (() => {
+      try { return new URL(req.url).pathname; } catch { return ""; }
+    })();
+
     // Validate timeout
     const timeout = Math.min(req.timeout || 30_000, limits.max_timeout_ms);
 
@@ -337,7 +344,7 @@ export function proxyRouter(
           action: "proxy.forward",
           path,
           source_ip: sourceIp,
-          metadata: { target_url: req.url, reason: "policy_denied" },
+          metadata: { target_url: req.url, target_path: targetPath, reason: "policy_denied" },
           success: false,
         });
         return c.json(
@@ -367,6 +374,12 @@ export function proxyRouter(
       }
       resolved.set(path, value);
 
+      // Resolve URL once per secret iteration (it may contain secret refs).
+      // Both domain and path-prefix checks need the resolved URL.
+      const resolvedUrl = injectSecrets(req.url, resolved);
+      let parsedResolvedUrl: URL | null = null;
+      try { parsedResolvedUrl = new URL(resolvedUrl); } catch { /* invalid URL caught later */ }
+
       // Check domain allowlist from secret metadata
       const meta = secrets.getMeta(path);
       if (meta?.metadata?.allowed_domains) {
@@ -376,8 +389,6 @@ export function proxyRouter(
           .filter(Boolean);
 
         if (domains.length > 0) {
-          // Resolve URL first (it might contain secret refs too)
-          const resolvedUrl = injectSecrets(req.url, resolved);
           const { allowed, hostname } = checkDomainAllowlist(
             resolvedUrl,
             domains
@@ -391,6 +402,7 @@ export function proxyRouter(
               source_ip: sourceIp,
               metadata: {
                 target_url: req.url,
+                target_path: targetPath,
                 hostname,
                 reason: "domain_blocked",
                 allowed_domains: meta.metadata.allowed_domains,
@@ -400,6 +412,40 @@ export function proxyRouter(
             return c.json(
               {
                 error: `Domain ${hostname} is not in the allowed domains for secret ${path}`,
+                request_id: c.get("requestId"),
+              },
+              403
+            );
+          }
+        }
+      }
+
+      // Check path-prefix allowlist from secret metadata
+      if (meta?.metadata?.allowed_path_prefixes) {
+        const prefixes = meta.metadata.allowed_path_prefixes
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
+
+        if (prefixes.length > 0) {
+          const resolvedPath = parsedResolvedUrl?.pathname ?? targetPath;
+          if (!pathMatchesAnyPrefix(resolvedPath, prefixes)) {
+            audit.log({
+              identity: auth.identity,
+              action: "proxy.forward",
+              path,
+              source_ip: sourceIp,
+              metadata: {
+                target_url: req.url,
+                target_path: targetPath,
+                reason: "path_prefix_blocked",
+                allowed_path_prefixes: meta.metadata.allowed_path_prefixes,
+              },
+              success: false,
+            });
+            return c.json(
+              {
+                error: `Path '${resolvedPath}' is not in allowed_path_prefixes for secret '${path}'`,
                 request_id: c.get("requestId"),
               },
               403
@@ -426,7 +472,7 @@ export function proxyRouter(
           action: "proxy.forward",
           path: secretPaths.join(","),
           source_ip: sourceIp,
-          metadata: { target_host: parsedUpstream.hostname, reason: "ssrf_blocked" },
+          metadata: { target_host: parsedUpstream.hostname, target_path: targetPath, reason: "ssrf_blocked" },
           success: false,
         });
         return c.json({ error: ssrf.reason, request_id: c.get("requestId") }, 403);
@@ -542,6 +588,8 @@ export function proxyRouter(
         source_ip: sourceIp,
         metadata: {
           target_host: new URL(upstreamUrl).hostname,
+          target_path: targetPath,
+          target_url: req.url,
           method,
           status: String(upstream.status),
         },
@@ -622,7 +670,7 @@ export function proxyRouter(
         action: "proxy.forward",
         path: secretPaths.join(","),
         source_ip: sourceIp,
-        metadata: { method, reason },
+        metadata: { target_url: req.url, target_path: targetPath, method, reason },
         success: false,
       });
 

@@ -11,7 +11,7 @@ import type { DynamicSecretsManager } from "../dynamic/manager";
 import { scrubValue } from "../scrub/scrubber";
 import { v4 as uuid } from "uuid";
 import type { PatternEngine } from "../patterns/engine";
-import { isPrivateHost, scrubResponseBody, readCappedText } from "../security/ssrf";
+import { isPrivateHost, scrubResponseBody, readCappedText, pathMatchesAnyPrefix } from "../security/ssrf";
 import { checkPrivateNetworkPolicy, resolveAutoInject } from "../api/proxy";
 import { getProxyLimits } from "../settings/proxyLimits";
 import { VERSION } from "../version";
@@ -505,6 +505,11 @@ export function createMCPHandler(
           if (!args.url) return error("url is required");
           if (!args.method) return error("method is required");
 
+          // Extract the URL path from the user-supplied URL for audit metadata.
+          const targetPath = (() => {
+            try { return new URL(args.url).pathname; } catch { return ""; }
+          })();
+
           const method = args.method.toUpperCase();
           if (!["GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS"].includes(method)) {
             return error(`Unsupported method: ${method}`);
@@ -552,27 +557,39 @@ export function createMCPHandler(
           const resolved = new Map<string, string>();
           for (const path of refs) {
             if (!policies.check(auth.policies, path, "proxy")) {
-              audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, success: false });
+              audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, metadata: { target_url: args.url, target_path: targetPath, reason: "policy_denied" }, success: false });
               return error(`Access denied: no proxy permission on "${path}"`);
             }
             const val = secrets.get(path);
             if (!val) return error(`Secret not found: "${path}"`);
             resolved.set(path, val);
 
+            // Resolve the URL (it may contain secret refs) for domain/path checks.
+            const resolvedUrl = args.url.replace(refPattern, (_: string, p: string) => resolved.get(p) ?? `{{secret:${p}}}`);
+            let parsedResolvedUrl: URL | null = null;
+            try { parsedResolvedUrl = new URL(resolvedUrl); } catch { /* invalid URL caught later */ }
+
             // Domain allowlist check
             const meta = secrets.getMeta(path);
             if (meta?.metadata?.allowed_domains) {
               const domains = meta.metadata.allowed_domains.split(",").map((d: string) => d.trim()).filter(Boolean);
               if (domains.length > 0) {
-                const resolvedUrl = args.url.replace(refPattern, (_: string, p: string) => resolved.get(p) ?? `{{secret:${p}}}`);
-                try {
-                  const hostname = new URL(resolvedUrl).hostname;
-                  if (!domains.some((d: string) => hostname === d || hostname.endsWith(`.${d}`))) {
-                    audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, success: false });
-                    return error(`Domain ${hostname} not in allowed domains for secret "${path}"`);
-                  }
-                } catch {
-                  return error("Invalid URL");
+                const hostname = parsedResolvedUrl?.hostname ?? "invalid";
+                if (!parsedResolvedUrl || !domains.some((d: string) => hostname === d || hostname.endsWith(`.${d}`))) {
+                  audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, metadata: { target_url: args.url, target_path: targetPath, hostname, reason: "domain_blocked", allowed_domains: meta.metadata.allowed_domains }, success: false });
+                  return error(`Domain ${hostname} not in allowed domains for secret "${path}"`);
+                }
+              }
+            }
+
+            // Path-prefix allowlist check
+            if (meta?.metadata?.allowed_path_prefixes) {
+              const prefixes = meta.metadata.allowed_path_prefixes.split(",").map((p: string) => p.trim()).filter(Boolean);
+              if (prefixes.length > 0) {
+                const resolvedPath = parsedResolvedUrl?.pathname ?? targetPath;
+                if (!pathMatchesAnyPrefix(resolvedPath, prefixes)) {
+                  audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, metadata: { target_url: args.url, target_path: targetPath, reason: "path_prefix_blocked", allowed_path_prefixes: meta.metadata.allowed_path_prefixes }, success: false });
+                  return error(`Path '${resolvedPath}' is not in allowed_path_prefixes for secret "${path}"`);
                 }
               }
             }
@@ -596,7 +613,7 @@ export function createMCPHandler(
                 action: "proxy.forward.mcp",
                 path: [...refs].join(","),
                 source_ip: sourceIp,
-                metadata: { target_host: parsedUrl.hostname, reason: "ssrf_blocked" },
+                metadata: { target_host: parsedUrl.hostname, target_path: targetPath, reason: "ssrf_blocked" },
                 success: false,
               });
               return error(ssrf.reason);
@@ -669,6 +686,8 @@ export function createMCPHandler(
               source_ip: sourceIp,
               metadata: {
                 target_host: new URL(upstreamUrl).hostname,
+                target_path: targetPath,
+                target_url: args.url,
                 method,
                 status: String(upstream.status),
               },
@@ -691,6 +710,7 @@ export function createMCPHandler(
               action: "proxy.forward.mcp",
               path: [...refs].join(","),
               source_ip: sourceIp,
+              metadata: { target_url: args.url, target_path: targetPath },
               success: false,
             });
             if (e.name === "AbortError") return error(`Request timed out after ${timeout}ms`);

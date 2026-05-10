@@ -169,6 +169,25 @@ export function isPrivateHost(hostname: string): boolean {
 }
 
 /**
+ * Check whether a URL path matches any of the listed prefix strings.
+ *
+ * Match is path-segment-aligned: a prefix "/repos/bshandley/gatehouse"
+ * matches the path exactly, or any path that starts with
+ * "/repos/bshandley/gatehouse/" -- but NOT "/repos/bshandley/gatehouse-evil".
+ *
+ * Trailing slashes in stored prefixes are normalized away at check time so
+ * operators may write either form without changing semantics.
+ */
+export function pathMatchesAnyPrefix(path: string, prefixes: string[]): boolean {
+  for (const raw of prefixes) {
+    const p = raw.endsWith("/") ? raw.slice(0, -1) : raw;
+    if (path === p) return true;
+    if (path.startsWith(p + "/")) return true;
+  }
+  return false;
+}
+
+/**
  * Replace every occurrence of an injected secret value in a response body
  * with "[REDACTED]". This defeats naive upstream echo ("your token is X").
  *
