@@ -5,6 +5,23 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.12.1] - 2026-05-09
+
+### Fixed
+
+- **Proxy body scan no longer false-positives on literal `{{secret:...}}`
+  strings in request bodies.** Both `POST /v1/proxy` and the MCP
+  `gatehouse_proxy` tool now treat a template placeholder whose path
+  doesn't resolve to a real secret as literal text, forwarded unchanged
+  to the upstream. Previously, a body that legitimately contained the
+  literal string `{{secret:path}}` (e.g. source code or docs explaining
+  the proxy's own injection syntax) was rejected with
+  `Forbidden: no proxy capability on path` because the scanner tried to
+  authorize a phantom secret named `path`.
+- Explicit references (`inject` / `auto_inject`) are unchanged: the secret
+  must still exist AND the AppRole must still have `proxy` capability on
+  it, otherwise the request fails loudly.
+
 ## [0.12.0] - 2026-05-09
 
 ### Added

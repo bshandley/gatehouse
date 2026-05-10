@@ -510,29 +510,39 @@ export function createMCPHandler(
             return error(`Unsupported method: ${method}`);
           }
 
-          // Find secret references (template + inject shorthand)
+          // Find secret references, classified by source.
+          // Template candidates (from {{secret:...}} scans) are best-effort:
+          // a placeholder whose path doesn't resolve to a real secret is
+          // treated as literal text and forwarded unchanged. Explicit
+          // references (inject / auto_inject) must exist + have policy.
           const refPattern = /\{\{secret:([a-zA-Z0-9/_-]+)\}\}/g;
           const scan = (s: string) => [...s.matchAll(refPattern)].map(m => m[1]);
-          const refs = new Set<string>();
-          scan(args.url).forEach(r => refs.add(r));
+          const templateCandidates = new Set<string>();
+          const explicit = new Set<string>();
+          scan(args.url).forEach(r => templateCandidates.add(r));
           if (args.headers) {
             for (const v of Object.values(args.headers as Record<string, string>)) {
-              scan(v).forEach(r => refs.add(r));
+              scan(v).forEach(r => templateCandidates.add(r));
             }
           }
           if (args.body) {
-            scan(typeof args.body === "string" ? args.body : JSON.stringify(args.body)).forEach(r => refs.add(r));
+            scan(typeof args.body === "string" ? args.body : JSON.stringify(args.body)).forEach(r => templateCandidates.add(r));
           }
           if (args.inject) {
             for (const secretPath of Object.values(args.inject as Record<string, string>)) {
-              refs.add(secretPath);
+              explicit.add(secretPath);
             }
           }
           if (args.auto_inject) {
             for (const secretPath of (args.auto_inject as string[])) {
-              refs.add(secretPath);
+              explicit.add(secretPath);
             }
           }
+
+          // Drop template candidates whose secret doesn't exist; the literal
+          // {{secret:...}} string is forwarded as-is in that case.
+          const liveTemplate = [...templateCandidates].filter(p => Boolean(secrets.get(p)));
+          const refs = new Set<string>([...liveTemplate, ...explicit]);
 
           if (refs.size === 0) {
             return error('No secret references found. Use {{secret:path}} in url/headers/body, "inject", or "auto_inject".');

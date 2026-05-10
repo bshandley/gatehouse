@@ -121,24 +121,33 @@ export function checkPrivateNetworkPolicy(
 const SECRET_REF_PATTERN = /\{\{secret:([a-zA-Z0-9/_-]+)\}\}/g;
 
 /**
- * Extract all secret references from a proxy request.
- * Scans URL, headers, body for {{secret:path}} patterns,
- * and also collects paths from the inject shorthand map.
+ * Extract secret references from a proxy request, classified by source.
+ *
+ * - `templateCandidates`: paths discovered by scanning url/headers/body for
+ *   `{{secret:path}}` placeholders. These are CANDIDATES, not commitments.
+ *   The caller must check whether each path resolves to a real secret. If
+ *   it does not, the placeholder is treated as literal text and forwarded
+ *   to the upstream unchanged. This avoids false-positive policy denials
+ *   for bodies that legitimately contain the literal string `{{secret:...}}`
+ *   (e.g. source code documenting the proxy API).
+ *
+ * - `explicit`: paths the caller named directly via `inject` or `auto_inject`.
+ *   These are commitments: the secret must exist AND the AppRole must have
+ *   `proxy` capability on it. Failure is a 403/404, not silent pass-through.
  */
-function extractSecretRefs(req: ProxyRequest): string[] {
-  const refs = new Set<string>();
+function extractSecretRefs(req: ProxyRequest): { templateCandidates: string[]; explicit: string[] } {
+  const templateCandidates = new Set<string>();
+  const explicit = new Set<string>();
 
   const scan = (value: string) => {
     for (const match of value.matchAll(SECRET_REF_PATTERN)) {
-      refs.add(match[1]);
+      templateCandidates.add(match[1]);
     }
   };
 
   scan(req.url);
   if (req.headers) {
-    for (const v of Object.values(req.headers)) {
-      scan(v);
-    }
+    for (const v of Object.values(req.headers)) scan(v);
   }
   if (req.body !== undefined) {
     scan(typeof req.body === "string" ? req.body : JSON.stringify(req.body));
@@ -147,18 +156,16 @@ function extractSecretRefs(req: ProxyRequest): string[] {
   // Inject shorthand: values are secret paths (optionally prefixed with "basic:")
   if (req.inject) {
     for (const secretPath of Object.values(req.inject)) {
-      refs.add(secretPath.replace(/^basic:/, ""));
+      explicit.add(secretPath.replace(/^basic:/, ""));
     }
   }
 
   // Auto-inject: paths from array
   if (req.auto_inject) {
-    for (const secretPath of req.auto_inject) {
-      refs.add(secretPath);
-    }
+    for (const secretPath of req.auto_inject) explicit.add(secretPath);
   }
 
-  return Array.from(refs);
+  return { templateCandidates: Array.from(templateCandidates), explicit: Array.from(explicit) };
 }
 
 /**
@@ -296,8 +303,21 @@ export function proxyRouter(
     // Validate timeout
     const timeout = Math.min(req.timeout || 30_000, limits.max_timeout_ms);
 
-    // Extract secret references (both template and inject styles)
-    const secretPaths = extractSecretRefs(req);
+    // Extract secret references, classified by source.
+    // Template candidates (from {{secret:...}} scans) are best-effort: a
+    // placeholder whose path doesn't resolve to a real secret is treated
+    // as literal text and forwarded unchanged. Explicit references (inject
+    // / auto_inject) are commitments: must exist + must have policy.
+    const { templateCandidates, explicit } = extractSecretRefs(req);
+
+    // Filter template candidates to only those that actually resolve to a
+    // real secret. Unresolved candidates are dropped here; injectSecrets()
+    // leaves any unmatched {{secret:path}} pattern literal in the output.
+    const liveTemplate = templateCandidates.filter((p) => Boolean(secrets.get(p)));
+
+    // The set of secrets that will actually be used by this request.
+    const secretPaths = Array.from(new Set([...liveTemplate, ...explicit]));
+
     if (secretPaths.length === 0) {
       return c.json(
         {
@@ -335,6 +355,8 @@ export function proxyRouter(
     for (const path of secretPaths) {
       const value = secrets.get(path);
       if (!value) {
+        // Should not happen: liveTemplate filtered out non-existent paths,
+        // and explicit paths already passed policy. Defensive 404.
         return c.json(
           {
             error: `Secret not found: ${path}`,

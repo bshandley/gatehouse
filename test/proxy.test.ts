@@ -155,6 +155,8 @@ describe("Proxy Router", () => {
   });
 
   test("denies proxy when policy doesn't match path at all", async () => {
+    // db/postgres is a real secret. The proxy-agent policy grants `read`
+    // on db/* but NOT `proxy`. Template-substituting it must fail policy.
     const res = await app.request("/v1/proxy", {
       method: "POST",
       headers: {
@@ -165,7 +167,7 @@ describe("Proxy Router", () => {
         url: "https://example.com",
         method: "GET",
         headers: {
-          Authorization: "{{secret:unknown/path}}",
+          Authorization: "{{secret:db/postgres}}",
         },
       }),
     });
@@ -194,11 +196,14 @@ describe("Proxy Router", () => {
 
   // Secret resolution tests
 
-  test("returns 404 for nonexistent secret", async () => {
-    // Save a policy that grants proxy on the path
+  test("returns 404 for nonexistent secret referenced via auto_inject", async () => {
+    // Explicit references (inject / auto_inject) must resolve to a real
+    // secret -- if the path doesn't exist, fail loudly with 404. Template
+    // references to nonexistent paths are treated as literal text instead
+    // (covered by a separate test below).
     policies.savePolicy("proxy-agent", [
-      { path: "api-keys/*", capabilities: ["proxy"] },
-      { path: "missing/*", capabilities: ["proxy"] },
+      { paths: ["api-keys/*"], capabilities: ["proxy"] },
+      { paths: ["missing/*"], capabilities: ["proxy"] },
     ]);
 
     const res = await app.request("/v1/proxy", {
@@ -207,9 +212,7 @@ describe("Proxy Router", () => {
       body: JSON.stringify({
         url: "https://example.com",
         method: "GET",
-        headers: {
-          Authorization: "{{secret:missing/key}}",
-        },
+        auto_inject: ["missing/key"],
       }),
     });
     expect(res.status).toBe(404);
@@ -675,5 +678,66 @@ describe("Proxy Router", () => {
     // Should pass SSRF check (502/504 from connection failure, NOT 403)
     expect(res.status).not.toBe(403);
     expect([502, 504]).toContain(res.status);
+  });
+
+  // --- Body-scan literal-passthrough behavior (regression for the
+  //     "Forbidden: no proxy capability on path" false positive triggered
+  //     by source code or docs that contain literal {{secret:...}} strings).
+  test("literal {{secret:...}} in body is treated as text when path doesn't exist", async () => {
+    // No `path` secret exists. The body's literal `{{secret:path}}` is just
+    // documentation text being uploaded somewhere; it must not gate the
+    // proxy on a phantom secret named "path".
+    const res = await app.request("/v1/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "POST",
+        url: "https://api.openai.com/v1/models",
+        auto_inject: ["api-keys/openai"],
+        body: 'Here is some docs talking about {{secret:path}} as an example.',
+        timeout: 500,
+      }),
+    });
+    expect(res.status).not.toBe(403);
+  });
+
+  test("literal {{secret:...}} pointing at a real secret without proxy policy still 403", async () => {
+    // db/postgres exists and the proxy-agent policy grants `read` on it but
+    // NOT `proxy`. Including {{secret:db/postgres}} in body must still be
+    // denied -- the literal-passthrough fix only applies to UNRESOLVED paths.
+    const res = await app.request("/v1/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "POST",
+        url: "https://api.openai.com/v1/models",
+        auto_inject: ["api-keys/openai"],
+        body: 'Trying to exfiltrate {{secret:db/postgres}}',
+        timeout: 500,
+      }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toContain("db/postgres");
+  });
+
+  test("explicit auto_inject of a non-existent path still 404 (no silent passthrough)", async () => {
+    // Explicit references are commitments -- if the path doesn't exist, fail
+    // loudly. This is the dual of the body-literal case: body is best-effort,
+    // auto_inject / inject are not.
+    const res = await app.request("/v1/proxy", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Test-Policies": JSON.stringify(["admin"]),
+      },
+      body: JSON.stringify({
+        method: "GET",
+        url: "https://api.openai.com/v1/models",
+        auto_inject: ["api-keys/does-not-exist"],
+        timeout: 500,
+      }),
+    });
+    expect(res.status).toBe(404);
   });
 });
