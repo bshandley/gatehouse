@@ -5,6 +5,20 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.13.1] - 2026-05-09
+
+### Internal
+
+- The `docs/superpowers/` directory (plans + design specs) is no longer
+  published to the GitHub mirror. These were always meant as in-progress
+  dev notes; they read as authoritative documentation when discovered out
+  of context. The two specs that previously appeared on GitHub
+  (`2026-04-10-marketing-site-design.md` and `2026-05-06-sso-login-design.md`)
+  are removed from `bshandley/gatehouse:main` by this release. The full
+  history remains on the internal Gitea remote.
+- No code changes; the running container is functionally identical to
+  v0.13.0. This release bump exists to anchor the public-doc cleanup.
+
 ## [0.13.0] - 2026-05-09
 
 ### Added
