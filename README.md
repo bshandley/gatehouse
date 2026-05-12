@@ -1,6 +1,10 @@
-# Gatehouse
+<p align="center">
+  <img src="docs/logo.svg" alt="Gatehouse logo" width="128" />
+</p>
 
-**[gatehouse.to](https://gatehouse.to)**
+<h1 align="center">Gatehouse</h1>
+
+<p align="center"><strong><a href="https://gatehouse.to">gatehouse.to</a></strong></p>
 
 A secrets vault built for AI agents, where credentials never leave the vault.
 
@@ -24,6 +28,12 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 - **Web UI.** Dark-themed control panel with command palette (Cmd/Ctrl+K) for managing secrets, leases, agents, patterns, and audit logs.
 - **SSO.** Optional OpenID Connect single sign-on for human admins. Works with PocketID, Authentik, Keycloak, Google, and any other OIDC provider. Strict link-by-verified-email account model; configure once in Settings.
 - **Homelab-first.** Single Docker container. Runs on a Raspberry Pi, Proxmox LXC, or Jetson Orin Nano. AGPL-3.0.
+
+## Screenshots
+
+| Dashboard | Secrets | Learned patterns |
+|---|---|---|
+| [![Dashboard](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png) | [![Secrets](docs/screenshots/secrets.png)](docs/screenshots/secrets.png) | [![Learned patterns](docs/screenshots/patterns.png)](docs/screenshots/patterns.png) |
 
 ## Quick start
 

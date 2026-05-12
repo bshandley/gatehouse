@@ -162,12 +162,14 @@ async function main(): Promise<void> {
 
     const browser = await chromium.launch();
     const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 2 });
+    // Seed the auth token in localStorage before any page scripts run so the
+    // UI's init code calls showApp() directly, bypassing the login form.
+    await ctx.addInitScript((tok: string) => {
+      try { localStorage.setItem("gatehouseToken", tok); } catch {}
+    }, ROOT_TOKEN);
     const page = await ctx.newPage();
 
     await page.goto(BASE, { waitUntil: "networkidle" });
-    await page.click("#login-tab-token");
-    await page.fill("#login-token", ROOT_TOKEN);
-    await page.click("#login-submit-btn");
     await page.waitForSelector(".nav-item.active[data-page=dashboard]", { state: "visible" });
     await page.waitForTimeout(500);
 
@@ -183,6 +185,16 @@ async function main(): Promise<void> {
         // Expand the api-keys group and open the openai secret so the detail panel renders.
         const leaf = page.locator(".tree-item", { hasText: "openai" }).first();
         if (await leaf.count()) await leaf.click();
+        await page.waitForTimeout(600);
+      }
+      if (page_name === "patterns") {
+        // Pattern groups render collapsed by default; expand them all so the
+        // screenshot shows the actual learned routes, not just group headers.
+        const groups = page.locator(".pattern-group");
+        const count = await groups.count();
+        for (let i = 0; i < count; i++) {
+          await groups.nth(i).locator(".card-header").click();
+        }
         await page.waitForTimeout(600);
       }
       const out = join(OUT_DIR, `${file}.png`);
