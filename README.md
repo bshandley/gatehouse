@@ -4,9 +4,19 @@
 
 <h1 align="center">Gatehouse</h1>
 
-<p align="center"><strong><a href="https://gatehouse.to">gatehouse.to</a></strong></p>
+<p align="center"><strong>The agent secrets vault. Credentials never leave the vault.</strong></p>
 
-A secrets vault built for AI agents, where credentials never leave the vault.
+<p align="center">
+  <a href="https://gatehouse.to">Website</a> ·
+  <a href="https://gatehouse.to/docs/getting-started/">Docs</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="https://github.com/bshandley/gatehouse/pkgs/container/gatehouse">GHCR</a>
+</p>
+
+**Gatehouse is a self-hosted secrets vault built for AI agents and LLM tools.** It stores API keys, database credentials, and SSH certificates for autonomous coding agents (Claude Code, Codex, Cursor, Windsurf, OpenCode) and proxies upstream HTTP calls so secrets never enter agent context windows, log files, or tool output. Think of it as an open-source HashiCorp Vault alternative purpose-built for agentic AI: MCP-native, REST-parallel, single Docker container, AGPL-3.0.
+
+## Why a secrets vault built for AI agents?
 
 Traditional secret managers assume the client is trusted once authenticated. AI agents break that assumption. Their context windows get logged, cached, and shipped to cloud APIs. A credential that enters an agent's memory can end up anywhere.
 
@@ -30,6 +40,15 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 - **Rate limits.** Per-AppRole (minute/hour/day) and per-secret (minute) on proxy traffic. Bound damage from a runaway agent or an expensive upstream. 429 with `Retry-After` when hit; root and user JWTs exempt.
 - **Approval-gated leases.** Mark a secret `requires_approval=true` and agents must call `gatehouse_request_access` and wait for a human. The approved lease IS the access window: revoke once, atomic kill. Optional signed webhook (HMAC + timestamp) for Slack/Discord/paging bridges. Trusted networks can auto-approve via CIDR allowlist.
 - **Homelab-first.** Single Docker container. Runs on a Raspberry Pi, Proxmox LXC, or Jetson Orin Nano. AGPL-3.0.
+
+## Use cases
+
+- **Secrets manager for AI agents.** Give Claude Code, Codex, Cursor, Windsurf, and OpenCode access to API keys and database credentials without putting raw secrets into LLM context windows.
+- **Self-hosted Vault alternative.** Replace HashiCorp Vault for homelab and small-team deployments where a single-container, no-cluster vault is enough. Vault-grade envelope encryption, dynamic secrets, leases, and audit logging.
+- **MCP secrets server.** Drop into any MCP-aware harness as a tool server. Agents call `gatehouse_checkout`, `gatehouse_proxy`, and `gatehouse_request_access` instead of seeing raw credentials.
+- **Homelab credential vault.** Centralize API keys, SSH certificates, and database passwords across Proxmox LXCs, Raspberry Pi clusters, and Jetson boxes. ~50MB image, runs on a Pi.
+- **Approval-gated production access.** Mark a secret `requires_approval=true` so humans authorize each lease over a signed Slack/Discord/paging webhook before an agent can use it.
+- **Dynamic database credentials.** Issue short-lived PostgreSQL, MySQL/MariaDB, MongoDB, and Redis credentials per agent task; revoke on lease expiry.
 
 ## Screenshots
 
