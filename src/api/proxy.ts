@@ -4,6 +4,10 @@ import type { SecretsEngine } from "../secrets/engine";
 import type { PolicyEngine } from "../policy/engine";
 import type { AuditLog } from "../audit/logger";
 import type { PatternEngine } from "../patterns/engine";
+import type { RateLimiter } from "../rateLimits/limiter";
+import type { LeaseManager } from "../lease/manager";
+import type { AuthContext } from "../auth/middleware";
+import { enforceProxyGates } from "./proxyGates";
 import { isPrivateHost, scrubResponseBody, readCappedText, pathMatchesAnyPrefix } from "../security/ssrf";
 import { getProxyLimits } from "../settings/proxyLimits";
 
@@ -207,7 +211,9 @@ export function proxyRouter(
   policies: PolicyEngine,
   audit: AuditLog,
   patterns: PatternEngine | undefined,
-  db: Database
+  db: Database,
+  rateLimiter?: RateLimiter,
+  leases?: LeaseManager
 ) {
   const router = new Hono();
 
@@ -225,7 +231,7 @@ export function proxyRouter(
    *   "method": "POST",
    *   "url": "https://api.openai.com/v1/chat/completions",
    *   "headers": {
-   *     "Authorization": "Bearer {{secret:api-keys/openai}}",
+   *     "Authorization": "Bearer {{secret:api-keys/example}}",
    *     "Content-Type": "application/json"
    *   },
    *   "body": { "model": "gpt-4", ... }
@@ -237,7 +243,7 @@ export function proxyRouter(
    *   "url": "https://api.openai.com/v1/chat/completions",
    *   "headers": { "Content-Type": "application/json" },
    *   "inject": {
-   *     "Authorization": "api-keys/openai"
+   *     "Authorization": "api-keys/example"
    *   },
    *   "body": { "model": "gpt-4", ... }
    * }
@@ -251,7 +257,7 @@ export function proxyRouter(
    * {
    *   "method": "POST",
    *   "url": "https://api.anthropic.com/v1/messages",
-   *   "auto_inject": ["api-keys/anthropic"],
+   *   "auto_inject": ["api-keys/example2"],
    *   "body": { "model": "claude-3", ... }
    * }
    * Gatehouse reads metadata.header_name from the secret to set the right header.
@@ -263,7 +269,7 @@ export function proxyRouter(
    * a specific secret by setting its metadata allow_private=false.
    */
   router.post("/", async (c) => {
-    const auth = c.get("auth") as { identity: string; policies: string[] };
+    const auth = c.get("auth") as AuthContext;
     const sourceIp = c.get("sourceIp") || "unknown";
     const limits = getProxyLimits(db);
 
@@ -355,6 +361,35 @@ export function proxyRouter(
           403
         );
       }
+    }
+
+    // Gates: per-AppRole rate limits, per-secret rate limits, approval check.
+    // Failures here return their own structured response and do NOT count
+    // toward rate limits (only successful gate passes increment counters via
+    // recordCall below, post-forward). Tests may omit rateLimiter/leases; the
+    // gates short-circuit to "allowed" in that case.
+    let gateRoleId = "";
+    let gateLeaseIds: Record<string, string> = {};
+    if (rateLimiter && leases) {
+      const gate = enforceProxyGates({
+        auth,
+        secretPaths,
+        sourceIp,
+        db,
+        rateLimiter,
+        leases,
+        secrets,
+        audit,
+        requestId: c.get("requestId"),
+      });
+      if (!gate.allowed) {
+        if (gate.headers) {
+          for (const [k, v] of Object.entries(gate.headers)) c.header(k, v);
+        }
+        return c.json(gate.body, gate.status);
+      }
+      gateRoleId = gate.roleId;
+      gateLeaseIds = gate.leaseIds;
     }
 
     // Resolve secrets and check domain allowlists
@@ -581,19 +616,30 @@ export function proxyRouter(
       clearTimeout(timer);
 
       // Log success (never log the resolved URL - it might contain secrets in path)
+      const successMeta: Record<string, string> = {
+        target_host: new URL(upstreamUrl).hostname,
+        target_path: targetPath,
+        target_url: req.url,
+        method,
+        status: String(upstream.status),
+      };
+      const leaseIdsList = Object.values(gateLeaseIds);
+      if (leaseIdsList.length > 0) {
+        successMeta.lease_id = leaseIdsList.join(",");
+      }
       audit.log({
         identity: auth.identity,
         action: "proxy.forward",
         path: secretPaths.join(","),
         source_ip: sourceIp,
-        metadata: {
-          target_host: new URL(upstreamUrl).hostname,
-          target_path: targetPath,
-          target_url: req.url,
-          method,
-          status: String(upstream.status),
-        },
+        metadata: successMeta,
       });
+
+      // Count this call against AppRole + per-secret rate-limit buckets.
+      // Upstream 4xx/5xx still counts: the gate work happened and the
+      // upstream connection consumed proxy capacity. Pre-forward failures
+      // (rate-limited, approval-required, policy denied) do NOT count.
+      if (rateLimiter) rateLimiter.recordCall(gateRoleId, secretPaths);
 
       // Return the upstream response. Read with a hard body cap so an
       // oversized/hostile upstream can't exhaust memory, then scrub any
@@ -673,6 +719,10 @@ export function proxyRouter(
         metadata: { target_url: req.url, target_path: targetPath, method, reason },
         success: false,
       });
+
+      // Failed upstream calls still count against rate limits: we did the
+      // gate + injection work and made the outbound request.
+      if (rateLimiter) rateLimiter.recordCall(gateRoleId, secretPaths);
 
       if (err.name === "AbortError") {
         const resp: any = {

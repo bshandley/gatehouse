@@ -12,7 +12,9 @@
 
 export type GatehouseEvent =
   | { type: "audit"; record: Record<string, unknown> }
-  | { type: "heartbeat"; ts: number };
+  | { type: "heartbeat"; ts: number }
+  | { type: "lease_request_created"; lease: Record<string, unknown> }
+  | { type: "lease_status_changed"; lease_id: string; status: string; identity: string; approved_by?: string };
 
 type Listener = (e: GatehouseEvent) => void;
 

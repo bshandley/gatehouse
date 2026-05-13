@@ -30,6 +30,8 @@ import { getConnInfo } from "hono/bun";
 import { loadConfig } from "./config";
 import { VERSION } from "./version";
 import { EventBus } from "./events/bus";
+import { RateLimiter } from "./rateLimits/limiter";
+import { warnIfWebhookPrivate } from "./lease/webhook";
 import { hkdfSync } from "crypto";
 
 const config = loadConfig();
@@ -40,8 +42,17 @@ const audit = new AuditLog(db, eventBus);
 const secrets = new SecretsEngine(db, config.masterKey);
 const policies = new PolicyEngine(config.configDir, db);
 const leases = new LeaseManager(db, secrets, audit);
+leases.attachBus(eventBus);
 const dynamicSecrets = new DynamicSecretsManager(db, audit, config.masterKey);
 const patternEngine = new PatternEngine(db);
+const rateLimiter = new RateLimiter();
+
+// Resolve and remember the public-facing server URL so approval webhooks can
+// build absolute /v1/lease/<id>/approve and #leases links. Falls back to the
+// local port when not configured.
+const publicUrl = process.env.GATEHOUSE_PUBLIC_URL || `http://localhost:${config.port}`;
+leases.setServerBaseUrl(publicUrl);
+warnIfWebhookPrivate();
 
 // Start lease reapers (check for expired leases every 30s)
 leases.startReaper(30_000);
@@ -175,7 +186,7 @@ app.get("/", async (c) => {
 });
 
 // Auth routes (login, token exchange - no auth middleware)
-app.route("/v1/auth", authRouter(db, config, audit));
+app.route("/v1/auth", authRouter(db, config, audit, leases));
 
 // Onboarding routes (public fetch/exchange + admin-gated create/list/revoke).
 // Mounted BEFORE authMiddleware: the onboarding token in the URL path is the
@@ -215,6 +226,10 @@ app.get("/v1/config", (c) => {
     max_lease_ttl: 86400,
     min_lease_ttl: 10,
     default_lease_ttl: 300,
+    approval_webhook_set: !!process.env.GATEHOUSE_APPROVAL_WEBHOOK_URL,
+    approval_webhook_signed: !!process.env.GATEHOUSE_APPROVAL_WEBHOOK_SECRET,
+    approval_request_default_ttl: 3600,
+    approval_request_max_ttl: 86400,
   });
 });
 
@@ -398,6 +413,13 @@ app.get("/v1/events", (c) => {
           send(`event: audit\ndata: ${JSON.stringify(rec)}\n\n`);
         } else if (e.type === "heartbeat") {
           send(`event: heartbeat\ndata: ${JSON.stringify(e)}\n\n`);
+        } else if (e.type === "lease_request_created") {
+          const leaseIdentity = (e.lease as { identity?: string }).identity;
+          if (!isAdmin && leaseIdentity !== self) return;
+          send(`event: lease_request_created\ndata: ${JSON.stringify(e.lease)}\n\n`);
+        } else if (e.type === "lease_status_changed") {
+          if (!isAdmin && e.identity !== self) return;
+          send(`event: lease_status_changed\ndata: ${JSON.stringify(e)}\n\n`);
         }
       });
 
@@ -431,12 +453,12 @@ app.route("/v1/skill", skillRouter(policies, audit));
 app.route("/v1/version", versionRouter());
 app.route("/v1/secrets", secretsRouter(secrets, policies, audit, patternEngine, dynamicSecrets));
 app.route("/v1/secrets-bulk", bulkSecretsRouter(secrets, policies, audit));
-app.route("/v1/lease", leaseRouter(leases, policies, audit, dynamicSecrets));
+app.route("/v1/lease", leaseRouter(leases, policies, audit, dynamicSecrets, secrets));
 app.route("/v1/policy", policyRouter(policies, audit));
 app.route("/v1/audit", auditRouter(audit, policies));
-app.route("/v1/mcp", mcpHttpRouter(secrets, leases, policies, audit, patternEngine, dynamicSecrets, db));
+app.route("/v1/mcp", mcpHttpRouter(secrets, leases, policies, audit, patternEngine, dynamicSecrets, db, rateLimiter));
 app.route("/v1/proxy/patterns", patternsRouter(patternEngine, policies));
-app.route("/v1/proxy", proxyRouter(secrets, policies, audit, patternEngine, db));
+app.route("/v1/proxy", proxyRouter(secrets, policies, audit, patternEngine, db, rateLimiter, leases));
 app.route("/v1/dynamic", dynamicRouter(dynamicSecrets, policies, audit));
 app.route("/v1/scrub", scrubRouter());
 app.route("/v1/me", meRouter(db, audit));

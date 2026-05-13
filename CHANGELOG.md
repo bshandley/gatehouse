@@ -5,6 +5,36 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.14.0] - 2026-05-12
+
+### Features
+
+- **Rate limits on proxy calls.** AppRoles gain three optional limits (per-minute, per-hour, per-day) settable from the UI or `POST/PUT /v1/auth/approle` body. Secrets accept a per-secret `metadata.rate_limit_per_minute`. Both apply independently; the most restrictive wins. Hitting either returns `429` with `Retry-After`. Root tokens and user JWTs are exempt. Counters are fixed-window and in-memory. Limit ceilings: 10K/min, 100K/hour, 1M/day.
+- **Approval-gated leases.** Mark a secret with `metadata.requires_approval=true` and agents must call `gatehouse_request_access(path, ttl, justification)` and wait for a human approval before `gatehouse_proxy` or `gatehouse_lease` will succeed. The approved lease IS the access window: revoking it kills access atomically. Status drives lifecycle (`pending` → `approved`/`denied`/`expired`). Auto-approve for trusted networks via `metadata.auto_approve_from_ip` (comma-separated CIDRs) plus optional `metadata.auto_approve_ttl_seconds`.
+- **Approval webhook.** Set `GATEHOUSE_APPROVAL_WEBHOOK_URL` to fire a POST on every `lease.request_created`. Payload includes `approve_url` and `ui_url` so the receiver can deep-link a Slack/Discord/PagerDuty bridge to the approval. Optional `GATEHOUSE_APPROVAL_WEBHOOK_SECRET` enables HMAC-SHA256 signing over `${timestamp}.${body}` with `X-Gatehouse-Timestamp` and `X-Gatehouse-Signature` headers (5-minute replay window). When unset, no signature headers (URL-secrecy mode).
+- **New MCP tool `gatehouse_request_access`.** Agents call this to ask for approval. `gatehouse_status` now returns `pending_leases` so agents can poll for status changes.
+- **UI: Leases page redesigned.** Tabs for Active and Pending Approval. Approve/Deny actions with justification preview. Sidebar Leases nav gains a pending-count badge driven by SSE. AppRole modals gain a Rate Limits group. Approval-gated secrets get a `🔒 approval` chip in the tree and a banner in the detail panel.
+- **SSE: `lease_request_created` and `lease_status_changed` events.** Live-update the pending tab and the sidebar badge without polling. Identity-scoped server-side (non-admins only see events for leases they own).
+
+### New metadata keys
+
+- `requires_approval` (`"true"` to gate the secret)
+- `auto_approve_from_ip` (comma-separated CIDRs)
+- `auto_approve_ttl_seconds` (default 300)
+- `rate_limit_per_minute` (positive integer; per-secret cap)
+
+### New AppRole columns
+
+- `rate_limit_per_minute`, `rate_limit_per_hour`, `rate_limit_per_day` (all nullable; NULL means no limit)
+
+### New audit actions
+
+`lease.request_created`, `lease.approved`, `lease.denied`, `lease.request_expired`, `lease.auto_approved`, `lease.access`, `proxy.blocked.rate_limit`, `proxy.blocked.approval`.
+
+### Migration
+
+Schema-only; safe on a live v0.13.2 database. Six nullable columns added to `leases` (with `status` defaulting to `'approved'` so every existing row stays valid) and three nullable columns to `app_roles`. New index `idx_leases_pending`. Existing proxy and lease behaviour is unchanged for secrets without the new metadata.
+
 ## [0.13.2] - 2026-05-10
 
 ### Documentation

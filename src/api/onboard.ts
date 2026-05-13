@@ -77,6 +77,9 @@ export function renderSituationTable(policies: PolicyEngine, roleNames: string[]
   if (policies.check(roleNames, "*", "proxy")) {
     push("Call an authenticated API", "`gatehouse_proxy`");
   }
+  if (policies.check(roleNames, "*", "lease")) {
+    push("Request access to an approval-gated secret", "`gatehouse_request_access`");
+  }
   if (policies.check(roleNames, "*", "proxy") || policies.check(roleNames, "*", "read")) {
     push("Find known-good request shapes", "`gatehouse_patterns`");
   }

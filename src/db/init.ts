@@ -253,10 +253,44 @@ export function initDB(dataDir: string): Database {
     // JSON-encoded array of CIDR strings. Empty/null = no restriction.
     db.run("ALTER TABLE app_roles ADD COLUMN ip_allowlist TEXT");
   }
+  if (appRoleColNames.length > 0 && !appRoleColNames.includes("rate_limit_per_minute")) {
+    db.run("ALTER TABLE app_roles ADD COLUMN rate_limit_per_minute INTEGER");
+  }
+  if (appRoleColNames.length > 0 && !appRoleColNames.includes("rate_limit_per_hour")) {
+    db.run("ALTER TABLE app_roles ADD COLUMN rate_limit_per_hour INTEGER");
+  }
+  if (appRoleColNames.length > 0 && !appRoleColNames.includes("rate_limit_per_day")) {
+    db.run("ALTER TABLE app_roles ADD COLUMN rate_limit_per_day INTEGER");
+  }
+
+  // Lease migrations: approval lifecycle
+  const leaseCols = db.query("PRAGMA table_info(leases)").all() as { name: string }[];
+  const leaseColNames = leaseCols.map((c) => c.name);
+  if (leaseColNames.length > 0 && !leaseColNames.includes("status")) {
+    db.run("ALTER TABLE leases ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'");
+  }
+  if (leaseColNames.length > 0 && !leaseColNames.includes("justification")) {
+    db.run("ALTER TABLE leases ADD COLUMN justification TEXT");
+  }
+  if (leaseColNames.length > 0 && !leaseColNames.includes("approved_by")) {
+    db.run("ALTER TABLE leases ADD COLUMN approved_by TEXT");
+  }
+  if (leaseColNames.length > 0 && !leaseColNames.includes("approved_at")) {
+    db.run("ALTER TABLE leases ADD COLUMN approved_at TEXT");
+  }
+  if (leaseColNames.length > 0 && !leaseColNames.includes("denied_reason")) {
+    db.run("ALTER TABLE leases ADD COLUMN denied_reason TEXT");
+  }
+  if (leaseColNames.length > 0 && !leaseColNames.includes("request_expires_at")) {
+    db.run("ALTER TABLE leases ADD COLUMN request_expires_at TEXT");
+  }
 
   // Indexes
   db.run(
     "CREATE INDEX IF NOT EXISTS idx_leases_expires ON leases(expires_at) WHERE revoked = 0"
+  );
+  db.run(
+    "CREATE INDEX IF NOT EXISTS idx_leases_pending ON leases(identity, secret_path, status) WHERE status = 'pending' OR status = 'approved'"
   );
   db.run(
     "CREATE INDEX IF NOT EXISTS idx_secret_versions_path ON secret_versions(path, version DESC)"

@@ -7,6 +7,8 @@ import { safeEqual } from "../auth/middleware";
 import { verifyTotp, verifyRecoveryCode } from "../auth/totp";
 import { ipMatchesAllowlist, validateCIDRs } from "../auth/cidr";
 import { generateLoginParams, buildAuthUrl, exchangeAndVerify, fetchUserinfo } from "../auth/oidc";
+import { validateAppRoleLimits } from "../rateLimits/rateLimitValidation";
+import type { LeaseManager } from "../lease/manager";
 
 // Simple in-memory rate limiter: 5 failed attempts per IP per 60s window
 const failedAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -55,7 +57,7 @@ function recordFailure(ip: string) {
   }
 }
 
-export function authRouter(db: Database, config: GatehouseConfig, audit: AuditLog) {
+export function authRouter(db: Database, config: GatehouseConfig, audit: AuditLog, leases?: LeaseManager) {
   const router = new Hono();
   const secret = new TextEncoder().encode(config.jwtSecret);
 
@@ -616,7 +618,7 @@ h1{font-size:18px;margin:0 0 12px}p{color:#9ca3af;margin:0 0 24px}a{color:#6c63f
     }
 
     const roles = db
-      .query("SELECT role_id, display_name, policies, suspended, created_at, last_used, ip_allowlist FROM app_roles ORDER BY created_at DESC")
+      .query("SELECT role_id, display_name, policies, suspended, created_at, last_used, ip_allowlist, rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day FROM app_roles ORDER BY created_at DESC")
       .all() as any[];
 
     return c.json({
@@ -628,6 +630,9 @@ h1{font-size:18px;margin:0 0 12px}p{color:#9ca3af;margin:0 0 24px}a{color:#6c63f
         created_at: r.created_at,
         last_used: r.last_used,
         ip_allowlist: r.ip_allowlist ? JSON.parse(r.ip_allowlist) : [],
+        rate_limit_per_minute: r.rate_limit_per_minute,
+        rate_limit_per_hour: r.rate_limit_per_hour,
+        rate_limit_per_day: r.rate_limit_per_day,
       })),
     });
   });
@@ -644,7 +649,14 @@ h1{font-size:18px;margin:0 0 12px}p{color:#9ca3af;margin:0 0 24px}a{color:#6c63f
       return c.json({ error: "AppRole not found", request_id: c.get("requestId") }, 404);
     }
 
-    let body: { display_name?: string; policies?: string[]; ip_allowlist?: string[] };
+    let body: {
+      display_name?: string;
+      policies?: string[];
+      ip_allowlist?: string[];
+      rate_limit_per_minute?: unknown;
+      rate_limit_per_hour?: unknown;
+      rate_limit_per_day?: unknown;
+    };
     try {
       body = await c.req.json();
     } catch {
@@ -672,19 +684,55 @@ h1{font-size:18px;margin:0 0 12px}p{color:#9ca3af;margin:0 0 24px}a{color:#6c63f
       allowlistJson = cleaned.length > 0 ? JSON.stringify(cleaned) : null;
     }
 
-    if (allowlistJson !== undefined) {
+    // Rate limits: only update if any field was provided. Missing-field semantics
+    // are "leave unchanged"; explicit null sets the column to NULL (no limit).
+    const hasLimitFields =
+      body.rate_limit_per_minute !== undefined ||
+      body.rate_limit_per_hour !== undefined ||
+      body.rate_limit_per_day !== undefined;
+    let limits: { per_minute: number | null; per_hour: number | null; per_day: number | null } | undefined;
+    if (hasLimitFields) {
+      const v = validateAppRoleLimits({
+        rate_limit_per_minute: body.rate_limit_per_minute,
+        rate_limit_per_hour: body.rate_limit_per_hour,
+        rate_limit_per_day: body.rate_limit_per_day,
+      });
+      if (!v.ok) {
+        return c.json({ error: v.error, request_id: c.get("requestId") }, 400);
+      }
+      limits = v.limits;
+    }
+
+    if (allowlistJson !== undefined && limits) {
+      db.query(
+        "UPDATE app_roles SET display_name = ?, policies = ?, ip_allowlist = ?, rate_limit_per_minute = ?, rate_limit_per_hour = ?, rate_limit_per_day = ? WHERE role_id = ?"
+      ).run(displayName, JSON.stringify(policies), allowlistJson, limits.per_minute, limits.per_hour, limits.per_day, roleId);
+    } else if (allowlistJson !== undefined) {
       db.query("UPDATE app_roles SET display_name = ?, policies = ?, ip_allowlist = ? WHERE role_id = ?")
         .run(displayName, JSON.stringify(policies), allowlistJson, roleId);
+    } else if (limits) {
+      db.query(
+        "UPDATE app_roles SET display_name = ?, policies = ?, rate_limit_per_minute = ?, rate_limit_per_hour = ?, rate_limit_per_day = ? WHERE role_id = ?"
+      ).run(displayName, JSON.stringify(policies), limits.per_minute, limits.per_hour, limits.per_day, roleId);
     } else {
       db.query("UPDATE app_roles SET display_name = ?, policies = ? WHERE role_id = ?")
         .run(displayName, JSON.stringify(policies), roleId);
     }
+
+    const updated = db
+      .query(
+        "SELECT rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day FROM app_roles WHERE role_id = ?"
+      )
+      .get(roleId) as any;
 
     return c.json({
       role_id: roleId,
       display_name: displayName,
       policies,
       ip_allowlist: allowlistJson ? JSON.parse(allowlistJson) : [],
+      rate_limit_per_minute: updated?.rate_limit_per_minute ?? null,
+      rate_limit_per_hour: updated?.rate_limit_per_hour ?? null,
+      rate_limit_per_day: updated?.rate_limit_per_day ?? null,
     });
   });
 
@@ -725,9 +773,18 @@ h1{font-size:18px;margin:0 0 12px}p{color:#9ca3af;margin:0 0 24px}a{color:#6c63f
     }
 
     const roleId = c.req.param("roleId");
-    const role = db.query("SELECT role_id FROM app_roles WHERE role_id = ?").get(roleId);
+    const role = db.query("SELECT role_id, display_name FROM app_roles WHERE role_id = ?").get(roleId) as { role_id: string; display_name: string } | null;
     if (!role) {
       return c.json({ error: "AppRole not found", request_id: c.get("requestId") }, 404);
+    }
+
+    // Cancel any pending lease requests this AppRole has in flight so they
+    // don't haunt the approval queue after the role is gone. Approved leases
+    // are left alone (they keep their existing revoked-or-expiring lifecycle
+    // and stay visible in audit).
+    if (leases) {
+      const identity = `approle:${role.display_name}`;
+      leases.deletePendingForIdentity(identity);
     }
 
     db.query("DELETE FROM app_roles WHERE role_id = ?").run(roleId);
@@ -1066,7 +1123,14 @@ h1{font-size:18px;margin:0 0 12px}p{color:#9ca3af;margin:0 0 24px}a{color:#6c63f
       return c.json({ error: "Admin access required", request_id: c.get("requestId") }, 403);
     }
 
-    let body: { display_name: string; policies: string[]; ip_allowlist?: string[] };
+    let body: {
+      display_name: string;
+      policies: string[];
+      ip_allowlist?: string[];
+      rate_limit_per_minute?: unknown;
+      rate_limit_per_hour?: unknown;
+      rate_limit_per_day?: unknown;
+    };
     try {
       body = await c.req.json();
     } catch {
@@ -1093,13 +1157,31 @@ h1{font-size:18px;margin:0 0 12px}p{color:#9ca3af;margin:0 0 24px}a{color:#6c63f
       allowlistJson = cleaned.length > 0 ? JSON.stringify(cleaned) : null;
     }
 
+    const limitsResult = validateAppRoleLimits({
+      rate_limit_per_minute: body.rate_limit_per_minute,
+      rate_limit_per_hour: body.rate_limit_per_hour,
+      rate_limit_per_day: body.rate_limit_per_day,
+    });
+    if (!limitsResult.ok) {
+      return c.json({ error: limitsResult.error, request_id: c.get("requestId") }, 400);
+    }
+
     const role_id = `role-${crypto.randomUUID()}`;
     const secret_id = crypto.randomUUID();
     const secret_hash = await Bun.password.hash(secret_id);
 
     db.query(
-      "INSERT INTO app_roles (role_id, secret_hash, display_name, policies, ip_allowlist) VALUES (?, ?, ?, ?, ?)"
-    ).run(role_id, secret_hash, display_name, JSON.stringify(policies), allowlistJson);
+      "INSERT INTO app_roles (role_id, secret_hash, display_name, policies, ip_allowlist, rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      role_id,
+      secret_hash,
+      display_name,
+      JSON.stringify(policies),
+      allowlistJson,
+      limitsResult.limits.per_minute,
+      limitsResult.limits.per_hour,
+      limitsResult.limits.per_day
+    );
 
     return c.json(
       {
@@ -1108,6 +1190,9 @@ h1{font-size:18px;margin:0 0 12px}p{color:#9ca3af;margin:0 0 24px}a{color:#6c63f
         display_name,
         policies,
         ip_allowlist: allowlistJson ? JSON.parse(allowlistJson) : [],
+        rate_limit_per_minute: limitsResult.limits.per_minute,
+        rate_limit_per_hour: limitsResult.limits.per_hour,
+        rate_limit_per_day: limitsResult.limits.per_day,
         warning: "Save the secret_id now, it cannot be retrieved later",
       },
       201

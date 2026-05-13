@@ -9,6 +9,7 @@ export interface AuthContext {
   identity: string;
   policies: string[];
   source: "user" | "approle" | "root";
+  role_id?: string;
 }
 
 /**
@@ -111,6 +112,7 @@ export function authMiddleware(config: GatehouseConfig, db?: Database) {
         identity: payload.sub || "unknown",
         policies: (payload.policies as string[]) || [],
         source: isApprole ? "approle" : "user",
+        ...(isApprole ? { role_id: payload.role_id as string } : {}),
       } satisfies AuthContext);
 
       return next();

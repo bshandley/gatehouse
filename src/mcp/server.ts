@@ -15,6 +15,9 @@ import { isPrivateHost, scrubResponseBody, readCappedText, pathMatchesAnyPrefix 
 import { checkPrivateNetworkPolicy, resolveAutoInject } from "../api/proxy";
 import { getProxyLimits } from "../settings/proxyLimits";
 import { VERSION } from "../version";
+import type { RateLimiter } from "../rateLimits/limiter";
+import { enforceProxyGates } from "../api/proxyGates";
+import { LeaseValidationError } from "../lease/manager";
 
 /**
  * Gatehouse MCP Server
@@ -71,7 +74,7 @@ const TOOLS: MCPTool[] = [
         path: {
           type: "string",
           description:
-            'Secret path, e.g. "api-keys/openai" or "db/prod/password"',
+            'Secret path, e.g. "api-keys/example" or "db/prod/password"',
         },
       },
       required: ["path"],
@@ -190,7 +193,7 @@ const TOOLS: MCPTool[] = [
   {
     name: "gatehouse_proxy",
     description:
-      'Forward an HTTP request with secrets injected. You never see the raw credentials. Three styles: (1) Template: use {{secret:path}} in headers/URL/body. (2) Inject shorthand: {"inject": {"Authorization": "api-keys/openai"}} auto-sets headers. Use "basic:path" prefix for HTTP Basic auth. (3) Auto-inject: {"auto_inject": ["api-keys/openai"]} reads metadata.header_name to determine the header automatically. TIP: Before calling an unfamiliar API, use gatehouse_patterns to check if other agents have already learned the correct request format. Failed proxy calls include pattern suggestions automatically.',
+      'Forward an HTTP request with secrets injected. You never see the raw credentials. Three styles: (1) Template: use {{secret:path}} in headers/URL/body. (2) Inject shorthand: {"inject": {"Authorization": "api-keys/example"}} auto-sets headers. Use "basic:path" prefix for HTTP Basic auth. (3) Auto-inject: {"auto_inject": ["api-keys/example"]} reads metadata.header_name to determine the header automatically. TIP: Before calling an unfamiliar API, use gatehouse_patterns to check if other agents have already learned the correct request format. Failed proxy calls include pattern suggestions automatically.',
     inputSchema: {
       type: "object",
       properties: {
@@ -206,12 +209,12 @@ const TOOLS: MCPTool[] = [
         headers: {
           type: "object",
           description:
-            'Request headers. Can use {{secret:path}} for inline injection, e.g. {"Authorization": "Bearer {{secret:api-keys/openai}}"}',
+            'Request headers. Can use {{secret:path}} for inline injection, e.g. {"Authorization": "Bearer {{secret:api-keys/example}}"}',
         },
         inject: {
           type: "object",
           description:
-            'Shorthand: map header names to secret paths. Authorization headers auto-prefix "Bearer ". Use "basic:path" for HTTP Basic auth (secret value should be "user:password"). Example: {"Authorization": "api-keys/openai"} or {"Authorization": "basic:infra/opnsense"}',
+            'Shorthand: map header names to secret paths. Authorization headers auto-prefix "Bearer ". Use "basic:path" for HTTP Basic auth (secret value should be "user:password"). Example: {"Authorization": "api-keys/example"} or {"Authorization": "basic:infra/opnsense"}',
         },
         auto_inject: {
           type: "array",
@@ -256,6 +259,29 @@ const TOOLS: MCPTool[] = [
       required: ["secret_path"],
     },
   },
+  {
+    name: "gatehouse_request_access",
+    description:
+      "Request approval to use an approval-gated secret. Returns a lease_id and status='pending'. Once a human approves it, your subsequent gatehouse_proxy and gatehouse_lease calls against this secret succeed for the lease TTL. Use this when gatehouse_list shows a secret with metadata.requires_approval='true', or when a proxy call fails with 403 and 'requires_approval' in the response. Re-requests for the same (identity, path) are deduplicated to the same lease_id, so don't spam this tool. Poll gatehouse_status every 30 to 60 seconds to see your pending_leases count drop.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "The secret path to request access to.",
+        },
+        ttl: {
+          type: "number",
+          description: "Lease duration in seconds AFTER approval (default 300, min 10, max 86400).",
+        },
+        justification: {
+          type: "string",
+          description: "Why you need it. Describe INTENT (1-3 sentences). Never include the secret value, raw request body, or anything credential-shaped. 10-2000 chars.",
+        },
+      },
+      required: ["path", "justification"],
+    },
+  },
 ];
 
 export function createMCPHandler(
@@ -265,7 +291,8 @@ export function createMCPHandler(
   audit: AuditLog,
   patterns?: PatternEngine,
   dynamic?: DynamicSecretsManager,
-  db?: Database
+  db?: Database,
+  rateLimiter?: RateLimiter
 ) {
   async function handleToolCall(
     toolName: string,
@@ -298,6 +325,51 @@ export function createMCPHandler(
             );
           }
           const ttl = Math.max(10, Math.min(86400, args.ttl || 300));
+
+          // Approval-gated check before checkout: an approval-gated secret
+          // without an active approved lease (and without an IP-allowlist
+          // match) returns a structured isError so the agent knows to call
+          // gatehouse_request_access.
+          const meta = secrets.getMeta(args.path);
+          if (meta?.metadata?.requires_approval === "true") {
+            if (!leases.hasActiveApprovedLease(auth.identity, args.path)) {
+              const allowlistRaw = meta.metadata.auto_approve_from_ip;
+              let autoApproved = false;
+              if (allowlistRaw && sourceIp) {
+                const cidrs = allowlistRaw.split(",").map((s: string) => s.trim()).filter(Boolean);
+                const { ipMatchesAllowlist } = await import("../auth/cidr");
+                if (ipMatchesAllowlist(sourceIp, cidrs)) {
+                  const autoTtl = parseInt(meta.metadata.auto_approve_ttl_seconds || "300", 10);
+                  leases.autoApprove(
+                    args.path,
+                    auth.identity,
+                    Number.isFinite(autoTtl) && autoTtl > 0 ? autoTtl : 300,
+                    "system:auto_approve_from_ip",
+                    `Auto-approved from ${sourceIp}`
+                  );
+                  autoApproved = true;
+                }
+              }
+              if (!autoApproved) {
+                audit.log({
+                  identity: auth.identity,
+                  action: "proxy.blocked.approval",
+                  path: args.path,
+                  source_ip: sourceIp,
+                  metadata: { requires_approval: args.path },
+                  success: false,
+                });
+                return error(
+                  JSON.stringify({
+                    error: `Secret ${args.path} requires an approved lease`,
+                    requires_approval: [args.path],
+                    hint: "Call gatehouse_request_access(path, ttl, justification) and wait for human approval.",
+                  })
+                );
+              }
+            }
+          }
+
           const result = leases.checkout(args.path, auth.identity, ttl);
           if (!result) return error(`Secret not found: "${args.path}"`);
 
@@ -553,13 +625,38 @@ export function createMCPHandler(
             return error('No secret references found. Use {{secret:path}} in url/headers/body, "inject", or "auto_inject".');
           }
 
-          // Check policy + resolve secrets
-          const resolved = new Map<string, string>();
+          // Check policy first across all refs so the rate-limit gate sees
+          // an already-authorized set. We pay the cost of two iterations to
+          // keep the gate evaluation symmetric with the REST proxy.
           for (const path of refs) {
             if (!policies.check(auth.policies, path, "proxy")) {
               audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, metadata: { target_url: args.url, target_path: targetPath, reason: "policy_denied" }, success: false });
               return error(`Access denied: no proxy permission on "${path}"`);
             }
+          }
+
+          // Gates: per-AppRole rate limits, per-secret rate limits, approval.
+          if (rateLimiter && db) {
+            const gate = enforceProxyGates({
+              auth,
+              secretPaths: [...refs],
+              sourceIp: sourceIp || "",
+              db,
+              rateLimiter,
+              leases,
+              secrets,
+              audit,
+            });
+            if (!gate.allowed) {
+              return {
+                content: [{ type: "text", text: JSON.stringify(gate.body) }],
+                isError: true,
+              };
+            }
+          }
+
+          const resolved = new Map<string, string>();
+          for (const path of refs) {
             const val = secrets.get(path);
             if (!val) return error(`Secret not found: "${path}"`);
             resolved.set(path, val);
@@ -693,6 +790,10 @@ export function createMCPHandler(
               },
             });
 
+            if (rateLimiter) {
+              rateLimiter.recordCall(auth.role_id || "", [...refs]);
+            }
+
             // Cap upstream body + scrub any injected secret values echoed back
             const rawBody = await readCappedText(upstream, limits.max_body_bytes);
             const responseBody = scrubResponseBody(rawBody, resolved.values());
@@ -713,6 +814,9 @@ export function createMCPHandler(
               metadata: { target_url: args.url, target_path: targetPath },
               success: false,
             });
+            if (rateLimiter) {
+              rateLimiter.recordCall(auth.role_id || "", [...refs]);
+            }
             if (e.name === "AbortError") return error(`Request timed out after ${timeout}ms`);
             if (e.code === "BODY_TOO_LARGE") return error(`Upstream response exceeds ${limits.max_body_bytes} bytes`);
             return error(`Upstream request failed: ${e.message}`);
@@ -721,6 +825,7 @@ export function createMCPHandler(
 
         case "gatehouse_status": {
           const active = leases.listActive(auth.identity);
+          const pending = leases.listPending(auth.identity);
           return text(
             JSON.stringify(
               {
@@ -729,11 +834,44 @@ export function createMCPHandler(
                 identity: auth.identity,
                 policies: auth.policies,
                 active_leases: active.length,
+                pending_leases: pending.length,
               },
               null,
               2
             )
           );
+        }
+
+        case "gatehouse_request_access": {
+          if (!policies.check(auth.policies, args.path, "lease")) {
+            return error(`Access denied: no lease permission on "${args.path}"`);
+          }
+          const meta = secrets.getMeta(args.path);
+          if (!meta) return error(`Secret not found: "${args.path}"`);
+          const ttl = typeof args.ttl === "number" ? args.ttl : 300;
+          const justification = typeof args.justification === "string" ? args.justification : "";
+          try {
+            const lease = leases.requestAccess(args.path, auth.identity, ttl, justification);
+            return text(
+              JSON.stringify(
+                {
+                  lease_id: lease.id,
+                  status: lease.status,
+                  request_expires_at: lease.request_expires_at,
+                  expires_at_if_approved: lease.expires_at,
+                  hint:
+                    "Poll gatehouse_status every 30-60 seconds. When pending_leases drops, your proxy/lease calls against this secret will succeed.",
+                },
+                null,
+                2
+              )
+            );
+          } catch (e: unknown) {
+            if (e instanceof LeaseValidationError) {
+              return error(e.message);
+            }
+            throw e;
+          }
         }
 
         case "gatehouse_patterns": {
@@ -844,10 +982,11 @@ export function mcpHttpRouter(
   audit: AuditLog,
   patterns?: PatternEngine,
   dynamic?: DynamicSecretsManager,
-  db?: Database
+  db?: Database,
+  rateLimiter?: RateLimiter
 ) {
   const router = new Hono();
-  const mcp = createMCPHandler(secrets, leases, policies, audit, patterns, dynamic, db);
+  const mcp = createMCPHandler(secrets, leases, policies, audit, patterns, dynamic, db, rateLimiter);
 
   // Streamable HTTP endpoint (POST /mcp)
   router.post("/", async (c) => {

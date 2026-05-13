@@ -247,6 +247,49 @@ below maps to an authenticated endpoint. Send `Authorization: Bearer
 5. Call `gatehouse_proxy` with the template or inject shorthand
    (below). Never `gatehouse_get` just to read a value into context.
 
+## Approval-gated secrets
+
+Some secrets require human approval before you can use them. In
+`gatehouse_list`, these appear with `metadata.requires_approval: "true"`.
+Do NOT try to proxy or lease them directly. The call will fail with 403
+and `requires_approval` in the response.
+
+The flow:
+
+1. Call `gatehouse_request_access(path, ttl, justification)`. Pick a TTL
+   that covers what you need (default 300s, max 86400s). Write a clear
+   justification (1 to 3 sentences) describing what API endpoint you'll
+   hit and roughly what for.
+2. Wait. Poll `gatehouse_status` every 30 to 60 seconds (NOT faster) to
+   check `pending_leases`. Do not re-request: duplicates dedupe to the
+   same lease_id.
+3. Once approved, your `gatehouse_proxy` and `gatehouse_lease` calls
+   against this secret succeed for the lease duration. The approved
+   lease IS your access window; revoking it kills access immediately.
+   Each call audits as `lease.access` against that lease_id.
+4. If denied, read `denied_reason`. Adjust your justification and
+   re-request if appropriate (a denied lease does NOT block re-requests).
+5. After expiry, you must re-request. Renew works on approved leases
+   (extends `expires_at` within `max_lease_ttl`) but don't renew
+   speculatively.
+6. If the operator hasn't responded after about 10 minutes, surface to
+   the user ("waiting on approval for X") rather than spamming polls.
+
+### Writing justifications
+
+The justification is shown to the human approver and lands in the audit
+log. Write it for INTENT, not implementation.
+
+GOOD: "Fetching Q4 revenue data from Salesforce for the quarterly
+summary the user requested. Single GET to /services/data/v59.0/query."
+
+BAD: "Need OpenAI." (too vague)
+BAD: "POST {...full request body...}" (don't paste the body)
+BAD: "Bearer <the value>" (NEVER include credentials)
+
+NEVER include secret values, request bodies, raw URLs with query
+params, or anything credential-shaped.
+
 ## Dynamic secrets (SSH, DB)
 
 Entries with `kind: "dynamic"` are NOT stored values, they are
@@ -359,7 +402,7 @@ or body. Gatehouse substitutes server-side.
 headers auto-prefix "Bearer ". Prefix with `basic:` for HTTP Basic
 auth with a `user:password` value.
 
-    "inject": {"Authorization": "api-keys/openai"}
+    "inject": {"Authorization": "api-keys/example"}
     "inject": {"Authorization": "basic:infra/opnsense"}
 
 **Auto-inject**: pass secret paths in an array. Defaults to
@@ -367,7 +410,7 @@ auth with a `user:password` value.
 (e.g. `X-API-Key`) and `auth_scheme` (empty string disables Bearer)
 override this.
 
-    "auto_inject": ["api-keys/anthropic"]
+    "auto_inject": ["api-keys/example"]
 
 ## Situation, tool
 
@@ -396,4 +439,11 @@ override this.
   usable access to it. Ask the operator to extend your policy. This
   applies to static AND dynamic secrets, both appear in the same
   list.
+- **403 with `requires_approval`**: the secret needs human approval
+  before you can use it. Call `gatehouse_request_access` with a
+  justification. Wait for the human, don't retry.
+- **429 from Gatehouse with `Retry-After`**: you've hit a rate limit
+  (per-AppRole or per-secret). Wait the `Retry-After` value. Do NOT
+  retry faster. If you keep hitting it, surface to the user that
+  you're rate-limited rather than spinning.
 <!-- GATEHOUSE-SKILL-END -->

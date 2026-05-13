@@ -1321,6 +1321,67 @@
     .cap-lease { background: rgba(139, 92, 246, 0.12); color: #a78bfa; }
     .cap-admin { background: rgba(244, 114, 182, 0.12); color: #f472b6; }
 
+    /* Sidebar nav-item count badge (e.g. pending lease approvals on Leases) */
+    .nav-item-badge {
+      margin-left: auto;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 6px;
+      border-radius: 9px;
+      background: var(--warning);
+      color: var(--bg-primary);
+      font-size: 10px;
+      font-weight: 700;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: 0.02em;
+    }
+    .nav-item-badge.visible { display: inline-flex; }
+
+    /* Page-level segmented tabs (Active vs Pending Approval on Leases). */
+    .page-tabs {
+      display: inline-flex;
+      gap: 2px;
+      padding: 3px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .page-tab {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .page-tab:hover { color: var(--text-primary); }
+    .page-tab.active {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      box-shadow: 0 1px 2px var(--shadow-color);
+    }
+    .page-tab .tab-count {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: var(--warning);
+      color: var(--bg-primary);
+      font-weight: 700;
+      min-width: 16px;
+      text-align: center;
+    }
+    .page-tab.active .tab-count { background: var(--warning); }
+
     /* Toggle */
     .toggle-wrap { display: flex; align-items: center; gap: 8px; }
     .toggle {
@@ -1793,6 +1854,7 @@
       <button class="nav-item" data-page="leases" onclick="showPage('leases')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Leases
+        <span class="nav-item-badge" id="nav-pending-badge" title="Pending approval requests">0</span>
       </button>
       <button class="nav-item" data-page="policies" onclick="showPage('policies')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -1946,17 +2008,42 @@
         </div>
       </div>
       <div class="page-content">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Active Leases</span>
-            <span class="meta-sm" id="lease-count">-</span>
+        <div class="page-tabs" role="tablist">
+          <button class="page-tab active" data-lease-tab="active" onclick="window._switchLeaseTab('active')" role="tab">Active</button>
+          <button class="page-tab" data-lease-tab="pending" onclick="window._switchLeaseTab('pending')" role="tab">
+            <span>Pending Approval</span>
+            <span class="tab-count" id="lease-pending-count" style="display:none">0</span>
+          </button>
+        </div>
+        <div data-lease-pane="active">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Active Leases</span>
+              <span class="meta-sm" id="lease-count">-</span>
+            </div>
+            <div class="card-body">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Lease ID</th><th>Kind</th><th>Path</th><th>Identity</th><th>Status</th><th>TTL Remaining</th><th>Created</th><th>Expires</th><th></th></tr></thead>
+                  <tbody id="leases-active-body"></tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          <div class="card-body">
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Lease ID</th><th>Kind</th><th>Path</th><th>Identity</th><th>TTL Remaining</th><th>Created</th><th>Expires</th><th></th></tr></thead>
-                <tbody id="leases-active-body"></tbody>
-              </table>
+        </div>
+        <div data-lease-pane="pending" style="display:none">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Pending Approval Requests</span>
+              <span class="meta-sm" id="lease-pending-meta">-</span>
+            </div>
+            <div class="card-body">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Identity</th><th>Path</th><th>Justification</th><th>Requested TTL</th><th>Time Waiting</th><th>Request Expires</th><th></th></tr></thead>
+                  <tbody id="leases-pending-body"></tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -2560,6 +2647,10 @@
     pendingTotpToken = null;
     if (auditLiveInterval) { clearInterval(auditLiveInterval); auditLiveInterval = null; }
     if (leaseCountdownInterval) { clearInterval(leaseCountdownInterval); leaseCountdownInterval = null; }
+    // Tear down the SSE stream so a stale connection doesn't reconnect
+    // with the old token after a user signs out.
+    if (_sseController) { try { _sseController.abort(); } catch {} _sseController = null; }
+    updatePendingBadge(0);
     document.getElementById('app-shell').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
     // Reset login form visibility in case we were mid-TOTP flow
@@ -2862,6 +2953,10 @@
       }
     }).catch(() => {});
     loadUpdateBanner();
+    // Kick off background subscriptions: pending-approval badge + SSE stream
+    // for live updates. Both tolerate missing policy / network blips.
+    refreshPendingBadge();
+    startEventStream();
     // Navigate to hash or default to dashboard
     const hashPage = location.hash.slice(1);
     const targetPage = hashPage && document.querySelector(`.page[data-page="${hashPage}"]`) ? hashPage : 'dashboard';
@@ -2982,6 +3077,13 @@
     }
   }
 
+  // Approval-gated secrets are flagged by the `requires_approval` metadata
+  // key being literally the string "true". Centralising this read so the
+  // tree, the detail panel, and any future surface stay in lockstep.
+  function _isApprovalRequired(secret) {
+    return !!(secret && secret.metadata && secret.metadata.requires_approval === 'true');
+  }
+
   function renderSecretTree(secrets) {
     const container = document.getElementById('secret-tree-list');
     const groups = {};
@@ -2998,7 +3100,13 @@
       for (const item of items) {
         const name = item.path.split('/').pop();
         const active = item.path === selectedSecretPath ? 'active' : '';
-        html += `<div class="tree-item ${active}" onclick="window._selectSecret('${esc(item.path)}')">${esc(name)}</div>`;
+        // Approval-gated secrets get a warning-coloured lock chip so operators
+        // can see at a glance which entries require human approval before
+        // agents can mint a lease.
+        const approvalBadge = _isApprovalRequired(item)
+          ? ' <span class="badge" style="font-size:9px;background:rgba(251,191,36,0.12);color:var(--warning)" title="Requires human approval before agents can use this secret">🔒 approval</span>'
+          : '';
+        html += `<div class="tree-item ${active}" onclick="window._selectSecret('${esc(item.path)}')">${esc(name)}${approvalBadge}</div>`;
       }
     }
     if (!secrets.length) html = '<div class="empty-state">No secrets stored yet. Click <strong>+ New Secret</strong> in the page header to add one.</div>';
@@ -3057,12 +3165,32 @@
     if (meta.metadata && Object.keys(meta.metadata).length) {
       metaRows = `<div style="margin-bottom:16px"><div class="detail-field-label" style="margin-bottom:8px">Metadata</div><table class="meta-table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>`;
       for (const [k, v] of Object.entries(meta.metadata)) {
-        metaRows += `<tr><td class="mono">${esc(k)}</td><td>${esc(String(v))}</td></tr>`;
+        // The requires_approval row is rendered with a warning accent so
+        // operators eyeballing the table see the gate without having to
+        // read every key.
+        const highlight = k === 'requires_approval' && String(v) === 'true'
+          ? ' style="color:var(--warning);font-weight:600"' : '';
+        metaRows += `<tr><td class="mono"${highlight}>${esc(k)}</td><td${highlight}>${esc(String(v))}</td></tr>`;
       }
       metaRows += '</tbody></table></div>';
     }
 
+    // Approval-gated secrets get a prominent banner near the top of the
+    // detail view, and an "Active Approved Leases" section is rendered
+    // below the metadata (populated asynchronously to avoid blocking).
+    const requiresApproval = _isApprovalRequired(meta);
+    const approvalBanner = requiresApproval
+      ? `<div style="background:rgba(251,191,36,0.08);border:1px solid var(--warning);padding:8px;border-radius:6px;color:var(--text-primary);font-size:13px;margin-bottom:14px">🔒 This secret requires approval before agents can use it.</div>`
+      : '';
+    const approvedLeasesBlock = requiresApproval
+      ? `<div style="margin:16px 0" id="approved-leases-section">
+           <div class="detail-field-label" style="margin-bottom:8px">Active Approved Leases</div>
+           <div id="approved-leases-list" style="font-size:12px;color:var(--text-secondary)">Loading...</div>
+         </div>`
+      : '';
+
     detail.innerHTML = `
+      ${approvalBanner}
       <div class="detail-path"><span class="mono">${esc(path)}</span></div>
       <div class="detail-meta">
         <div><div class="detail-field-label">Version</div><div class="detail-field-value">${meta.version}</div></div>
@@ -3070,6 +3198,7 @@
         <div><div class="detail-field-label">Updated</div><div class="detail-field-value">${fmtTime(meta.updated_at)}</div></div>
       </div>
       ${metaRows}
+      ${approvedLeasesBlock}
       <div class="reveal-box">
         <div class="reveal-header">
           <span class="reveal-label">Secret Value</span>
@@ -3095,6 +3224,40 @@
         </button>
       </div>
     `;
+
+    // For approval-gated secrets, fetch active leases against this path
+    // and render the approved set into the placeholder section above.
+    if (requiresApproval) {
+      _loadApprovedLeasesForPath(path);
+    }
+  }
+
+  // Populate the "Active Approved Leases" section for an approval-gated
+  // secret detail view. Filters the admin lease list client-side since
+  // the existing /v1/lease endpoint already returns all visible records
+  // with status populated.
+  async function _loadApprovedLeasesForPath(path) {
+    const el = document.getElementById('approved-leases-list');
+    if (!el) return;
+    try {
+      const data = await api('/v1/lease/?path=' + encodeURIComponent(path));
+      const leases = (data.leases || []).filter(l =>
+        (l.secret_path === path || l.path === path) && l.status === 'approved' && !l.revoked
+      );
+      if (!leases.length) {
+        el.innerHTML = '<div style="color:var(--text-tertiary)">No active approved leases for this path.</div>';
+        return;
+      }
+      el.innerHTML = `<table class="meta-table"><thead><tr><th>Identity</th><th>Expires</th><th>Approved By</th></tr></thead><tbody>${
+        leases.map(l => `<tr>
+          <td>${esc(l.identity)}</td>
+          <td>${fmtTime(l.expires_at)}</td>
+          <td>${esc(l.approved_by || '-')}</td>
+        </tr>`).join('')
+      }</tbody></table>`;
+    } catch (e) {
+      el.innerHTML = `<div style="color:var(--danger)">Failed to load: ${esc(e.message)}</div>`;
+    }
   }
 
   // Cache of revealed values keyed by path, so toggling Hide/Show after the
@@ -3216,7 +3379,7 @@
             <datalist id="secret-path-suggestions">
               ${prefixList.map(p => `<option value="${esc(p)}/">`).join('')}
             </datalist>
-            <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">Use forward slashes to organize secrets, e.g. <span style="font-family:var(--font-mono);">api-keys/openai</span>, <span style="font-family:var(--font-mono);">db/postgres</span></div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">Use forward slashes to organize secrets, e.g. <span style="font-family:var(--font-mono);">api-keys/example</span>, <span style="font-family:var(--font-mono);">db/postgres</span></div>
             ${prefixChips}
           </div>
           <div class="form-group">
@@ -3352,7 +3515,19 @@
   };
 
   // Leases
+  // The Leases page has two tabs: Active and Pending Approval. The current
+  // tab is stashed on window so SSE-driven refreshes can target the right
+  // panel without re-clicking. Both tabs are refreshed when the page loads
+  // so the pending count badge is accurate even before switching tabs.
+  window._leaseTab = window._leaseTab || 'active';
+
   async function loadLeases() {
+    // Always refresh both panes so badges stay accurate even if the user
+    // never opens the pending tab this session.
+    await Promise.all([loadActiveLeases(), loadPendingLeases()]);
+  }
+
+  async function loadActiveLeases() {
     try {
       const data = await api('/v1/lease');
       const leases = data.leases || [];
@@ -3365,11 +3540,299 @@
     }
   }
 
+  async function loadPendingLeases() {
+    const tbody = document.getElementById('leases-pending-body');
+    const metaEl = document.getElementById('lease-pending-meta');
+    try {
+      const data = await api('/v1/lease/pending');
+      const pending = data.leases || [];
+      // Always update the sidebar + tab badges from this fetch.
+      updatePendingBadge(pending.length);
+      if (metaEl) metaEl.textContent = `${pending.length} waiting`;
+      if (!tbody) return;
+      if (!pending.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No pending approval requests.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = pending.map(l => {
+        const path = l.secret_path || l.path || '';
+        const justification = l.justification || '';
+        const justTrunc = justification.length > 80 ? justification.slice(0, 80) + '…' : justification;
+        const justCell = justification
+          ? `<span class="mono" style="font-size:11px;cursor:pointer" title="${esc(justification)}" onclick="window._expandJust(this)" data-full="${esc(justification)}">${esc(justTrunc)}</span>`
+          : '<span style="color:var(--text-tertiary)">-</span>';
+        const ttl = l.ttl_seconds ? `${l.ttl_seconds}s` : '-';
+        const waiting = l.created_at ? _humanWait(l.created_at) : '-';
+        const reqExpires = l.request_expires_at ? fmtTime(l.request_expires_at) : '-';
+        return `<tr>
+          <td>${esc(l.identity)}</td>
+          <td class="mono">${esc(path)}</td>
+          <td>${justCell}</td>
+          <td style="font-family:var(--font-mono);font-size:12px">${esc(ttl)}</td>
+          <td style="font-size:12px;color:var(--text-secondary)">${esc(waiting)}</td>
+          <td style="font-size:12px;color:var(--text-secondary)">${reqExpires}</td>
+          <td style="display:flex;gap:6px;justify-content:flex-end">
+            <button class="btn btn-primary btn-sm" onclick="window._approveLease('${esc(l.id)}')">Approve</button>
+            <button class="btn btn-ghost btn-sm" onclick="window._denyLease('${esc(l.id)}')">Deny</button>
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (e) {
+      if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Failed to load pending requests: ${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  // Roughly format the wait duration since a request was filed. Keeps the
+  // pending table readable without an extra dep on dayjs/luxon.
+  function _humanWait(iso) {
+    try {
+      const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+      const sec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+      if (sec < 60) return `${sec}s`;
+      const m = Math.floor(sec / 60);
+      if (m < 60) return `${m}m`;
+      const h = Math.floor(m / 60);
+      if (h < 24) return `${h}h ${m % 60}m`;
+      return `${Math.floor(h / 24)}d ${h % 24}h`;
+    } catch { return '-'; }
+  }
+
+  // Toggle truncated justification text on click. Stashes the full value
+  // on dataset so re-clicking can collapse back to the truncated form.
+  window._expandJust = function(el) {
+    const full = el.dataset.full || '';
+    const isExpanded = el.dataset.expanded === '1';
+    if (isExpanded) {
+      el.textContent = full.length > 80 ? full.slice(0, 80) + '…' : full;
+      el.dataset.expanded = '0';
+    } else {
+      el.textContent = full;
+      el.dataset.expanded = '1';
+    }
+  };
+
+  window._switchLeaseTab = function(tab) {
+    window._leaseTab = tab;
+    document.querySelectorAll('.page-tab[data-lease-tab]').forEach(b => {
+      b.classList.toggle('active', b.dataset.leaseTab === tab);
+    });
+    document.querySelectorAll('[data-lease-pane]').forEach(p => {
+      p.style.display = p.dataset.leasePane === tab ? '' : 'none';
+    });
+    if (tab === 'active') loadActiveLeases();
+    else loadPendingLeases();
+  };
+
+  window._approveLease = async function(id) {
+    // Surface the full justification in the confirm dialog so the operator
+    // sees what they're agreeing to.
+    let justification = '';
+    try {
+      const data = await api('/v1/lease/pending');
+      const l = (data.leases || []).find(x => x.id === id);
+      if (l && l.justification) justification = l.justification;
+    } catch {}
+    const ok = await ghConfirm({
+      title: 'Approve lease request',
+      message: justification
+        ? `Justification: ${justification}\n\nGrant this lease?`
+        : 'Approve this lease request?',
+      confirmText: 'Approve',
+      type: 'warning',
+    });
+    if (!ok) return;
+    try {
+      await api(`/v1/lease/${id}/approve`, { method: 'POST' });
+      toast('Lease approved', 'success');
+      loadLeases();
+    } catch (e) {
+      toast('Approve failed: ' + e.message, 'error');
+    }
+  };
+
+  window._denyLease = async function(id) {
+    const reason = await ghPrompt({
+      title: 'Deny lease request',
+      message: 'Tell the agent (and the audit log) why this is being denied.',
+      label: 'Reason',
+      placeholder: 'e.g. wrong identity / no business need',
+      confirmText: 'Deny',
+    });
+    if (reason === null) return;
+    try {
+      await api(`/v1/lease/${id}/deny`, { method: 'POST', body: { reason } });
+      toast('Lease denied', 'success');
+      loadLeases();
+    } catch (e) {
+      toast('Deny failed: ' + e.message, 'error');
+    }
+  };
+
+  // Update both the sidebar nav-item count and the in-page tab count.
+  // Hidden when the count is zero so the chrome stays clean.
+  function updatePendingBadge(count) {
+    const nav = document.getElementById('nav-pending-badge');
+    if (nav) {
+      if (count > 0) {
+        nav.textContent = String(count);
+        nav.classList.add('visible');
+      } else {
+        nav.classList.remove('visible');
+      }
+    }
+    const tabCount = document.getElementById('lease-pending-count');
+    if (tabCount) {
+      if (count > 0) {
+        tabCount.textContent = String(count);
+        tabCount.style.display = '';
+      } else {
+        tabCount.style.display = 'none';
+      }
+    }
+  }
+
+  // Quietly fetch the pending count for the sidebar badge. Tokens without
+  // the `lease` policy will 403 here; in that case we just leave the badge
+  // hidden and move on.
+  async function refreshPendingBadge() {
+    try {
+      const data = await api('/v1/lease/pending');
+      updatePendingBadge((data.leases || []).length);
+    } catch { /* no lease permission - badge stays hidden */ }
+  }
+
+  // SSE subscriber. The native EventSource constructor cannot attach the
+  // Authorization header, and the backend auth middleware only accepts
+  // Bearer tokens via header (not a query param), so we hand-roll the SSE
+  // line parser over fetch + ReadableStream. Reconnects with backoff on
+  // network failure.
+  let _sseController = null;
+  let _sseRetryMs = 1000;
+  async function startEventStream() {
+    if (_sseController) return; // already running
+    const ctrl = new AbortController();
+    _sseController = ctrl;
+    try {
+      const res = await fetch('/v1/events', {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: ctrl.signal,
+      });
+      if (!res.ok || !res.body) throw new Error(`SSE failed: HTTP ${res.status}`);
+      _sseRetryMs = 1000; // reset on successful connect
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let eventName = 'message';
+      let dataLines = [];
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, idx).replace(/\r$/, '');
+          buf = buf.slice(idx + 1);
+          if (line === '') {
+            // Dispatch the accumulated event.
+            if (dataLines.length) {
+              const dataStr = dataLines.join('\n');
+              let parsed;
+              try { parsed = JSON.parse(dataStr); } catch { parsed = dataStr; }
+              handleSseEvent(eventName, parsed);
+            }
+            eventName = 'message';
+            dataLines = [];
+            continue;
+          }
+          if (line.startsWith(':')) continue; // comment
+          if (line.startsWith('event:')) {
+            eventName = line.slice(6).trim();
+          } else if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).replace(/^ /, ''));
+          }
+        }
+      }
+    } catch (e) {
+      if (ctrl.signal.aborted) return; // intentional close
+      // Network blip or backend restart - retry with backoff (cap 30s).
+    } finally {
+      _sseController = null;
+    }
+    // Reconnect unless the user logged out (token cleared).
+    if (token) {
+      setTimeout(startEventStream, _sseRetryMs);
+      _sseRetryMs = Math.min(_sseRetryMs * 2, 30000);
+    }
+  }
+
+  // Event names the UI knows how to react to. Anything outside this set is
+  // logged (in dev) and ignored. Keeping the list explicit documents the
+  // wire contract: the backend emits `audit`, `heartbeat`, `ready`,
+  // `lease_request_created`, and `lease_status_changed`.
+  const _KNOWN_SSE_EVENTS = new Set([
+    'audit', 'heartbeat', 'ready',
+    'lease_request_created', 'lease_status_changed',
+  ]);
+
+  function handleSseEvent(name, payload) {
+    if (!_KNOWN_SSE_EVENTS.has(name)) return;
+    if (name === 'lease_request_created') {
+      // Pending count + tab may change. Refresh both, and surface a toast
+      // with a Review action if this isn't the operator's own request.
+      refreshPendingBadge();
+      if (currentPage === 'leases') loadPendingLeases();
+      const identity = payload && payload.identity ? payload.identity : 'an agent';
+      const path = payload && (payload.secret_path || payload.path) ? (payload.secret_path || payload.path) : '?';
+      _showApprovalToast(`${identity} requested access to ${path}`);
+    } else if (name === 'lease_status_changed') {
+      refreshPendingBadge();
+      if (currentPage === 'leases') {
+        // Either tab can be affected (approve removes from pending, adds to
+        // active; deny removes from pending). Refresh whichever is visible.
+        if (window._leaseTab === 'pending') loadPendingLeases();
+        else loadActiveLeases();
+      }
+    }
+    // 'audit' and 'heartbeat' currently have no UI subscribers - polling
+    // still drives the live-tail audit table; wiring SSE into it is a
+    // separate concern from the approval feature.
+  }
+
+  // Sticky toast for new pending approval requests. Auto-dismisses after
+  // 10 seconds (the spec allows either no auto-dismiss or 10s); we pick 10s
+  // so a session left open overnight doesn't accumulate a wall of toasts.
+  // A "Review" button switches to the Leases / Pending tab.
+  function _showApprovalToast(msg) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = 'toast toast-warning';
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.gap = '10px';
+    el.innerHTML = `<span style="flex:1">${esc(msg)}</span><button class="btn btn-primary btn-sm" data-action="review">Review</button>`;
+    container.appendChild(el);
+    const cleanup = () => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(-8px)';
+      el.style.transition = 'all 0.3s ease';
+      setTimeout(() => el.remove(), 300);
+    };
+    el.querySelector('[data-action="review"]').addEventListener('click', () => {
+      showPage('leases');
+      window._switchLeaseTab('pending');
+      cleanup();
+    });
+    setTimeout(cleanup, 10000);
+  }
+
   function renderLeaseTable(leases, tbodyId, showId = false) {
     const tbody = document.getElementById(tbodyId);
     if (!leases.length) {
-      // Columns: ID? + kind + path + identity + ttl + (created? + expires) + action
-      const cols = showId ? 8 : 6;
+      // Columns: ID? + kind + path + identity + status? + ttl + (created? + expires) + action
+      // Dashboard (showId=false): kind, path, identity, ttl, expires, action = 6.
+      // Leases page (showId=true): id, kind, path, identity, status, ttl, created, expires, action = 9.
+      const cols = showId ? 9 : 6;
       tbody.innerHTML = `<tr><td colspan="${cols}" class="empty-state">No active leases. Leases appear here when an agent calls <code class="mono">gatehouse_lease</code> or <code class="mono">gatehouse_checkout</code>.</td></tr>`;
       return;
     }
@@ -3384,11 +3847,25 @@
       const kindLabel = kind === 'dynamic'
         ? `<span class="badge badge-info" title="${esc(l.provider_type || 'dynamic')}">dyn:${esc((l.provider_type || 'dynamic').replace('-cert','').replace('postgresql','pg'))}</span>`
         : `<span class="badge">static</span>`;
+      // Status column (Leases page only). Approved-with-justification gets
+      // a secondary detail row beneath the chip so admins can audit why.
+      let statusCell = '';
+      if (showId) {
+        const status = l.status || 'approved';
+        const statusChip = status === 'approved'
+          ? `<span class="badge badge-success" style="font-size:10px">approved</span>`
+          : `<span class="badge badge-neutral" style="font-size:10px">${esc(status)}</span>`;
+        const detail = (status === 'approved' && l.justification && l.approved_by)
+          ? `<div style="font-size:10px;color:var(--text-tertiary);margin-top:3px;max-width:220px;white-space:normal" title="${esc(l.justification)}">by ${esc(l.approved_by)} · ${esc(l.justification.length > 60 ? l.justification.slice(0,60) + '…' : l.justification)}</div>`
+          : '';
+        statusCell = `<td>${statusChip}${detail}</td>`;
+      }
       return `<tr>
         ${showId ? `<td class="mono" title="${esc(l.id)}" style="font-size:11px">${esc(l.id.slice(0, 16))}...</td>` : ''}
         <td>${kindLabel}</td>
         <td class="mono">${esc(path)}</td>
         <td>${esc(l.identity)}</td>
+        ${statusCell}
         <td class="${ttlClass}" data-expires="${l.expires_at}">${ttl.text}</td>
         ${showId ? `<td style="white-space:nowrap">${fmtTime(l.created_at)}</td>` : ''}
         <td style="white-space:nowrap">${fmtTime(l.expires_at)}</td>
@@ -3938,10 +4415,25 @@
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No AppRoles created yet</td></tr>';
         return;
       }
-      tbody.innerHTML = roles.map(r => `<tr>
+      tbody.innerHTML = roles.map(r => {
+        // Build optional rate-limit chip if any of the three limits is set.
+        // Tooltip text shows actual numbers; missing ones render as "no <unit> limit".
+        const m = r.rate_limit_per_minute, h = r.rate_limit_per_hour, d = r.rate_limit_per_day;
+        const hasRl = m != null || h != null || d != null;
+        let rlBadge = '';
+        if (hasRl) {
+          const parts = [
+            m != null ? `${m}/min` : 'no minute limit',
+            h != null ? `${h}/hr` : 'no hour limit',
+            d != null ? `${d}/day` : 'no day limit',
+          ];
+          const tip = `Rate-limited: ${parts.join(' · ')}`;
+          rlBadge = ` <span class="badge badge-neutral" style="font-size:9px" title="${esc(tip)}">⏱ rate-limited</span>`;
+        }
+        return `<tr>
         <td class="mono" style="font-size:11px" title="${esc(r.role_id)}">${esc(r.role_id.slice(0, 20))}...</td>
         <td style="font-weight:500">${esc(r.display_name)}</td>
-        <td>${(r.policies || []).map(p => `<span class="cap-badge cap-read">${esc(p)}</span>`).join(' ')}</td>
+        <td>${(r.policies || []).map(p => `<span class="cap-badge cap-read">${esc(p)}</span>`).join(' ')}${rlBadge}</td>
         <td>${r.suspended
           ? '<span class="badge badge-danger" style="font-size:10px">Suspended</span>'
           : '<span class="badge badge-success" style="font-size:10px">Active</span>'}</td>
@@ -3957,7 +4449,8 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
           </button>
         </td>
-      </tr>`).join('');
+      </tr>`;
+      }).join('');
     } catch (e) {
       // Fallback for non-root tokens
       tbody.innerHTML = '<tr><td colspan="7" class="empty-state">AppRole listing requires root token. Use the + button to create new roles.</td></tr>';
@@ -4271,6 +4764,24 @@
               <div class="multi-options" id="policy-options"></div>
             </div>
           </div>
+          <div class="form-group">
+            <label class="form-label">Rate Limits (optional)</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+              <div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Per minute</div>
+                <input type="number" id="new-agent-rl-minute" min="1" max="10000" placeholder="(no limit)">
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Per hour</div>
+                <input type="number" id="new-agent-rl-hour" min="1" max="100000" placeholder="(no limit)">
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Per day</div>
+                <input type="number" id="new-agent-rl-day" min="1" max="1000000" placeholder="(no limit)">
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">Limits apply to proxy calls. The most restrictive wins.</div>
+          </div>
           <div class="modal-actions">
             <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
             <button class="btn btn-primary" onclick="window._createAgent()">Create AppRole</button>
@@ -4285,8 +4796,25 @@
       const name = document.getElementById('new-agent-name').value.trim();
       if (!name) { toast('Display name required', 'error'); return; }
 
+      // Rate limits: empty string -> null (no limit), otherwise parseInt.
+      const readRl = (id) => {
+        const v = document.getElementById(id).value.trim();
+        if (v === '') return null;
+        const n = parseInt(v, 10);
+        return Number.isFinite(n) ? n : null;
+      };
+      const rate_limit_per_minute = readRl('new-agent-rl-minute');
+      const rate_limit_per_hour = readRl('new-agent-rl-hour');
+      const rate_limit_per_day = readRl('new-agent-rl-day');
+
       try {
-        const data = await api('/v1/auth/approle', { method: 'POST', body: { display_name: name, policies: selectedPolicies } });
+        const data = await api('/v1/auth/approle', { method: 'POST', body: {
+          display_name: name,
+          policies: selectedPolicies,
+          rate_limit_per_minute,
+          rate_limit_per_hour,
+          rate_limit_per_day,
+        } });
         if (selectedPolicies.length === 0) {
           // Non-blocking: the credentials modal still shows after this toast
           // so the operator can finish the onboard flow. Reminding them now
@@ -4391,6 +4919,19 @@
       availablePolicies = (data.policies || []).map(p => typeof p === 'string' ? p : p.name);
     } catch { /* empty */ }
 
+    // Pull rate-limit values from the role record (not carried on the data
+    // attributes since they're nullable ints).
+    let rlMinute = null, rlHour = null, rlDay = null;
+    try {
+      const data = await api('/v1/auth/approle');
+      const r = (data.roles || []).find(x => x.role_id === roleId);
+      if (r) {
+        rlMinute = r.rate_limit_per_minute ?? null;
+        rlHour = r.rate_limit_per_hour ?? null;
+        rlDay = r.rate_limit_per_day ?? null;
+      }
+    } catch { /* empty */ }
+
     let selectedPolicies = [...currentPolicies];
 
     function renderEditPolicySelect() {
@@ -4445,6 +4986,24 @@
               <div class="multi-options" id="edit-policy-options"></div>
             </div>
           </div>
+          <div class="form-group">
+            <label class="form-label">Rate Limits (optional)</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+              <div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Per minute</div>
+                <input type="number" id="edit-agent-rl-minute" min="1" max="10000" placeholder="(no limit)" value="${rlMinute == null ? '' : esc(String(rlMinute))}">
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Per hour</div>
+                <input type="number" id="edit-agent-rl-hour" min="1" max="100000" placeholder="(no limit)" value="${rlHour == null ? '' : esc(String(rlHour))}">
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Per day</div>
+                <input type="number" id="edit-agent-rl-day" min="1" max="1000000" placeholder="(no limit)" value="${rlDay == null ? '' : esc(String(rlDay))}">
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">Limits apply to proxy calls. The most restrictive wins.</div>
+          </div>
           <div class="modal-actions">
             <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
             <button class="btn btn-primary" onclick="window._saveEditAgent()">Save Changes</button>
@@ -4460,10 +5019,26 @@
       if (!name) { toast('Display name required', 'error'); return; }
       if (!selectedPolicies.length) { toast('At least one policy required', 'error'); return; }
 
+      const readRl = (id) => {
+        const v = document.getElementById(id).value.trim();
+        if (v === '') return null;
+        const n = parseInt(v, 10);
+        return Number.isFinite(n) ? n : null;
+      };
+      const rate_limit_per_minute = readRl('edit-agent-rl-minute');
+      const rate_limit_per_hour = readRl('edit-agent-rl-hour');
+      const rate_limit_per_day = readRl('edit-agent-rl-day');
+
       try {
         await api('/v1/auth/approle/' + encodeURIComponent(roleId), {
           method: 'PUT',
-          body: { display_name: name, policies: selectedPolicies }
+          body: {
+            display_name: name,
+            policies: selectedPolicies,
+            rate_limit_per_minute,
+            rate_limit_per_hour,
+            rate_limit_per_day,
+          }
         });
         toast('AppRole updated', 'success');
         document.querySelector('#modal-container .modal-overlay')?.remove();
