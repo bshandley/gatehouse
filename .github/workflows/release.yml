@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build release notes from conventional commits
+      - name: Build release notes
         id: notes
         env:
           TAG: ${{ github.ref_name }}
@@ -33,11 +33,38 @@ jobs:
             COMPARE="https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${TAG}"
           fi
 
-          COMMITS=$(git log --pretty=format:'%s' "$RANGE")
+          CURRENT_VER="${TAG#v}"
+          PREV_VER="${PREV_TAG#v}"
 
-          # Group commits by conventional-commit type. Order matches
-          # the human-readable importance for downstream operators.
-          NOTES_FILE=$(mktemp)
+          # Primary source: CHANGELOG.md sections from this release back to
+          # (but not including) the previous tag. This carries the rationale
+          # that lives in commit bodies, not just subjects. The sync script
+          # bundles multiple Gitea commits into one GitHub release, so any
+          # intermediate ## [x.y.z] entries between the previous synced tag
+          # and this one are picked up too.
+          CHANGELOG_BODY=""
+          if [ -f CHANGELOG.md ]; then
+            if [ -n "$PREV_VER" ]; then
+              CHANGELOG_BODY=$(awk -v cur="$CURRENT_VER" -v prev="$PREV_VER" '
+                $0 ~ ("^## \\[" cur "\\]") { found=1 }
+                found && $0 ~ ("^## \\[" prev "\\]") { exit }
+                found { print }
+              ' CHANGELOG.md || true)
+            else
+              # No previous tag: grab just the current section, stopping at
+              # the next ## [...] header.
+              CHANGELOG_BODY=$(awk -v cur="$CURRENT_VER" '
+                $0 ~ ("^## \\[" cur "\\]") { found=1; print; next }
+                found && /^## \[/ { exit }
+                found { print }
+              ' CHANGELOG.md || true)
+            fi
+          fi
+
+          # Commit-subject summary, grouped by conventional-commit type.
+          # Always rendered as a supplementary section so operators can see
+          # the granular Gitea history that contributed to this release.
+          COMMITS=$(git log --pretty=format:'%s' "$RANGE")
           declare -A SECTION_HEADINGS=(
             [feat]="### Features"
             [fix]="### Fixes"
@@ -48,12 +75,22 @@ jobs:
           )
           ORDER=(feat fix ui docs build chore)
 
+          NOTES_FILE=$(mktemp)
           {
-            echo "## What changed"
+            if [ -n "$CHANGELOG_BODY" ]; then
+              printf '%s\n' "$CHANGELOG_BODY"
+              echo
+            else
+              echo "## What changed"
+              echo
+              echo "_(No CHANGELOG.md section found for ${TAG}. See commits below.)_"
+              echo
+            fi
+
+            echo "## Commits since ${PREV_TAG:-the beginning}"
             echo
             for type in "${ORDER[@]}"; do
-              # Match `type:` or `type(scope):`
-              MATCHES=$(printf '%s\n' "$COMMITS" | grep -E "^${type}(\([a-z+_-]+\))?:" || true)
+              MATCHES=$(printf '%s\n' "$COMMITS" | grep -E "^${type}(\([a-z0-9+_.-]+\))?:" || true)
               if [ -n "$MATCHES" ]; then
                 echo "${SECTION_HEADINGS[$type]}"
                 echo
@@ -61,9 +98,7 @@ jobs:
                 echo
               fi
             done
-
-            # Anything that doesn't match a known prefix
-            UNCLASSIFIED=$(printf '%s\n' "$COMMITS" | grep -Ev "^(feat|fix|ui|docs|build|chore)(\([a-z+_-]+\))?:" || true)
+            UNCLASSIFIED=$(printf '%s\n' "$COMMITS" | grep -Ev "^(feat|fix|ui|docs|build|chore)(\([a-z0-9+_.-]+\))?:" || true)
             if [ -n "$UNCLASSIFIED" ]; then
               echo "### Other"
               echo
@@ -77,7 +112,7 @@ jobs:
             echo "docker pull ghcr.io/${GITHUB_REPOSITORY}:${TAG#v}"
             echo '```'
             echo
-            echo "Or pin to the release SHA for byte-stable rollback:"
+            echo "Pin to the release commit for byte-stable rollback:"
             echo '```'
             echo "docker pull ghcr.io/${GITHUB_REPOSITORY}:sha-${GITHUB_SHA:0:7}"
             echo '```'

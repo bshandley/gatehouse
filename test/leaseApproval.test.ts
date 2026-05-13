@@ -243,6 +243,16 @@ describe("Lease approval flow (HTTP)", () => {
     const approvedBody = await approveRes.json();
     expect(approvedBody.lease.status).toBe("approved");
 
+    // Agent-perspective audit row exists for the approval, with the
+    // approver recorded in metadata.
+    const agentApprovals = audit.query({
+      identity: "agent-a",
+      action: "lease.approved",
+    });
+    const agentApprovalRow = agentApprovals.find((r) => r.lease_id === lease_id);
+    expect(agentApprovalRow).toBeDefined();
+    expect(agentApprovalRow?.metadata?.approved_by).toBe("admin-1");
+
     // 3. Agent now checks out and gets the value.
     const co1 = await app.request("/v1/lease/secret/gated", {
       method: "POST",
@@ -378,6 +388,23 @@ describe("Lease approval flow (HTTP)", () => {
     const denied = await denyRes.json();
     expect(denied.lease.status).toBe("denied");
     expect(denied.lease.denied_reason).toBe("Not approved at this time");
+
+    // Both the approver AND the requesting agent should see a lease.denied
+    // audit row. Without the mirror row, agents can't see decisions in
+    // their identity-scoped audit feed.
+    const adminDenials = audit.query({
+      identity: "admin-1",
+      action: "lease.denied",
+    });
+    expect(adminDenials.find((r) => r.lease_id === firstId)).toBeDefined();
+    const agentDenials = audit.query({
+      identity: "agent-a",
+      action: "lease.denied",
+    });
+    const agentRow = agentDenials.find((r) => r.lease_id === firstId);
+    expect(agentRow).toBeDefined();
+    expect(agentRow?.metadata?.approved_by).toBe("admin-1");
+    expect(agentRow?.metadata?.reason).toBe("Not approved at this time");
 
     // A denied lease should NOT block re-requests - a new pending lease is created.
     const reReq = await app.request("/v1/lease/secret/gated/request", {

@@ -298,6 +298,22 @@ export class LeaseManager {
       },
     });
 
+    // Mirror row from the agent's perspective. Audit views are
+    // identity-scoped for non-admins, so without this the requester
+    // never sees the decision in their own audit feed (they'd have to
+    // poll the lease record). Same lease_id and action, distinct
+    // identity, decision-maker recorded in metadata.
+    this.audit.log({
+      identity: existing.identity,
+      action: "lease.approved",
+      path: existing.secret_path,
+      lease_id: leaseId,
+      metadata: {
+        approved_by: approverIdentity,
+        ttl: existing.ttl_seconds.toString(),
+      },
+    });
+
     if (this.bus) {
       this.bus.emit({
         type: "lease_status_changed",
@@ -336,6 +352,20 @@ export class LeaseManager {
       lease_id: leaseId,
       metadata: {
         agent_identity: existing.identity,
+        reason: r.slice(0, AUDIT_JUSTIFICATION_MAX),
+      },
+    });
+
+    // Mirror row so the requester sees the denial in their identity-scoped
+    // audit feed. Otherwise denials only surface via /v1/lease/<id> polling
+    // or the SSE event, which is too easy for agents to miss.
+    this.audit.log({
+      identity: existing.identity,
+      action: "lease.denied",
+      path: existing.secret_path,
+      lease_id: leaseId,
+      metadata: {
+        approved_by: approverIdentity,
         reason: r.slice(0, AUDIT_JUSTIFICATION_MAX),
       },
     });

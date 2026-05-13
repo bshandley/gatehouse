@@ -179,6 +179,11 @@ app.get("/", async (c) => {
       "Content-Security-Policy",
       "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:;"
     );
+    // Force revalidation on every request. Without this, browsers cache the
+    // single-file HTML aggressively and operators keep running stale UIs
+    // after a Gatehouse upgrade. The cost is negligible (one ETag-style
+    // round trip) and the file is ~300KB.
+    c.header("Cache-Control", "no-cache, must-revalidate");
     return c.html(html);
   } catch {
     return c.text("UI not found. Build the UI first.", 404);

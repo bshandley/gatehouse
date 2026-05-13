@@ -5,6 +5,30 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.14.6] - 2026-05-12
+
+### Bug fix
+
+- **Secret detail panel: "Active Approved Leases" section now loads.** The UI was calling `GET /v1/lease/?path=…` (trailing slash) for this section while every other lease call used `/v1/lease`. Hono's `app.route("/v1/lease", router)` mount matches `/v1/lease` cleanly but returns 404 for `/v1/lease/` in the version we run. Dropped the trailing slash in the UI; server-side normalization is deferred (would need request-path-rewrite middleware that could mask similar bugs elsewhere).
+
+## [0.14.5] - 2026-05-12
+
+### Bug fix
+
+- **Lease approve/deny audits are now visible to the requesting agent.** Previously only the operator's `lease.approved` / `lease.denied` row was written, identity-scoped to the operator. Since the `/v1/audit` endpoint filters by caller identity for non-admins, agents could not see decisions on their own pending leases in their audit feed — the data was only reachable via `GET /v1/lease/<id>` polling or the SSE `lease_status_changed` event. Now a second mirror row is written under the agent's identity for both decisions, carrying `approved_by` (and `reason` for denials) in metadata. Admin audit views are unchanged; non-admin agents now see their own decision history.
+
+## [0.14.4] - 2026-05-12
+
+### Bug fix
+
+- **UI SSE stream now actually starts.** `startEventStream` referenced `_sseController` (a `let` binding declared next to the function) while being invoked from `showApp()` during module init, before that `let` line had executed. Firefox surfaced this as `ReferenceError: can't access lexical declaration '_sseController' before initialization`; Chrome silently ate the rejected promise. End result: every browser was running with a dead SSE stream, so `lease_request_created` and `lease_status_changed` events never reached the toast or the sidebar pending-count badge. Moved the binding to the module state block at the top so it initialises before `showApp()` runs.
+
+## [0.14.3] - 2026-05-12
+
+### Bug fix
+
+- **UI HTML now serves with `Cache-Control: no-cache, must-revalidate`.** The `/` route previously sent no cache header, so browsers held onto the old single-file HTML across Gatehouse upgrades. Operators upgrading from v0.13.x to v0.14.x kept seeing the pre-approval UI (no toast, no sidebar badge update on SSE events) until they hard-refreshed. The HTML is ~300 KB and the revalidation round trip is negligible; correctness wins over the byte savings.
+
 ## [0.14.2] - 2026-05-12
 
 ### Bug fix

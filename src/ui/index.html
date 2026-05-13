@@ -2448,6 +2448,11 @@
   let allSecrets = [];
   let selectedSecretPath = null;
   let pendingTotpToken = null;
+  // SSE: declared up here (not next to startEventStream) so showApp() can
+  // call startEventStream during module init without hitting the temporal
+  // dead zone on these `let` bindings.
+  let _sseController = null;
+  let _sseRetryMs = 1000;
 
   // Theme
   const savedTheme = localStorage.getItem('gatehouseTheme') || 'dark';
@@ -3240,7 +3245,11 @@
     const el = document.getElementById('approved-leases-list');
     if (!el) return;
     try {
-      const data = await api('/v1/lease/?path=' + encodeURIComponent(path));
+      // No trailing slash: Hono's router mount returns 404 for /v1/lease/
+      // but matches /v1/lease. The `?path=` query is unused server-side
+      // today (the list endpoint returns all visible leases and we filter
+      // client-side below) but kept here as a forward-compat hint.
+      const data = await api('/v1/lease?path=' + encodeURIComponent(path));
       const leases = (data.leases || []).filter(l =>
         (l.secret_path === path || l.path === path) && l.status === 'approved' && !l.revoked
       );
@@ -3705,9 +3714,8 @@
   // Authorization header, and the backend auth middleware only accepts
   // Bearer tokens via header (not a query param), so we hand-roll the SSE
   // line parser over fetch + ReadableStream. Reconnects with backoff on
-  // network failure.
-  let _sseController = null;
-  let _sseRetryMs = 1000;
+  // network failure. (State bindings are declared at the top of the module
+  // alongside `token` and friends.)
   async function startEventStream() {
     if (_sseController) return; // already running
     const ctrl = new AbortController();
