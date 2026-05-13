@@ -636,6 +636,9 @@ export function createMCPHandler(
           }
 
           // Gates: per-AppRole rate limits, per-secret rate limits, approval.
+          // Capture leaseIds so we can stamp the authorizing approval lease
+          // onto the success audit row below.
+          let mcpGateLeaseIds: Record<string, string> = {};
           if (rateLimiter && db) {
             const gate = enforceProxyGates({
               auth,
@@ -653,6 +656,7 @@ export function createMCPHandler(
                 isError: true,
               };
             }
+            mcpGateLeaseIds = gate.leaseIds;
           }
 
           const resolved = new Map<string, string>();
@@ -776,18 +780,25 @@ export function createMCPHandler(
             });
             clearTimeout(timer);
 
+            const mcpSuccessMeta: Record<string, string> = {
+              target_host: new URL(upstreamUrl).hostname,
+              target_path: targetPath,
+              target_url: args.url,
+              method,
+              status: String(upstream.status),
+            };
+            const mcpLeaseIdsList = Object.values(mcpGateLeaseIds);
+            if (mcpLeaseIdsList.length > 0) {
+              mcpSuccessMeta.lease_id = mcpLeaseIdsList.join(",");
+            }
+            const mcpTopLeaseId = mcpLeaseIdsList.length === 1 ? mcpLeaseIdsList[0] : undefined;
             audit.log({
               identity: auth.identity,
               action: "proxy.forward.mcp",
               path: [...refs].join(","),
               source_ip: sourceIp,
-              metadata: {
-                target_host: new URL(upstreamUrl).hostname,
-                target_path: targetPath,
-                target_url: args.url,
-                method,
-                status: String(upstream.status),
-              },
+              ...(mcpTopLeaseId ? { lease_id: mcpTopLeaseId } : {}),
+              metadata: mcpSuccessMeta,
             });
 
             if (rateLimiter) {

@@ -627,11 +627,17 @@ export function proxyRouter(
       if (leaseIdsList.length > 0) {
         successMeta.lease_id = leaseIdsList.join(",");
       }
+      // Surface the authorizing lease_id as the top-level audit column when
+      // exactly one approval lease gated this call. Lets the audit UI filter
+      // by lease without parsing metadata. Multi-secret proxy calls keep the
+      // comma-joined list in metadata only.
+      const topLeaseId = leaseIdsList.length === 1 ? leaseIdsList[0] : undefined;
       audit.log({
         identity: auth.identity,
         action: "proxy.forward",
         path: secretPaths.join(","),
         source_ip: sourceIp,
+        ...(topLeaseId ? { lease_id: topLeaseId } : {}),
         metadata: successMeta,
       });
 

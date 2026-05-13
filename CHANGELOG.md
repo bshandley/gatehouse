@@ -5,6 +5,12 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.14.2] - 2026-05-12
+
+### Bug fix
+
+- **`proxy.forward` audit rows now stamp the authorizing `lease_id` as a top-level column** (not just in metadata) when exactly one approval lease gated the call. The audit page can now filter "all value reveals authorized by this approval lease" without parsing metadata JSON. Applies to both REST `/v1/proxy` and MCP `gatehouse_proxy`. Multi-secret calls keep the comma-joined list in metadata only, since the column is a single-value foreign-key-ish field.
+
 ## [0.14.1] - 2026-05-12
 
 ### Bug fix
