@@ -843,8 +843,12 @@ export function createMCPHandler(
         }
 
         case "gatehouse_request_access": {
-          if (!policies.check(auth.policies, args.path, "lease")) {
-            return error(`Access denied: no lease permission on "${args.path}"`);
+          // Same widened check as POST /v1/lease/<path>/request: the approval
+          // gate applies to both proxy and lease, so either cap is enough.
+          const canProxy = policies.check(auth.policies, args.path, "proxy");
+          const canLease = policies.check(auth.policies, args.path, "lease");
+          if (!canProxy && !canLease) {
+            return error(`Access denied: no proxy or lease permission on "${args.path}"`);
           }
           const meta = secrets.getMeta(args.path);
           if (!meta) return error(`Secret not found: "${args.path}"`);

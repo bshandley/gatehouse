@@ -34,6 +34,12 @@ describe("Lease approval flow (HTTP)", () => {
       { paths: ["*"], capabilities: ["read", "lease"] },
     ]);
 
+    // Proxy-only policy: used to verify /request still accepts proxy-cap
+    // agents (regression for v0.14.0 -> v0.14.1 footgun).
+    policies.savePolicy("proxy-only", [
+      { paths: ["*"], capabilities: ["proxy"] },
+    ]);
+
     // Seed secrets: gated, open, auto-ip.
     secrets.put("secret/gated", "gated-value", { requires_approval: "true" });
     secrets.put("secret/open", "open-value");
@@ -87,6 +93,48 @@ describe("Lease approval flow (HTTP)", () => {
   // ------------------------------------------------------------------
   // 403 without an approved lease, with helpful error body.
   // ------------------------------------------------------------------
+
+  // ------------------------------------------------------------------
+  // Regression: an agent with proxy-only cap on an approval-gated secret
+  // must still be able to call /request. Without this, proxy-only agents
+  // are unreachable on gated secrets (proxy blocked AND request blocked).
+  // ------------------------------------------------------------------
+
+  test("/request accepts proxy-only cap on approval-gated secret", async () => {
+    const res = await app.request("/v1/lease/secret/gated/request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Test-Identity": "agent-proxy-only",
+        "X-Test-Policies": JSON.stringify(["proxy-only"]),
+      },
+      body: JSON.stringify({
+        ttl: 300,
+        justification: "Need this for a proxy call I can't make without approval.",
+      }),
+    });
+    expect(res.status).toBe(202);
+    const body = await res.json();
+    expect(body.status).toBe("pending");
+    expect(body.lease_id).toMatch(/^lease-/);
+  });
+
+  test("/request denies an agent with neither proxy nor lease cap", async () => {
+    // No-policy agent: middleware will pass an empty policies array.
+    const res = await app.request("/v1/lease/secret/gated/request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Test-Identity": "agent-nopol",
+        "X-Test-Policies": JSON.stringify([]),
+      },
+      body: JSON.stringify({
+        ttl: 300,
+        justification: "Should be denied because no relevant cap.",
+      }),
+    });
+    expect(res.status).toBe(403);
+  });
 
   test("checkout of approval-gated secret without lease returns 403", async () => {
     const res = await app.request("/v1/lease/secret/gated", {

@@ -114,7 +114,13 @@ export function leaseRouter(
 
     if (rawPath.endsWith("/request")) {
       const secretPath = rawPath.slice(0, -"/request".length);
-      if (!policies.check(auth.policies, secretPath, "lease")) {
+      // The approval gate fires on BOTH proxy and lease calls, so any agent
+      // with either capability on this path needs a way to request access.
+      // Gating the request endpoint on lease-only would brick proxy-only
+      // agents (their proxy is blocked AND they can't request).
+      const canProxy = policies.check(auth.policies, secretPath, "proxy");
+      const canLease = policies.check(auth.policies, secretPath, "lease");
+      if (!canProxy && !canLease) {
         return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
       }
       const body = await c.req

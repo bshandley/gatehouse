@@ -5,6 +5,12 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.14.1] - 2026-05-12
+
+### Bug fix
+
+- **Approval request endpoint accepts `proxy` capability.** `POST /v1/lease/<path>/request` and the `gatehouse_request_access` MCP tool previously required `lease` capability on the secret. That made the approval workflow unreachable for any agent with only `proxy` cap on an approval-gated secret: their proxy call was blocked by the gate, and they couldn't request access either. The endpoint now accepts either `proxy` or `lease` cap, matching the set of operations the approval gate actually applies to.
+
 ## [0.14.0] - 2026-05-12
 
 ### Features
