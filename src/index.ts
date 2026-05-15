@@ -190,6 +190,34 @@ app.get("/", async (c) => {
   }
 });
 
+// Serve the secret-form metadata helper module. The UI imports this as
+// <script type="module" src="/ui/secret-form-metadata.js"> from index.html
+// so the inline modal handlers can call window.SecretForm.buildMetadata().
+app.get("/ui/secret-form-metadata.js", async (c) => {
+  const jsPath = new URL("./ui/secret-form-metadata.js", import.meta.url).pathname;
+  try {
+    const js = await Bun.file(jsPath).text();
+    c.header("Content-Type", "application/javascript; charset=utf-8");
+    c.header("Cache-Control", "no-cache, must-revalidate");
+    return c.body(js);
+  } catch {
+    return c.text("Not found", 404);
+  }
+});
+
+// Serve the secret-detail render helper module.
+app.get("/ui/secret-detail-render.js", async (c) => {
+  const jsPath = new URL("./ui/secret-detail-render.js", import.meta.url).pathname;
+  try {
+    const js = await Bun.file(jsPath).text();
+    c.header("Content-Type", "application/javascript; charset=utf-8");
+    c.header("Cache-Control", "no-cache, must-revalidate");
+    return c.body(js);
+  } catch {
+    return c.text("Not found", 404);
+  }
+});
+
 // Auth routes (login, token exchange - no auth middleware)
 app.route("/v1/auth", authRouter(db, config, audit, leases));
 

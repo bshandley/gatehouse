@@ -5,6 +5,39 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.17.0] - 2026-05-15
+
+### Feature
+
+- **Internal URL support for split-DNS deployments**: new optional env var `GATEHOUSE_INTERNAL_URL` (e.g. `http://10.0.0.102:3100`) for operators who host Gatehouse behind a reverse proxy whose public hostname isn't reachable from inside the LAN. When set:
+  - The onboarding token create response (`POST /v1/onboard`) returns both `onboard_url` and `onboard_url_internal`.
+  - The onboarding admin UI shows a second copy field labeled "Internal URL" so operators can hand the right URL to LAN-only agents (e.g. a Raspberry Pi that can't reach the public proxy).
+  - The rendered onboarding markdown (`GET /v1/onboard/:token`) includes a callout in Step 2 telling agents to prefer the internal URL when reachable.
+  - The exchange response (`POST /v1/onboard/:token/exchange`) includes `internal_url` so agents can persist whichever endpoint actually works for them.
+- **Onboarding docs cleanup**:
+  - `gatehouse_request_access` now has a documented HTTP fallback (`POST /v1/lease/<path>/request`) in the onboarding template's HTTP route table.
+  - JSON-RPC over `/v1/mcp` is documented as a catch-all bridge for harnesses without MCP tool wiring.
+  - `/v1/proxy` now has a concrete flat-envelope JSON example so non-MCP agents stop guessing whether the body is nested.
+  - 403-on-proxy error decoder split: the `requires_approval` case points at the approval flow instead of the generic "tell the operator" advice.
+  - Pi added to the harness ladder (Step 1 self-ID + Step 3 persistence at `~/.pi/agent/`).
+- Stripped two pre-existing em dashes that violated project rules.
+
+## [0.16.0] - 2026-05-14
+
+### Feature
+
+- **Secrets page detail panel redesign**: replaced the flat metadata table with five structured blocks. Identity at the top (path + click-to-copy `{{secret:...}}` reference chip + description paragraph + a single stamps line). Posture (semantic-colored chips for `auth_scheme`, `allowed_domains`, `allowed_path_prefixes`, `rate_limit_per_minute`, `requires_approval`, `allow_private`, `tls_allow_insecure`, auto-approval IP/TTL). Activity (parallel-fetched active leases + recent audit events, with view-all links to the Leases and Audit pages). Value reveal (unchanged). Actions (Create Lease becomes primary). Unknown metadata keys land in an Other Metadata table at the bottom.
+- Tree: each row now shows a small `[bearer]` / `[header:X-API-Key]` chip after the secret name when an auth scheme is set.
+- Empty state: when no secret is selected, the panel shows a tertiary line summarizing total secrets, approval-gated count, and secrets touched this week.
+- No server changes. Existing endpoints (`/v1/secrets`, `/v1/lease`, `/v1/audit`) supply all data.
+
+## [0.15.0] - 2026-05-13
+
+### Feature
+
+- **Secret form**: replaced the generic key/value editor in the create/edit modal with dedicated controls. `requires_approval` is now a first-class toggle. A new `description` field captures what each secret is for. Known metadata keys (`auth_scheme`, `header_name`, `allowed_domains`, `allowed_path_prefixes`, `allow_private`, `tls_allow_insecure`, `rate_limit_per_minute`, `auto_approve_from_ip`, `auto_approve_ttl_seconds`) live under a single collapsed Advanced section with the right control type for each (dropdown, toggle, number). Unknown keys keep working via an "Other metadata" escape hatch. Edit round-trip is preserved with two intentional normalizations: legacy `requires_approval=false` is dropped (now equivalent to omitted), and orphan `auto_approve_ttl_seconds` (no paired IP) is dropped.
+- No server-side changes. Wire format is unchanged.
+
 ## [0.14.6] - 2026-05-12
 
 ### Bug fix

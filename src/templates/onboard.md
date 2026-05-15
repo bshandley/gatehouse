@@ -25,18 +25,18 @@ first match:
 
 1. **Self-identification.** If you already know which runtime you
    are (Claude Code, opencode, Hermes Agent, OpenClaw, Codex, Cursor,
-   Windsurf, Copilot CLI, Gemini CLI, or anything else), pick that
-   one and skip the rest of the ladder. Do not second-guess your own
-   identity from filesystem contents, those belong to other agents
-   sharing the host.
+   Windsurf, Copilot CLI, Gemini CLI, Pi, or anything else), pick
+   that one and skip the rest of the ladder. Do not second-guess
+   your own identity from filesystem contents, those belong to other
+   agents sharing the host.
 2. **Tool signals.** If you genuinely don't know:
    - A `skill_manage` tool means **Hermes Agent**.
    - A `Skill` tool that loads from `~/.claude/skills/` means
      **Claude Code**.
 3. **Filesystem, as a last resort.** Only if the two steps above
    didn't resolve, AND exactly one of `~/.hermes/`, `~/.openclaw/`,
-   `~/.claude/` exists, use that as the harness. If two or more
-   exist, stop and ask the operator which runtime this is.
+   `~/.claude/`, `~/.pi/` exists, use that as the harness. If two or
+   more exist, stop and ask the operator which runtime this is.
 4. **Generic file-writer fallback.** File tools but no skills system
    and no clear identity: write `.env.gatehouse` and update
    `AGENTS.md` in the current working directory. This is the right
@@ -61,11 +61,13 @@ AppRole credentials and a 24h JWT:
       "role_id": "role-...",
       "secret_id": "...",
       "base_url": "{{BASE_URL}}",
+      "internal_url": "<set if the operator configured one, else absent>",
       "mcp_url": "{{BASE_URL}}/v1/mcp",
       "role_display_name": "{{ROLE_DISPLAY_NAME}}",
       "policies": [...],
       "expires_in": 86400
     }
+{{INTERNAL_URL_BLOCK}}
 
 Hold these values in memory. Never echo role_id, secret_id, or the
 JWT into conversation output, logs, or tool arguments visible to the
@@ -112,6 +114,14 @@ Append one line to `~/.openclaw/workspace/MEMORY.md`:
 Write the env vars to `~/.claude/.env.gatehouse` and tell the user to
 source it or export the variables.
 Write the Step 5 body to `~/.claude/skills/gatehouse/SKILL.md`.
+
+### Pi
+
+Write the env vars to `~/.pi/agent/.env.gatehouse` and tell the user
+to source it or export the variables.
+Pi has no skills directory, so append the Step 5 body to
+`~/.pi/agent/AGENTS.md` under a `## Gatehouse` heading (full body, not
+just the operating-rules subset). Pi reads `AGENTS.md` at startup.
 
 ### Generic file-writer (opencode, Codex, Cursor, Windsurf, or similar)
 
@@ -189,6 +199,12 @@ If your harness can only make raw HTTP calls, every `gatehouse_*` tool
 below maps to an authenticated endpoint. Send `Authorization: Bearer
 <jwt>` on each.
 
+If your harness has neither MCP tool wiring nor a tool listed below,
+`/v1/mcp` also accepts standard JSON-RPC over HTTP. POST with
+`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"<tool>","arguments":{...}}}`
+and the same Bearer JWT. Every `gatehouse_*` tool is callable that way
+under the same auth.
+
 | Tool | HTTP |
 | --- | --- |
 | `gatehouse_list` | `GET /v1/secrets?prefix=<p>` returns `{"secrets": [...]}`. Static and dynamic entries are merged; each entry has a `kind: "static" \| "dynamic"` field. `prefix` is starts-with on the full path (`prefix=api` matches `api-keys/...`, NOT `services/api-foo`). |
@@ -196,6 +212,7 @@ below maps to an authenticated endpoint. Send `Authorization: Bearer
 | `gatehouse_proxy` | `POST /v1/proxy` with the body shape in "Injection styles" below. Static secrets only. |
 | `gatehouse_get` | `GET /v1/secrets/<path>/value` (requires `read`). Static secrets only. |
 | `gatehouse_lease` | `POST /v1/lease/<path>` with `{"ttl": 300}`. Returns `{lease, value}`. STATIC secrets only. |
+| `gatehouse_request_access` | `POST /v1/lease/<path>/request` with `{"ttl": 300, "justification": "<why>", "request_ttl": 3600}`. Returns `{lease_id, status, request_expires_at, expires_at_if_approved}` (HTTP 202 first time, 200 on dedup re-request). Poll `GET /v1/lease/<lease_id>` and watch `.status` flip from `pending` to `approved` or `denied`. |
 | `gatehouse_checkout` | `POST /v1/dynamic/<path>/checkout` with `{"ttl": 300}`. DYNAMIC secrets only (SSH, DB). Returns `{lease_id, path, provider_type, credential, ttl_seconds, expires_at}`. |
 | `gatehouse_revoke` | `DELETE /v1/lease/<lease_id>`. Works for both static and dynamic lease IDs (dispatch is by `lease-` vs `dlease-` prefix on the server). `DELETE /v1/dynamic/lease/<lease_id>` still works as an alias. |
 | (no MCP tool) | `GET /v1/lease` returns your active leases (static + dynamic merged). Each entry has `kind: "static" \| "dynamic"`, `id`, `path`, `identity`, `expires_at`, plus `provider_type` for dynamic. Useful for finding a lease ID you forgot to record. |
@@ -256,13 +273,18 @@ and `requires_approval` in the response.
 
 The flow:
 
-1. Call `gatehouse_request_access(path, ttl, justification)`. Pick a TTL
-   that covers what you need (default 300s, max 86400s). Write a clear
-   justification (1 to 3 sentences) describing what API endpoint you'll
-   hit and roughly what for.
-2. Wait. Poll `gatehouse_status` every 30 to 60 seconds (NOT faster) to
-   check `pending_leases`. Do not re-request: duplicates dedupe to the
-   same lease_id.
+1. Request access. Pick a TTL that covers what you need (default 300s,
+   max 86400s) and write a clear justification (1 to 3 sentences)
+   describing what API endpoint you'll hit and roughly what for.
+   - MCP: `gatehouse_request_access(path, ttl, justification)`.
+   - HTTP: `POST {{BASE_URL}}/v1/lease/<path>/request` with
+     `{"ttl": 300, "justification": "<why>", "request_ttl": 3600}`.
+     Returns `{lease_id, status, request_expires_at, expires_at_if_approved}`.
+2. Wait. Poll every 30 to 60 seconds (NOT faster). Do not re-request;
+   duplicates dedupe to the same lease_id.
+   - MCP: `gatehouse_status` shows your `pending_leases` count.
+   - HTTP: `GET {{BASE_URL}}/v1/lease/<lease_id>` and check `.status`
+     for `approved` / `denied`.
 3. Once approved, your `gatehouse_proxy` and `gatehouse_lease` calls
    against this secret succeed for the lease duration. The approved
    lease IS your access window; revoking it kills access immediately.
@@ -328,7 +350,7 @@ and a clock.
     `-cert.pub` appended (e.g. `/tmp/gh_key-cert.pub`). `ssh -i
     /tmp/gh_key ...` will auto-discover the cert. Use one shell
     expansion (jq or python piped to `>` redirect). Do NOT
-    concatenate the two contents into one file — it will parse as a
+    concatenate the two contents into one file: it will parse as a
     malformed pubkey and SSH will silently skip cert auth.
   - Prefer the sibling convention above to `-o CertificateFile=`.
     Some OpenSSH builds error out with `Load key: error in libcrypto`
@@ -344,7 +366,7 @@ and a clock.
     command expects a public key or cert and will error on a private
     key in a way that looks like corruption. Use `ssh-keygen -L -f
     <cert>` to inspect the CERT (principals, validity, CA
-    fingerprint) — that's safe and useful for debugging.
+    fingerprint): that's safe and useful for debugging.
   - Do NOT try to "verify cert and key match" by extracting base64
     blobs from the cert file and comparing to the private key. The
     cert is a wire-format SSH structure, not a bare pubkey, so any
@@ -395,6 +417,21 @@ and a clock.
 
 ## Injection styles for gatehouse_proxy
 
+`POST /v1/proxy` (or the MCP tool) takes a flat JSON envelope. Keys
+are top-level, NOT nested under `request:` or similar. Example:
+
+    {
+      "method": "GET",
+      "url": "https://api.example.com/data",
+      "headers": {"Content-Type": "application/json"},
+      "body": null,
+      "inject": {"Authorization": "api-keys/example"}
+    }
+
+`headers` and `body` are optional; `inject`, `auto_inject`, or template
+placeholders inside `url`/`headers`/`body` are how you reference secrets
+without ever seeing their values.
+
 **Template**: `{{secret:path}}` placeholders anywhere in headers, URL,
 or body. Gatehouse substitutes server-side.
 
@@ -420,9 +457,13 @@ override this.
 
 - **401 from Gatehouse**: JWT expired. Re-login with role_id +
   secret_id from the environment. Retry once.
-- **403 on proxy**: policy lacks `proxy` on that secret path, OR the
-  target domain isn't in the secret's `allowed_domains` metadata, OR
-  the target is a private IP and the secret has `allow_private=false`.
+- **403 on proxy with `requires_approval` in the body**: this secret
+  is approval-gated. See **Approval-gated secrets** above. Request
+  approval (MCP `gatehouse_request_access` or HTTP
+  `POST /v1/lease/<path>/request`), wait, then retry the original call.
+- **403 on proxy otherwise**: policy lacks `proxy` on that secret path,
+  OR the target domain isn't in the secret's `allowed_domains` metadata,
+  OR the target is a private IP and the secret has `allow_private=false`.
   Check `gatehouse_status` and `gatehouse_list`. Don't work around,
   tell the operator.
 - **403 on lease or checkout**: policy lacks `lease` on that secret

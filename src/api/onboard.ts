@@ -221,6 +221,9 @@ export function onboardRouter(
     return c.json({
       id,
       onboard_url: `${origin}/v1/onboard/${token}`,
+      onboard_url_internal: config.internalUrl
+        ? `${config.internalUrl}/v1/onboard/${token}`
+        : undefined,
       token,
       expires_at: expiresAt,
       role_display_name: role.display_name,
@@ -346,14 +349,21 @@ export function onboardRouter(
     const policyList: string[] = JSON.parse(row.policies || "[]");
     const situationTable = renderSituationTable(policies, policyList);
 
+    const internalUrlBlock = config.internalUrl
+      ? `\n**LAN agents**: if you can reach \`${config.internalUrl}\`, prefer it ` +
+        `for all subsequent calls (faster, no proxy hop). The exchange ` +
+        `response below also returns it as \`internal_url\`.\n`
+      : "";
+
     const rendered = templateContent
       .replaceAll("{{BASE_URL}}", origin)
+      .replaceAll("{{INTERNAL_URL_BLOCK}}", internalUrlBlock)
       .replaceAll("{{ONBOARD_TOKEN}}", token)
       .replaceAll("{{ROLE_DISPLAY_NAME}}", row.display_name || "")
       .replaceAll(
         "{{POLICIES}}",
         policyList.join(", ") ||
-          "**(none)** — STOP. This AppRole has zero policies attached. After installing the skill in Step 3, do not probe for anything. `gatehouse_list` will be empty and every proxy call will be denied. Tell the operator they need to attach policies to this AppRole."
+          "**(none)**: STOP. This AppRole has zero policies attached. After installing the skill in Step 3, do not probe for anything. `gatehouse_list` will be empty and every proxy call will be denied. Tell the operator they need to attach policies to this AppRole."
       )
       .replaceAll("{{SITUATION_TABLE}}", situationTable);
 
@@ -481,6 +491,7 @@ export function onboardRouter(
       role_id: row.role_id,
       secret_id: newSecretId,
       base_url: origin,
+      internal_url: config.internalUrl || undefined,
       mcp_url: `${origin}/v1/mcp`,
       role_display_name: row.display_name,
     });

@@ -991,6 +991,188 @@
     .kv-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
     .kv-row input { flex: 1; }
 
+    .advanced-details { margin-top: 8px; }
+    .advanced-details > summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 0;
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      border-top: 1px solid var(--border);
+      user-select: none;
+      transition: color 0.15s;
+    }
+    .advanced-details > summary::-webkit-details-marker { display: none; }
+    .advanced-details > summary:hover { color: var(--text-primary); }
+    .advanced-details > summary svg {
+      width: 12px; height: 12px;
+      transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .advanced-details[open] > summary svg { transform: rotate(90deg); }
+
+    .form-subheading {
+      font-family: var(--font-heading);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      margin: 16px 0 8px;
+    }
+    .form-subheading:first-child { margin-top: 8px; }
+
+    .form-help {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+
+    .detail-identity { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .detail-identity-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .detail-path-mono { font-family: var(--font-mono); font-size: 16px; font-weight: 500; color: var(--text-primary); }
+    .detail-ref-chip {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .detail-ref-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .detail-description { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+    .detail-stamps { font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); }
+
+    .detail-section { margin: 20px 0; }
+    .detail-section-heading {
+      font-family: var(--font-heading);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .detail-section-summary { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+    .posture-chips { display: flex; flex-wrap: wrap; gap: 12px; }
+    .posture-chip {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 80px;
+      max-width: 280px;
+      padding: 8px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .posture-chip-label {
+      font-family: var(--font-heading);
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+    }
+    .posture-chip-value {
+      font-size: 13px;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .posture-chip.is-accent .posture-chip-value { color: var(--accent); }
+    .posture-chip.is-warn {
+      background: rgba(251,191,36,0.06);
+      border-color: rgba(251,191,36,0.2);
+    }
+    .posture-chip.is-warn .posture-chip-value { color: var(--warning); }
+
+    .activity-subsection { margin-top: 12px; }
+    .activity-subhead {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-tertiary);
+      font-weight: 600;
+    }
+    .activity-subhead a {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 400;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .activity-subhead a:hover { color: var(--accent); }
+    .activity-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      padding: 6px 0;
+      font-size: 12px;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .activity-row:last-child { border-bottom: none; }
+    .activity-row-time {
+      font-family: var(--font-mono);
+      color: var(--text-tertiary);
+      font-size: 11px;
+      min-width: 60px;
+    }
+    .activity-row-id { color: var(--text-secondary); }
+    .activity-row-tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+    }
+    .activity-row-tag.is-ok { color: var(--text-tertiary); background: var(--bg-tertiary); }
+    .activity-row-tag.is-fail { color: var(--danger); background: var(--danger-subtle); }
+    .activity-row-tag.is-meta { color: var(--text-tertiary); background: transparent; padding-left: 0; }
+
+    .tree-item-auth {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-tertiary);
+      margin-left: 4px;
+      opacity: 0.7;
+    }
+
+    .detail-empty-stats {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .actions-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding-top: 8px;
+    }
+    .actions-bar .actions-bar-spacer { flex: 1; }
+
     /* Filter bar */
     .filter-bar {
       display: flex;
@@ -1767,6 +1949,8 @@
       .main { margin-left: 0; }
     }
   </style>
+    <script type="module" src="/ui/secret-form-metadata.js"></script>
+    <script type="module" src="/ui/secret-detail-render.js"></script>
 </head>
 <body>
 
@@ -3077,6 +3261,14 @@
       const data = await api('/v1/secrets');
       allSecrets = data.secrets || [];
       renderSecretTree(allSecrets);
+      // Add a stats line above the empty-icon block when no secret is
+      // selected; depends on allSecrets being populated, hence after the fetch.
+      if (detail && !selectedSecretPath && window.SecretDetail) {
+        const statsLine = window.SecretDetail.emptyStateStatsLine(allSecrets);
+        if (statsLine) {
+          detail.innerHTML = statsLine + detail.innerHTML;
+        }
+      }
     } catch (e) {
       toast('Failed to load secrets', 'error');
     }
@@ -3111,7 +3303,8 @@
         const approvalBadge = _isApprovalRequired(item)
           ? ' <span class="badge" style="font-size:9px;background:rgba(251,191,36,0.12);color:var(--warning)" title="Requires human approval before agents can use this secret">🔒 approval</span>'
           : '';
-        html += `<div class="tree-item ${active}" onclick="window._selectSecret('${esc(item.path)}')">${esc(name)}${approvalBadge}</div>`;
+        const authChip = window.SecretDetail ? window.SecretDetail.treeAuthChip(item.metadata) : '';
+        html += `<div class="tree-item ${active}" onclick="window._selectSecret('${esc(item.path)}')">${esc(name)}${authChip}${approvalBadge}</div>`;
       }
     }
     if (!secrets.length) html = '<div class="empty-state">No secrets stored yet. Click <strong>+ New Secret</strong> in the page header to add one.</div>';
@@ -3166,63 +3359,80 @@
       return;
     }
 
-    let metaRows = '';
-    if (meta.metadata && Object.keys(meta.metadata).length) {
-      metaRows = `<div style="margin-bottom:16px"><div class="detail-field-label" style="margin-bottom:8px">Metadata</div><table class="meta-table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>`;
-      for (const [k, v] of Object.entries(meta.metadata)) {
-        // The requires_approval row is rendered with a warning accent so
-        // operators eyeballing the table see the gate without having to
-        // read every key.
-        const highlight = k === 'requires_approval' && String(v) === 'true'
-          ? ' style="color:var(--warning);font-weight:600"' : '';
-        metaRows += `<tr><td class="mono"${highlight}>${esc(k)}</td><td${highlight}>${esc(String(v))}</td></tr>`;
-      }
-      metaRows += '</tbody></table></div>';
-    }
-
     // Approval-gated secrets get a prominent banner near the top of the
-    // detail view, and an "Active Approved Leases" section is rendered
-    // below the metadata (populated asynchronously to avoid blocking).
+    // detail view.
     const requiresApproval = _isApprovalRequired(meta);
     const approvalBanner = requiresApproval
       ? `<div style="background:rgba(251,191,36,0.08);border:1px solid var(--warning);padding:8px;border-radius:6px;color:var(--text-primary);font-size:13px;margin-bottom:14px">🔒 This secret requires approval before agents can use it.</div>`
       : '';
-    const approvedLeasesBlock = requiresApproval
-      ? `<div style="margin:16px 0" id="approved-leases-section">
-           <div class="detail-field-label" style="margin-bottom:8px">Active Approved Leases</div>
-           <div id="approved-leases-list" style="font-size:12px;color:var(--text-secondary)">Loading...</div>
-         </div>`
+
+    const description = (meta.metadata && meta.metadata.description) ? meta.metadata.description : '';
+    const identityHtml = `
+      <div class="detail-identity">
+        <div class="detail-identity-row">
+          <span class="detail-path-mono">${esc(path)}</span>
+          ${window.SecretDetail.referenceChipHtml(path)}
+        </div>
+        ${description ? `<div class="detail-description">${esc(description)}</div>` : ''}
+        <div class="detail-stamps">v${meta.version} . created ${esc(window.SecretDetail.relativeTime(meta.created_at))} . updated ${esc(window.SecretDetail.relativeTime(meta.updated_at))}</div>
+      </div>
+    `;
+
+    const postureHtml = window.SecretDetail.postureChipsHtml(meta.metadata || {});
+
+    const activityHtml = `
+      <div class="detail-section" id="detail-activity">
+        <div class="detail-section-heading">ACTIVITY <span class="detail-section-summary" id="detail-activity-summary">loading...</span></div>
+        <div id="detail-activity-body" style="color:var(--text-tertiary);font-size:12px;">Loading activity...</div>
+      </div>
+    `;
+
+    const valueHtml = `
+      <div class="detail-section">
+        <div class="reveal-box">
+          <div class="reveal-header">
+            <span class="reveal-label">Secret Value</span>
+            <button class="btn btn-ghost btn-sm" id="reveal-btn" aria-pressed="false" onclick="window._toggleRevealSecret('${esc(path)}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span id="reveal-btn-label">Reveal</span>
+            </button>
+          </div>
+          <div class="reveal-value" id="secret-value-display" style="color:var(--text-tertiary)">Click reveal to decrypt and display value</div>
+        </div>
+      </div>
+    `;
+
+    const KNOWN_STRUCTURED_KEYS = new Set([
+      'description',
+      'requires_approval',
+      'auth_scheme',
+      'header_name',
+      'allowed_domains',
+      'allowed_path_prefixes',
+      'allow_private',
+      'tls_allow_insecure',
+      'rate_limit_per_minute',
+      'auto_approve_from_ip',
+      'auto_approve_ttl_seconds',
+    ]);
+    const unknownEntries = Object.entries(meta.metadata || {}).filter(([k]) => !KNOWN_STRUCTURED_KEYS.has(k));
+    const unknownHtml = unknownEntries.length
+      ? `<div class="detail-section"><div class="detail-section-heading">OTHER METADATA</div><table class="meta-table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>${
+          unknownEntries.map(([k, v]) => `<tr><td class="mono">${esc(k)}</td><td>${esc(String(v))}</td></tr>`).join('')
+        }</tbody></table></div>`
       : '';
 
-    detail.innerHTML = `
-      ${approvalBanner}
-      <div class="detail-path"><span class="mono">${esc(path)}</span></div>
-      <div class="detail-meta">
-        <div><div class="detail-field-label">Version</div><div class="detail-field-value">${meta.version}</div></div>
-        <div><div class="detail-field-label">Created</div><div class="detail-field-value">${fmtTime(meta.created_at)}</div></div>
-        <div><div class="detail-field-label">Updated</div><div class="detail-field-value">${fmtTime(meta.updated_at)}</div></div>
-      </div>
-      ${metaRows}
-      ${approvedLeasesBlock}
-      <div class="reveal-box">
-        <div class="reveal-header">
-          <span class="reveal-label">Secret Value</span>
-          <button class="btn btn-ghost btn-sm" id="reveal-btn" aria-pressed="false" onclick="window._toggleRevealSecret('${esc(path)}')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            <span id="reveal-btn-label">Reveal</span>
-          </button>
-        </div>
-        <div class="reveal-value" id="secret-value-display" style="color:var(--text-tertiary)">Click reveal to decrypt and display value</div>
-      </div>
-      <div style="display:flex;gap:8px">
+    const actionsHtml = `
+      <div class="actions-bar">
+        <button class="btn btn-primary btn-sm" onclick="window._leaseSecret('${esc(path)}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Create Lease
+        </button>
         <button class="btn btn-ghost btn-sm" onclick="window._editSecret('${esc(path)}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           Edit
         </button>
-        <button class="btn btn-ghost btn-sm" onclick="window._leaseSecret('${esc(path)}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          Create Lease
-        </button>
+        <div class="actions-bar-spacer"></div>
         <button class="btn btn-danger btn-sm" onclick="window._deleteSecret('${esc(path)}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           Delete
@@ -3230,44 +3440,97 @@
       </div>
     `;
 
-    // For approval-gated secrets, fetch active leases against this path
-    // and render the approved set into the placeholder section above.
-    if (requiresApproval) {
-      _loadApprovedLeasesForPath(path);
+    detail.innerHTML = approvalBanner + identityHtml + postureHtml + activityHtml + valueHtml + unknownHtml + actionsHtml;
+
+    _loadActivityForPath(path, requiresApproval);
+  }
+
+  // Populate the Activity section with active leases and recent audit events.
+  // Both fetches run in parallel. Client-side filter is needed because the
+  // server's path filter is a LIKE prefix match (it would include child paths).
+  async function _loadActivityForPath(path, requiresApproval) {
+    const summaryEl = document.getElementById('detail-activity-summary');
+    const bodyEl = document.getElementById('detail-activity-body');
+    if (!summaryEl || !bodyEl) return;
+    try {
+      const [leaseData, auditData] = await Promise.all([
+        api('/v1/lease?path=' + encodeURIComponent(path)).catch(() => ({ leases: [] })),
+        api('/v1/audit?path=' + encodeURIComponent(path) + '&limit=20').catch(() => ({ entries: [] })),
+      ]);
+      const leases = (leaseData.leases || []).filter(l =>
+        (l.secret_path === path || l.path === path) && !l.revoked && (l.status === 'active' || l.status === 'approved')
+      );
+      const events = (auditData.entries || []).filter(e => e.path === path);
+
+      const last24h = events.filter(e => {
+        const ts = new Date(String(e.timestamp).endsWith('Z') ? e.timestamp : e.timestamp + 'Z');
+        return (Date.now() - ts.getTime()) < 86_400_000;
+      }).length;
+      summaryEl.textContent = `${leases.length} active leases . ${last24h} events / 24h`;
+
+      if (!leases.length && !events.length) {
+        bodyEl.innerHTML = '<div style="color:var(--text-tertiary);font-size:12px;">No recent activity.</div>';
+        return;
+      }
+
+      let html = '';
+      if (leases.length) {
+        const visible = leases.slice(0, 3);
+        const viewAll = leases.length > 3
+          ? `<a onclick="showPage('leases')">view all (${leases.length})</a>`
+          : '';
+        html += `<div class="activity-subsection"><div class="activity-subhead">LEASES<span>${viewAll}</span></div>${
+          visible.map(l => window.SecretDetail.formatLeaseRow(l, requiresApproval)).join('')
+        }</div>`;
+      }
+      if (events.length) {
+        const visible = events.slice(0, 3);
+        const viewAll = events.length > 3
+          ? `<a onclick="window._showAuditForPath('${esc(path)}')">view all (${events.length})</a>`
+          : '';
+        html += `<div class="activity-subsection"><div class="activity-subhead">EVENTS<span>${viewAll}</span></div>${
+          visible.map(e => window.SecretDetail.formatActivityRow(e)).join('')
+        }</div>`;
+      }
+      bodyEl.innerHTML = html;
+    } catch (e) {
+      summaryEl.textContent = '';
+      bodyEl.innerHTML = '<div style="color:var(--danger);font-size:12px;">Failed to load activity.</div>';
     }
   }
 
-  // Populate the "Active Approved Leases" section for an approval-gated
-  // secret detail view. Filters the admin lease list client-side since
-  // the existing /v1/lease endpoint already returns all visible records
-  // with status populated.
-  async function _loadApprovedLeasesForPath(path) {
-    const el = document.getElementById('approved-leases-list');
-    if (!el) return;
-    try {
-      // No trailing slash: Hono's router mount returns 404 for /v1/lease/
-      // but matches /v1/lease. The `?path=` query is unused server-side
-      // today (the list endpoint returns all visible leases and we filter
-      // client-side below) but kept here as a forward-compat hint.
-      const data = await api('/v1/lease?path=' + encodeURIComponent(path));
-      const leases = (data.leases || []).filter(l =>
-        (l.secret_path === path || l.path === path) && l.status === 'approved' && !l.revoked
-      );
-      if (!leases.length) {
-        el.innerHTML = '<div style="color:var(--text-tertiary)">No active approved leases for this path.</div>';
-        return;
-      }
-      el.innerHTML = `<table class="meta-table"><thead><tr><th>Identity</th><th>Expires</th><th>Approved By</th></tr></thead><tbody>${
-        leases.map(l => `<tr>
-          <td>${esc(l.identity)}</td>
-          <td>${fmtTime(l.expires_at)}</td>
-          <td>${esc(l.approved_by || '-')}</td>
-        </tr>`).join('')
-      }</tbody></table>`;
-    } catch (e) {
-      el.innerHTML = `<div style="color:var(--danger)">Failed to load: ${esc(e.message)}</div>`;
+  // Jump to the Audit page with this path's filter pre-set.
+  window._showAuditForPath = function(path) {
+    showPage('audit');
+    const inp = document.getElementById('audit-filter-path');
+    if (inp) {
+      inp.value = path;
+      if (typeof loadAuditLog === 'function') loadAuditLog();
     }
-  }
+  };
+
+  // Copy the {{secret:<path>}} reference to the clipboard.
+  window._copySecretRef = async function(path) {
+    const ref = `{{secret:${path}}}`;
+    try {
+      await navigator.clipboard.writeText(ref);
+      toast('Reference copied', 'success');
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = ref;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        toast('Reference copied', 'success');
+      } catch {
+        toast('Copy failed', 'error');
+      }
+    }
+  };
 
   // Cache of revealed values keyed by path, so toggling Hide/Show after the
   // first reveal is a local visual change and doesn't re-hit the API or spam
@@ -3388,7 +3651,7 @@
             <datalist id="secret-path-suggestions">
               ${prefixList.map(p => `<option value="${esc(p)}/">`).join('')}
             </datalist>
-            <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">Use forward slashes to organize secrets, e.g. <span style="font-family:var(--font-mono);">api-keys/example</span>, <span style="font-family:var(--font-mono);">db/postgres</span></div>
+            <div class="form-help">Use forward slashes to organize secrets, e.g. <span style="font-family:var(--font-mono);">api-keys/example</span>, <span style="font-family:var(--font-mono);">db/postgres</span></div>
             ${prefixChips}
           </div>
           <div class="form-group">
@@ -3396,13 +3659,85 @@
             <textarea id="new-secret-value" placeholder="sk-..." rows="3" spellcheck="false"></textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Metadata (optional)</label>
-            <div id="kv-editor"></div>
-            <button class="btn btn-ghost btn-sm" onclick="window._addKVRow()" style="margin-top:4px">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add field
-            </button>
+            <label class="form-label">Description</label>
+            <textarea id="new-secret-description" placeholder="What is this credential for? Who issued it?" rows="2" spellcheck="false"></textarea>
           </div>
+          <div class="form-group">
+            <div class="toggle-wrap">
+              <div class="toggle" id="new-secret-requires-approval" onclick="this.classList.toggle('on')"></div>
+              <label class="form-label" style="margin:0;cursor:pointer;" onclick="document.getElementById('new-secret-requires-approval').click()">Require human approval</label>
+            </div>
+            <div class="form-help">Each checkout will pause until an admin approves it.</div>
+          </div>
+
+          <details class="advanced-details">
+            <summary>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              Advanced
+            </summary>
+
+            <div class="form-subheading">Auth</div>
+            <div class="form-group">
+              <label class="form-label">Auth scheme</label>
+              <select id="new-secret-auth-scheme" class="input" onchange="document.getElementById('new-secret-header-name-group').classList.toggle('hidden', this.value !== 'header')">
+                <option value="none">none</option>
+                <option value="bearer">bearer</option>
+                <option value="basic">basic</option>
+                <option value="header">header</option>
+                <option value="query">query</option>
+              </select>
+            </div>
+            <div class="form-group hidden" id="new-secret-header-name-group">
+              <label class="form-label">Header name</label>
+              <input type="text" id="new-secret-header-name" placeholder="X-API-Key" spellcheck="false">
+            </div>
+
+            <div class="form-subheading">Network scope</div>
+            <div class="form-group">
+              <label class="form-label">Allowed domains</label>
+              <input type="text" id="new-secret-allowed-domains" placeholder="api.example.com, *.example.org" spellcheck="false">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Allowed path prefixes</label>
+              <input type="text" id="new-secret-allowed-path-prefixes" placeholder="/v1/, /v2/" spellcheck="false">
+            </div>
+            <div class="form-group">
+              <div class="toggle-wrap">
+                <div class="toggle" id="new-secret-allow-private" onclick="this.classList.toggle('on')"></div>
+                <label class="form-label" style="margin:0;cursor:pointer;" onclick="document.getElementById('new-secret-allow-private').click()">Allow private IPs</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="toggle-wrap">
+                <div class="toggle" id="new-secret-tls-allow-insecure" onclick="this.classList.toggle('on')"></div>
+                <label class="form-label" style="margin:0;cursor:pointer;" onclick="document.getElementById('new-secret-tls-allow-insecure').click()">Allow insecure TLS</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Rate limit (per minute)</label>
+              <input type="number" id="new-secret-rate-limit" min="1" placeholder="60">
+            </div>
+
+            <div class="form-subheading">Auto-approval</div>
+            <div class="form-group">
+              <label class="form-label">Auto-approve from IP</label>
+              <input type="text" id="new-secret-auto-ip" placeholder="10.0.0.5" spellcheck="false" oninput="document.getElementById('new-secret-auto-ttl').disabled = !this.value.trim()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Auto-approve TTL (seconds)</label>
+              <input type="number" id="new-secret-auto-ttl" min="1" placeholder="3600" disabled>
+            </div>
+
+            <div class="form-subheading">Other metadata</div>
+            <div class="form-group">
+              <div id="kv-editor"></div>
+              <button class="btn btn-ghost btn-sm" onclick="window._addKVRow()" style="margin-top:4px">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add field
+              </button>
+            </div>
+          </details>
+
           <div class="modal-actions">
             <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
             <button class="btn btn-primary" onclick="window._saveNewSecret()">Save Secret</button>
@@ -3425,11 +3760,31 @@
       const value = document.getElementById('new-secret-value').value;
       if (!path || !value) { toast('Path and value required', 'error'); return; }
 
-      const metadata = {};
+      const state = window.SecretForm.DEFAULT_STATE();
+      state.description = document.getElementById('new-secret-description').value;
+      state.requires_approval = document.getElementById('new-secret-requires-approval').classList.contains('on');
+      state.auth_scheme = document.getElementById('new-secret-auth-scheme').value;
+      state.header_name = document.getElementById('new-secret-header-name').value;
+      state.allowed_domains = document.getElementById('new-secret-allowed-domains').value;
+      state.allowed_path_prefixes = document.getElementById('new-secret-allowed-path-prefixes').value;
+      state.allow_private = document.getElementById('new-secret-allow-private').classList.contains('on');
+      state.tls_allow_insecure = document.getElementById('new-secret-tls-allow-insecure').classList.contains('on');
+      state.rate_limit_per_minute = document.getElementById('new-secret-rate-limit').value;
+      state.auto_approve_from_ip = document.getElementById('new-secret-auto-ip').value;
+      state.auto_approve_ttl_seconds = document.getElementById('new-secret-auto-ttl').value;
+      state.custom = [];
       document.querySelectorAll('#kv-editor .kv-row').forEach(row => {
         const inputs = row.querySelectorAll('input');
-        if (inputs[0].value.trim()) metadata[inputs[0].value.trim()] = inputs[1].value;
+        state.custom.push([inputs[0].value, inputs[1].value]);
       });
+
+      let metadata;
+      try {
+        metadata = window.SecretForm.buildMetadata(state);
+      } catch (e) {
+        toast(e.message, 'error');
+        return;
+      }
 
       try {
         await api(`/v1/secrets/${path}`, { method: 'POST', body: { value, metadata } });
@@ -3447,12 +3802,15 @@
     if (!meta) { toast('Secret not found', 'error'); return; }
     if (meta.kind === 'dynamic') { toast('Dynamic secrets are edited on the Dynamic Secrets page', 'error'); return; }
 
-    const existingMeta = meta.metadata || {};
-    const kvRows = Object.keys(existingMeta).length
-      ? Object.entries(existingMeta).map(([k, v]) =>
+    const state = window.SecretForm.hydrateMetadata(meta.metadata || {});
+
+    const customRowsHtml = state.custom.length
+      ? state.custom.map(([k, v]) =>
           `<div class="kv-row"><input type="text" value="${esc(k)}" style="font-family:var(--font-mono);font-size:12px"><input type="text" value="${esc(String(v))}"><button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()" style="flex-shrink:0">&times;</button></div>`
         ).join('')
       : '';
+
+    const advancedOpen = state.auth_scheme !== 'none' || state.allowed_domains || state.allowed_path_prefixes || state.allow_private || state.tls_allow_insecure || state.rate_limit_per_minute || state.auto_approve_from_ip || state.custom.length;
 
     const html = `
       <div class="modal-overlay" onclick="if(event.target===this)this.remove()">
@@ -3470,13 +3828,83 @@
             <textarea id="edit-secret-value" placeholder="Leave blank to keep current value" rows="3" spellcheck="false"></textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Metadata</label>
-            <div id="kv-editor-edit">${kvRows}</div>
-            <button class="btn btn-ghost btn-sm" onclick="window._addKVRowEdit()" style="margin-top:4px">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add field
-            </button>
+            <label class="form-label">Description</label>
+            <textarea id="edit-secret-description" placeholder="What is this credential for? Who issued it?" rows="2" spellcheck="false">${esc(state.description)}</textarea>
           </div>
+          <div class="form-group">
+            <div class="toggle-wrap">
+              <div class="toggle ${state.requires_approval ? 'on' : ''}" id="edit-secret-requires-approval" onclick="this.classList.toggle('on')"></div>
+              <label class="form-label" style="margin:0;cursor:pointer;" onclick="document.getElementById('edit-secret-requires-approval').click()">Require human approval</label>
+            </div>
+            <div class="form-help">Each checkout will pause until an admin approves it.</div>
+          </div>
+
+          <details class="advanced-details" ${advancedOpen ? 'open' : ''}>
+            <summary>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              Advanced
+            </summary>
+
+            <div class="form-subheading">Auth</div>
+            <div class="form-group">
+              <label class="form-label">Auth scheme</label>
+              <select id="edit-secret-auth-scheme" class="input" onchange="document.getElementById('edit-secret-header-name-group').classList.toggle('hidden', this.value !== 'header')">
+                ${['none','bearer','basic','header','query'].map(v =>
+                  `<option value="${v}" ${state.auth_scheme === v ? 'selected' : ''}>${v}</option>`
+                ).join('')}
+              </select>
+            </div>
+            <div class="form-group ${state.auth_scheme === 'header' ? '' : 'hidden'}" id="edit-secret-header-name-group">
+              <label class="form-label">Header name</label>
+              <input type="text" id="edit-secret-header-name" value="${esc(state.header_name)}" placeholder="X-API-Key" spellcheck="false">
+            </div>
+
+            <div class="form-subheading">Network scope</div>
+            <div class="form-group">
+              <label class="form-label">Allowed domains</label>
+              <input type="text" id="edit-secret-allowed-domains" value="${esc(state.allowed_domains)}" placeholder="api.example.com, *.example.org" spellcheck="false">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Allowed path prefixes</label>
+              <input type="text" id="edit-secret-allowed-path-prefixes" value="${esc(state.allowed_path_prefixes)}" placeholder="/v1/, /v2/" spellcheck="false">
+            </div>
+            <div class="form-group">
+              <div class="toggle-wrap">
+                <div class="toggle ${state.allow_private ? 'on' : ''}" id="edit-secret-allow-private" onclick="this.classList.toggle('on')"></div>
+                <label class="form-label" style="margin:0;cursor:pointer;" onclick="document.getElementById('edit-secret-allow-private').click()">Allow private IPs</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="toggle-wrap">
+                <div class="toggle ${state.tls_allow_insecure ? 'on' : ''}" id="edit-secret-tls-allow-insecure" onclick="this.classList.toggle('on')"></div>
+                <label class="form-label" style="margin:0;cursor:pointer;" onclick="document.getElementById('edit-secret-tls-allow-insecure').click()">Allow insecure TLS</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Rate limit (per minute)</label>
+              <input type="number" id="edit-secret-rate-limit" min="1" value="${esc(state.rate_limit_per_minute)}" placeholder="60">
+            </div>
+
+            <div class="form-subheading">Auto-approval</div>
+            <div class="form-group">
+              <label class="form-label">Auto-approve from IP</label>
+              <input type="text" id="edit-secret-auto-ip" value="${esc(state.auto_approve_from_ip)}" placeholder="10.0.0.5" spellcheck="false" oninput="document.getElementById('edit-secret-auto-ttl').disabled = !this.value.trim()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Auto-approve TTL (seconds)</label>
+              <input type="number" id="edit-secret-auto-ttl" min="1" value="${esc(state.auto_approve_ttl_seconds)}" placeholder="3600" ${state.auto_approve_from_ip ? '' : 'disabled'}>
+            </div>
+
+            <div class="form-subheading">Other metadata</div>
+            <div class="form-group">
+              <div id="kv-editor-edit">${customRowsHtml}</div>
+              <button class="btn btn-ghost btn-sm" onclick="window._addKVRowEdit()" style="margin-top:4px">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add field
+              </button>
+            </div>
+          </details>
+
           <div class="modal-actions">
             <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
             <button class="btn btn-primary" onclick="window._saveEditSecret('${esc(path)}')">Save Changes</button>
@@ -3496,26 +3924,43 @@
 
     window._saveEditSecret = async function(targetPath) {
       const newValue = document.getElementById('edit-secret-value').value;
-      const metadata = {};
+
+      const editState = window.SecretForm.DEFAULT_STATE();
+      editState.description = document.getElementById('edit-secret-description').value;
+      editState.requires_approval = document.getElementById('edit-secret-requires-approval').classList.contains('on');
+      editState.auth_scheme = document.getElementById('edit-secret-auth-scheme').value;
+      editState.header_name = document.getElementById('edit-secret-header-name').value;
+      editState.allowed_domains = document.getElementById('edit-secret-allowed-domains').value;
+      editState.allowed_path_prefixes = document.getElementById('edit-secret-allowed-path-prefixes').value;
+      editState.allow_private = document.getElementById('edit-secret-allow-private').classList.contains('on');
+      editState.tls_allow_insecure = document.getElementById('edit-secret-tls-allow-insecure').classList.contains('on');
+      editState.rate_limit_per_minute = document.getElementById('edit-secret-rate-limit').value;
+      editState.auto_approve_from_ip = document.getElementById('edit-secret-auto-ip').value;
+      editState.auto_approve_ttl_seconds = document.getElementById('edit-secret-auto-ttl').value;
+      editState.custom = [];
       document.querySelectorAll('#kv-editor-edit .kv-row').forEach(row => {
         const inputs = row.querySelectorAll('input');
-        const k = inputs[0].value.trim();
-        if (k) metadata[k] = inputs[1].value;
+        editState.custom.push([inputs[0].value, inputs[1].value]);
       });
+
+      let metadata;
+      try {
+        metadata = window.SecretForm.buildMetadata(editState);
+      } catch (e) {
+        toast(e.message, 'error');
+        return;
+      }
 
       try {
         if (newValue) {
-          // Full put: rotates value + overwrites metadata.
           await api(`/v1/secrets/${targetPath}`, { method: 'POST', body: { value: newValue, metadata } });
           toast('Secret updated (new version)', 'success');
         } else {
-          // Metadata-only update; bumps version without re-encrypting value.
           await api(`/v1/secrets/${targetPath}`, { method: 'PATCH', body: { metadata } });
           toast('Metadata updated', 'success');
         }
         document.querySelector('.modal-overlay')?.remove();
         await loadSecrets();
-        // Keep the user on the same secret after reload.
         window._selectSecret(targetPath);
       } catch (e) {
         toast('Failed: ' + e.message, 'error');
@@ -4523,6 +4968,13 @@
                 <input type="text" class="input" readonly id="onboard-url-field" style="font-family:var(--font-mono);font-size:12px">
                 <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('onboard-url-field')">Copy</button>
               </div>
+              <div id="onboard-url-internal-row" style="display:none;margin-top:8px">
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Internal URL (hand to LAN agents that can't reach the public host):</div>
+                <div style="display:flex;gap:8px">
+                  <input type="text" class="input" readonly id="onboard-url-internal-field" style="font-family:var(--font-mono);font-size:12px">
+                  <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('onboard-url-internal-field')">Copy</button>
+                </div>
+              </div>
             </details>
             <p style="font-size:11px;color:var(--warning);padding:8px 10px;background:var(--warning-subtle,rgba(251,191,36,0.08));border-radius:6px;margin-bottom:16px">Exchanging this link rotates the AppRole's secret_id. Any agent currently using the previous secret_id will need to re-onboard.</p>
             <div class="modal-actions">
@@ -4552,6 +5004,10 @@
         document.getElementById('onboard-form-panel').style.display = 'none';
         document.getElementById('onboard-result-panel').style.display = 'block';
         document.getElementById('onboard-url-field').value = data.onboard_url;
+        if (data.onboard_url_internal) {
+          document.getElementById('onboard-url-internal-field').value = data.onboard_url_internal;
+          document.getElementById('onboard-url-internal-row').style.display = 'block';
+        }
         document.getElementById('onboard-prompt-field').value =
           `Run this in your shell, then follow the instructions in the output:\n\n` +
           `curl -fsSL "${data.onboard_url}" > /tmp/gatehouse-onboard.md\n` +

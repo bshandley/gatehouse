@@ -5,6 +5,7 @@ export interface GatehouseConfig {
   masterKey: Buffer;
   jwtSecret: string;
   publicUrl?: string;
+  internalUrl?: string;
 }
 
 export function loadConfig(): GatehouseConfig {
@@ -29,5 +30,6 @@ export function loadConfig(): GatehouseConfig {
     masterKey,
     jwtSecret,
     publicUrl: process.env.GATEHOUSE_PUBLIC_URL?.replace(/\/$/, "") || undefined,
+    internalUrl: process.env.GATEHOUSE_INTERNAL_URL?.replace(/\/$/, "") || undefined,
   };
 }
