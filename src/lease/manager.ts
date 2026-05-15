@@ -5,6 +5,15 @@ import type { AuditLog } from "../audit/logger";
 import type { EventBus } from "../events/bus";
 import { sendLeaseRequestWebhook } from "./webhook";
 
+// SQLite expression that yields the current UTC time in the SAME ISO format
+// `Date.prototype.toISOString()` produces ('YYYY-MM-DDTHH:MM:SS.fffZ'). Used
+// for every comparison against `expires_at` / `request_expires_at` so the
+// lex compare matches chronological order. Using bare `datetime('now')`
+// returns 'YYYY-MM-DD HH:MM:SS' (space separator) which lex-compares LESS
+// than any ISO-format string at the date/time boundary, silently breaking
+// same-day expiry checks.
+const SQL_NOW_ISO = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
+
 export type LeaseStatus = "pending" | "approved" | "denied" | "expired";
 
 export interface Lease {
@@ -196,7 +205,7 @@ export class LeaseManager {
       .query(
         `SELECT * FROM leases
          WHERE identity = ? AND secret_path = ? AND status = 'pending'
-         AND revoked = 0 AND request_expires_at > datetime('now')`
+         AND revoked = 0 AND request_expires_at > ${SQL_NOW_ISO}`
       )
       .get(identity, secretPath) as LeaseRow | null;
     if (existing) return rowToLease(existing);
@@ -434,7 +443,7 @@ export class LeaseManager {
 
   listPending(identity?: string): Lease[] {
     let query =
-      "SELECT * FROM leases WHERE status = 'pending' AND revoked = 0 AND request_expires_at > datetime('now')";
+      `SELECT * FROM leases WHERE status = 'pending' AND revoked = 0 AND request_expires_at > ${SQL_NOW_ISO}`;
     const params: string[] = [];
     if (identity) {
       query += " AND identity = ?";
@@ -453,7 +462,7 @@ export class LeaseManager {
       .query(
         `SELECT * FROM leases
          WHERE identity = ? AND secret_path = ? AND status = 'approved'
-         AND revoked = 0 AND expires_at > datetime('now')
+         AND revoked = 0 AND expires_at > ${SQL_NOW_ISO}
          ORDER BY expires_at DESC LIMIT 1`
       )
       .get(identity, secretPath) as LeaseRow | null;
@@ -554,7 +563,7 @@ export class LeaseManager {
 
   listActive(identity?: string): Lease[] {
     let query =
-      "SELECT * FROM leases WHERE revoked = 0 AND status = 'approved' AND expires_at > datetime('now')";
+      `SELECT * FROM leases WHERE revoked = 0 AND status = 'approved' AND expires_at > ${SQL_NOW_ISO}`;
     const params: string[] = [];
 
     if (identity) {
@@ -576,7 +585,7 @@ export class LeaseManager {
     // Approved past expiry: existing semantics (revoke).
     const approvedExpired = this.db
       .query(
-        "UPDATE leases SET revoked = 1 WHERE revoked = 0 AND status = 'approved' AND expires_at <= datetime('now')"
+        `UPDATE leases SET revoked = 1 WHERE revoked = 0 AND status = 'approved' AND expires_at <= ${SQL_NOW_ISO}`
       )
       .run();
 
@@ -585,7 +594,7 @@ export class LeaseManager {
       .query(
         `SELECT id, identity, secret_path FROM leases
          WHERE revoked = 0 AND status = 'pending'
-         AND request_expires_at IS NOT NULL AND request_expires_at <= datetime('now')`
+         AND request_expires_at IS NOT NULL AND request_expires_at <= ${SQL_NOW_ISO}`
       )
       .all() as { id: string; identity: string; secret_path: string }[];
 

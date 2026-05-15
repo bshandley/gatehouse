@@ -108,11 +108,13 @@ describe("LeaseManager", () => {
   });
 
   test("reapExpired marks expired leases as revoked", () => {
-    // Create a lease with 1-second TTL
     const result = leases.checkout("test/key", "test-agent", 10)!;
 
-    // Manually set expires_at to the past
-    db.query("UPDATE leases SET expires_at = datetime('now', '-1 minute') WHERE id = ?").run(
+    // Set expires_at to one minute in the past, using the SAME format the
+    // production write path uses (toISOString). This is what triggers the
+    // lex-compare bug if the reaper's WHERE clause uses bare datetime('now').
+    db.query("UPDATE leases SET expires_at = ? WHERE id = ?").run(
+      new Date(Date.now() - 60_000).toISOString(),
       result.lease.id
     );
 
@@ -121,6 +123,24 @@ describe("LeaseManager", () => {
 
     const lease = leases.getLease(result.lease.id);
     expect(lease!.revoked).toBe(true);
+  });
+
+  test("reapExpired catches an approved lease that expired earlier today (regression for lex-compare bug)", () => {
+    const result = leases.checkout("test/key", "test-agent", 10)!;
+
+    // Force the row to look exactly like a real production lease that
+    // expired 5 seconds ago: same UTC calendar day as now, toISOString
+    // format. Bare datetime('now') in the reaper would treat 'T' as
+    // greater than ' ', leaving this row stuck in active.
+    const fiveSecsAgo = new Date(Date.now() - 5_000).toISOString();
+    db.query("UPDATE leases SET expires_at = ? WHERE id = ?").run(
+      fiveSecsAgo,
+      result.lease.id
+    );
+
+    expect(leases.reapExpired()).toBe(1);
+    expect(leases.getLease(result.lease.id)!.revoked).toBe(true);
+    expect(leases.listActive().some(l => l.id === result.lease.id)).toBe(false);
   });
 
   test("reapExpired returns 0 when no leases expired", () => {

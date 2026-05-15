@@ -5,6 +5,13 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.17.1] - 2026-05-15
+
+### Fix
+
+- **Static lease reaper now catches same-day expirations.** The static lease manager wrote `expires_at` via JavaScript's `toISOString()` (`'2026-05-15T10:00:00.000Z'`) but compared it in SQLite against `datetime('now')` (`'2026-05-15 10:00:00'`). At character position 10 of those two strings, `'T'` (0x54) is lexicographically greater than `' '` (0x20), so any approved lease whose `expires_at` falls on the same UTC calendar day as the current moment lex-compared as still-in-the-future. Effect: `listActive()` kept showing those rows on the Active Leases page after they expired, and `reapExpired()` never revoked them until the UTC date rolled over. The dynamic lease manager already converted to SQLite format before storing and was unaffected. Fix: every static-lease WHERE clause that compared `expires_at` or `request_expires_at` to `datetime('now')` now uses `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`, which produces the byte-identical format `toISOString()` emits. No DB migration required (the stored format is unchanged). No API/wire format change.
+- Test fix: `test("reapExpired marks expired leases as revoked")` was manually overwriting `expires_at` with SQLite's space-separated format via `datetime('now', '-1 minute')`, bypassing the production write path and masking the bug. Test now writes via `new Date(...).toISOString()` matching how production writes. Added a regression test specifically for the same-day expiration case.
+
 ## [0.17.0] - 2026-05-15
 
 ### Feature
