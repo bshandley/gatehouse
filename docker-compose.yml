@@ -19,6 +19,17 @@ services:
       - GATEHOUSE_PROXY_ALLOW_PRIVATE=${GATEHOUSE_PROXY_ALLOW_PRIVATE:-false}
       # Log level: debug, info, or error
       - GATEHOUSE_LOG_LEVEL=${GATEHOUSE_LOG_LEVEL:-info}
+      # Public URL used when generating onboarding links. Set when Gatehouse
+      # runs behind a reverse proxy or on a LAN IP and the inbound Host
+      # header isn't the address you want agents to fetch. Takes precedence
+      # over X-Forwarded-Host. Leave unset to fall back to the request host.
+      - GATEHOUSE_PUBLIC_URL=${GATEHOUSE_PUBLIC_URL:-}
+      # LAN-only URL for split-DNS deployments. When set alongside
+      # GATEHOUSE_PUBLIC_URL, the admin UI defaults new onboarding links to
+      # this URL (LAN agents get the fast path) and the bootstrap doc
+      # fetched via the internal host renders LAN URLs in every curl
+      # example. Leave unset if you don't have a split-DNS setup.
+      - GATEHOUSE_INTERNAL_URL=${GATEHOUSE_INTERNAL_URL:-}
       # CORS origins (comma-separated). Only needed behind a reverse proxy.
       # - GATEHOUSE_CORS_ORIGINS=https://gatehouse.yourdomain.com
       # Optional: OIDC SSO bootstrap. These env vars seed the settings/sso DB

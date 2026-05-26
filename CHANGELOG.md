@@ -5,6 +5,13 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.18.2] - 2026-05-25
+
+### Fix
+
+- **`GATEHOUSE_INTERNAL_URL` and `GATEHOUSE_PUBLIC_URL` are now passed through `docker-compose.yml`.** Both env vars were honored by the Bun process but `docker-compose.yml` didn't reference them, so operators who set the value in their host environment (or hand-edited their deployed compose file) saw the value disappear on the next `git pull` + `docker compose up`. Both are now sourced via `${VAR:-}` substitution, matching the pattern used for `GATEHOUSE_MASTER_KEY` and the other forwarded vars. Set the value in the `.env` file alongside your `docker-compose.yml` (the file Docker Compose auto-loads), or export it in the shell environment that runs `docker compose`. The auto-deploy will then preserve it across pulls.
+- `.env.example` now documents `GATEHOUSE_INTERNAL_URL` (it documented `GATEHOUSE_PUBLIC_URL` already).
+
 ## [0.18.1] - 2026-05-25
 
 ### Docs
