@@ -75,7 +75,7 @@ AppRole credentials and a 24h JWT:
 Hold these values in memory. Never echo role_id, secret_id, or the
 JWT into conversation output, logs, or tool arguments visible to the
 user. They only get written to the specific credential location in
-Step 3.
+Step 4.
 
 If exchange returns 410 Gone, the token has already been used or
 expired. Stop and tell the operator to generate a new onboarding link.
@@ -89,24 +89,45 @@ refused, timeout, DNS failure), retry once before escalating to the
 operator. Fetching this bootstrap URL is idempotent until `/exchange`
 is called.
 
-## Step 3: Persist credentials and install the skill
+## Step 3: Fetch and verify (in memory)
 
-If the env file or skill file for your harness (see paths below)
-already exists, you are replacing a previous Gatehouse install on this
-machine. The old AppRole stays valid in the vault, but this agent
-loses its previous identity (and whatever policies came with it). If
-you didn't expect to swap identities, confirm with the operator before
-continuing.
+Two HTTP calls, both using the JWT from Step 2. Hold both responses
+in memory; do NOT touch disk yet. If either call fails or the verify
+doesn't match, stop now. Nothing has been persisted, so re-issuing
+the onboard link is clean.
 
-Fetch your rendered skill body using the JWT from Step 2. The response
-is markdown, already tailored to your policies; write it verbatim to
-the skill path for your harness:
+**Fetch the rendered skill body:**
 
     curl -fsSL -H "Authorization: Bearer <jwt>" {{BASE_URL}}/v1/skill
 
-You can re-fetch this URL any time after install to pick up skill
-template improvements without re-onboarding.
+The response is markdown, already tailored to your policies. Keep it
+in memory for Step 4. You can also re-fetch this same URL any time
+later to pick up skill template improvements without re-onboarding.
 
+**Verify your install end-to-end:**
+
+    curl -fsSL -H "Authorization: Bearer <jwt>" {{BASE_URL}}/v1/auth/whoami
+
+If `identity` != `approle:{{ROLE_DISPLAY_NAME}}`, or the returned
+`policies` set differs from `{{POLICIES}}`, stop and tell the
+operator: your JWT was minted against a different role than this
+document promised, or the AppRole was edited mid-onboard. Do not
+persist mismatched values.
+
+If you're on the "No filesystem" branch from Step 1, the verify is
+your finish line. Hold the JWT in memory, skip Step 4, and reply per
+Step 5.
+
+## Step 4: Persist credentials and the skill
+
+If the env file or skill file for your harness (see paths below)
+already exists, you are replacing a previous Gatehouse install on
+this machine. The old AppRole stays valid in the vault, but this
+agent loses its previous identity (and whatever policies came with
+it). If you didn't expect to swap identities, confirm with the
+operator before continuing.
+
+Use the skill body fetched in Step 3 and the env values from Step 2.
 Based on Step 1:
 
 ### Hermes Agent
@@ -118,12 +139,12 @@ Write to `~/.hermes/.env`:
     GATEHOUSE_SECRET_ID=<secret_id>
 
 Then call `skill_manage` with action `create`, name `gatehouse`, and
-the body fetched from `/v1/skill` above. Verify with `skill_view`.
+the skill body from Step 3. Verify with `skill_view`.
 
 ### OpenClaw
 
 Write the three env vars above to `~/.openclaw/workspace/.env`.
-Save the `/v1/skill` body to `~/.openclaw/skills/gatehouse/SKILL.md`.
+Save the Step 3 skill body to `~/.openclaw/skills/gatehouse/SKILL.md`.
 Append one line to `~/.openclaw/workspace/MEMORY.md`:
 
     Use the gatehouse skill for all authenticated API calls.
@@ -132,7 +153,7 @@ Append one line to `~/.openclaw/workspace/MEMORY.md`:
 
 Write the env vars to `~/.claude/.env.gatehouse` and tell the user to
 source it or export the variables.
-Save the `/v1/skill` body to `~/.claude/skills/gatehouse/SKILL.md`.
+Save the Step 3 skill body to `~/.claude/skills/gatehouse/SKILL.md`.
 
 If the user is in Claude Code Desktop (not the CLI), the skills panel
 won't list the new skill until the app is restarted. Tell them to quit
@@ -142,7 +163,7 @@ and reopen (Cmd-Q on macOS); the skill auto-loads in any new session.
 
 Write the env vars to `~/.pi/agent/.env.gatehouse` and tell the user
 to source it or export the variables.
-Pi has no skills directory, so append the full `/v1/skill` body to
+Pi has no skills directory, so append the full Step 3 skill body to
 `~/.pi/agent/AGENTS.md` under a `## Gatehouse` heading. Pi reads
 `AGENTS.md` at startup.
 
@@ -150,47 +171,31 @@ Pi has no skills directory, so append the full `/v1/skill` body to
 
 Write the env vars to `.env.gatehouse` in the current working
 directory. Tell the user to source it.
-Fetch the `/v1/skill` body and append only its `## Operating rules` and
-`## Situation, tool` sections to `AGENTS.md` at the repo root, under a
+Append only the `## Operating rules` and `## Situation, tool` sections
+of the Step 3 skill body to `AGENTS.md` at the repo root, under a
 `## Gatehouse` heading. These harnesses don't have a skills system, so
 the full body is more than they need.
 
 Do NOT write into `~/.hermes/`, `~/.openclaw/`, or `~/.claude/` from
 this bucket. Those belong to other agents on the same host.
 
-### No filesystem
-
-Hold the JWT in conversation state only. Keep it out of tool outputs.
-Tell the operator you'll need a new onboarding link next session.
-
-## Step 4: Verify
-
-Confirm the install end-to-end before replying. Call:
-
-    curl -fsSL -H "Authorization: Bearer <jwt>" {{BASE_URL}}/v1/auth/whoami
-
-The response includes `identity` and `policies`. Both should match the
-top of this document (`{{ROLE_DISPLAY_NAME}}` and `{{POLICIES}}`). If
-they don't, stop and tell the operator: your env vars may point at the
-wrong file, the AppRole may have been edited mid-onboard, or you
-copied the wrong values out of `/exchange`.
-
-For a session-only install (no filesystem), skip this step, your JWT
-is whatever you held from Step 2.
-
 ## Step 5: Confirm
 
-Reply in one line:
+Reply in one line. If your harness wrote to more than one path (an
+env file plus a skill file, typically), list both in parentheses:
 
-    Gatehouse installed at <path>, role {{ROLE_DISPLAY_NAME}}, policies {{POLICIES}}.
+    Gatehouse installed (~/.claude/.env.gatehouse + ~/.claude/skills/gatehouse/SKILL.md), role {{ROLE_DISPLAY_NAME}}, policies {{POLICIES}}.
+
+Single path is fine too:
+
+    Gatehouse installed (~/.pi/agent/AGENTS.md), role {{ROLE_DISPLAY_NAME}}, policies {{POLICIES}}.
 
 Or, if no persistence:
 
     Gatehouse session-only, role {{ROLE_DISPLAY_NAME}}. New onboard link
     needed next session.
 
-Then wait for the next instruction. Do not attempt any API calls
-before completing Steps 3 and 4.
+Then wait for the next instruction.
 
 ## Reference: situation to tool
 

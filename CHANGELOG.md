@@ -5,6 +5,17 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.18.1] - 2026-05-25
+
+### Docs
+
+- **Onboarding steps reordered to verify before persisting.** Old flow was: Step 3 wrote env + skill files to disk, then Step 4 ran `whoami`. If the verify failed, the agent had already touched disk. New flow:
+  - **Step 3 (Fetch and verify)**: two HTTP calls, both with the JWT from Step 2, both held in memory. Fetch `/v1/skill`, run `/v1/auth/whoami`, compare. If either fails, the agent stops with nothing on disk and the operator can simply re-issue the link.
+  - **Step 4 (Persist)**: the per-harness env-file + skill-file instructions move here. Each subsection now refers to "the Step 3 skill body" instead of re-fetching.
+  - **Step 5 (Confirm)**: unchanged in spirit, but the response template now uses parentheses to accommodate multi-path harnesses (e.g. `Gatehouse installed (~/.claude/.env.gatehouse + ~/.claude/skills/gatehouse/SKILL.md), role X, policies Y.`). Single-path harnesses use the same shape with one path inside the parens.
+- **Step 3 verify check is now a literal failure condition** instead of "match the top of this document". Reads: *"If `identity` != `approle:{{ROLE_DISPLAY_NAME}}`, or the returned `policies` set differs from `{{POLICIES}}`, stop and tell the operator."* Concrete, harder to skim past, no ambiguity about what "match" means.
+- **No filesystem branch**: Step 1's "No filesystem at all" rung now routes the agent directly from Step 3's verify to Step 5's confirm. Step 4 (Persist) is for filesystem-writing harnesses only. The previous "No filesystem" subsection inside Step 3 (now Step 4) is removed because Step 3 handles that branch explicitly.
+
 ## [0.18.0] - 2026-05-25
 
 ### Feature
