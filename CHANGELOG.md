@@ -5,6 +5,14 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.17.3] - 2026-05-25
+
+### Docs
+
+- **Onboarding now includes an end-to-end verify step.** New Step 4 (Verify) tells the agent to `curl /v1/auth/whoami` with its fresh JWT and confirm the returned `identity` + `policies` match what was promised at the top of the bootstrap doc. Catches the class of failure where env vars point at the wrong file, the AppRole was edited mid-onboard, or the agent copied the wrong values out of `/exchange`. Step 5 (Confirm) now sits after Verify; the reply reflects verified state instead of just decoded JWT state.
+- **Step 3 warns about overwriting an existing install.** If the env file or skill file already exists for the harness, the agent is replacing a previous Gatehouse identity on that machine. The old AppRole stays valid in the vault, but the agent loses its previous identity and policies. The doc now tells the agent to confirm with the operator before continuing if they didn't expect to swap.
+- No API change.
+
 ## [0.17.2] - 2026-05-25
 
 ### Docs

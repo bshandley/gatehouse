@@ -91,6 +91,13 @@ is called.
 
 ## Step 3: Persist credentials and install the skill
 
+If the env file or skill file for your harness (see paths below)
+already exists, you are replacing a previous Gatehouse install on this
+machine. The old AppRole stays valid in the vault, but this agent
+loses its previous identity (and whatever policies came with it). If
+you didn't expect to swap identities, confirm with the operator before
+continuing.
+
 Fetch your rendered skill body using the JWT from Step 2. The response
 is markdown, already tailored to your policies; write it verbatim to
 the skill path for your harness:
@@ -156,7 +163,22 @@ this bucket. Those belong to other agents on the same host.
 Hold the JWT in conversation state only. Keep it out of tool outputs.
 Tell the operator you'll need a new onboarding link next session.
 
-## Step 4: Confirm
+## Step 4: Verify
+
+Confirm the install end-to-end before replying. Call:
+
+    curl -fsSL -H "Authorization: Bearer <jwt>" {{BASE_URL}}/v1/auth/whoami
+
+The response includes `identity` and `policies`. Both should match the
+top of this document (`{{ROLE_DISPLAY_NAME}}` and `{{POLICIES}}`). If
+they don't, stop and tell the operator: your env vars may point at the
+wrong file, the AppRole may have been edited mid-onboard, or you
+copied the wrong values out of `/exchange`.
+
+For a session-only install (no filesystem), skip this step, your JWT
+is whatever you held from Step 2.
+
+## Step 5: Confirm
 
 Reply in one line:
 
@@ -168,7 +190,7 @@ Or, if no persistence:
     needed next session.
 
 Then wait for the next instruction. Do not attempt any API calls
-before completing Step 3.
+before completing Steps 3 and 4.
 
 ## Reference: situation to tool
 
