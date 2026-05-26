@@ -5,6 +5,23 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.18.0] - 2026-05-25
+
+### Feature
+
+- **Split-DNS deployments now default to the internal URL throughout onboarding.** Previously, the `GATEHOUSE_INTERNAL_URL` feature shipped in 0.17.0 returned `internal_url` in API responses and showed an "Internal URL" copy field tucked inside a collapsed `<details>` section, but the operator's primary copy action (the "Paste this to the agent" prompt) was hardcoded to the public URL. An agent fetching the bootstrap doc via the public URL then got `{{BASE_URL}}` rendered as the public URL throughout every curl example (Step 2 `/exchange`, Step 3 `/v1/skill`, Step 4 `/v1/auth/whoami`), even if they later switched to the internal URL for performance.
+
+  Two-layer fix:
+
+  - **Server (`originFromRequest`)**: when `GATEHOUSE_INTERNAL_URL` is configured and the inbound request's Host (or `X-Forwarded-Host`) matches the internal URL's host, the rendered onboarding markdown now uses `internalUrl` for `{{BASE_URL}}` substitution. All subsequent curl examples stay on the LAN path. The same fix applies to the rotate-flow doc (`src/api/rotate.ts`). Non-split-DNS deployments (no `internalUrl`) see no change.
+  - **Admin UI** (`src/ui/index.html`): when `GATEHOUSE_INTERNAL_URL` is configured, the "Paste this to the agent" prompt textarea now uses the internal URL by default. A small note explains the choice and points the operator at the public URL fallback (now labeled, in the collapsed "Just the URL" section, alongside the internal URL which appears first). For deployments without `GATEHOUSE_INTERNAL_URL`, the prompt behaves exactly as before (public URL only).
+
+- Treats "operator configured `GATEHOUSE_INTERNAL_URL`" as the explicit opt-in to "default new agents to the LAN path". Operators with a mix of LAN and cloud agents still grab the public URL from the collapsed section for the off-LAN case.
+
+### Tests
+
+- Added two split-DNS regression tests in `test/onboard.test.ts`: bootstrap doc fetched via the internal host renders internalUrl in all curl examples; bootstrap doc fetched via the public host renders publicUrl (unchanged behavior). `buildApp` test helper now accepts optional `Partial<GatehouseConfig>` overrides.
+
 ## [0.17.3] - 2026-05-25
 
 ### Docs

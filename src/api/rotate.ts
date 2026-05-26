@@ -75,6 +75,19 @@ function randomToken(): string {
 }
 
 function originFromRequest(c: any, config: GatehouseConfig): string {
+  // Split-DNS: see the matching comment in src/api/onboard.ts. An agent that
+  // fetches a rotate doc via the LAN URL should see LAN URLs in the curl
+  // examples for /v1/rotate/<token>/exchange and any other call the doc
+  // suggests, not get bounced through the reverse proxy.
+  if (config.internalUrl) {
+    try {
+      const internalHost = new URL(config.internalUrl).host;
+      const reqHost = c.req.header("x-forwarded-host") || c.req.header("host");
+      if (reqHost && reqHost === internalHost) return config.internalUrl;
+    } catch {
+      // Malformed internalUrl — fall through to publicUrl logic.
+    }
+  }
   if (config.publicUrl) return config.publicUrl;
   const proto = c.req.header("x-forwarded-proto") || "http";
   const host = c.req.header("x-forwarded-host") || c.req.header("host") || `localhost:${config.port}`;

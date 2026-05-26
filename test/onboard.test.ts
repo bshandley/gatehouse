@@ -19,13 +19,18 @@ const TEST_JWT_SECRET = Buffer.from(
   deriveKey(TEST_MASTER_KEY, "gatehouse-jwt")
 ).toString("hex");
 
-function buildApp(db: Database, policies: PolicyEngine) {
+function buildApp(
+  db: Database,
+  policies: PolicyEngine,
+  configOverrides: Partial<GatehouseConfig> = {}
+) {
   const config: GatehouseConfig = {
     port: 3100,
     dataDir: "/tmp",
     configDir: "/tmp",
     masterKey: TEST_MASTER_KEY,
     jwtSecret: TEST_JWT_SECRET,
+    ...configOverrides,
   };
 
   const app = new Hono();
@@ -317,5 +322,45 @@ rules:
     expect(md).not.toContain("gatehouse_checkout` on `ssh/");
     expect(md).toContain("gatehouse_get");
     expect(md).not.toContain("gatehouse_put");
+  });
+
+  test("split-DNS: bootstrap doc renders internalUrl when fetched via internal host", async () => {
+    // Operator has both publicUrl (reverse-proxied) and internalUrl (LAN-only).
+    // An agent that fetches the doc via the LAN host should see LAN URLs in
+    // every curl example so all subsequent calls stay on the fast path.
+    const splitApp = buildApp(db, policies, {
+      publicUrl: "https://gatehouse.example.com",
+      internalUrl: "http://10.0.0.102:3100",
+    });
+    const role = await createRole(splitApp, "split-dns-int", ["agent"]);
+    const { body } = await generateLink(splitApp, role.role_id);
+
+    const res = await splitApp.request(`/v1/onboard/${body.token}`, {
+      headers: { host: "10.0.0.102:3100" },
+    });
+    expect(res.status).toBe(200);
+    const md = await res.text();
+    expect(md).toContain(`http://10.0.0.102:3100/v1/onboard/${body.token}/exchange`);
+    expect(md).toContain("http://10.0.0.102:3100/v1/skill");
+    expect(md).toContain("http://10.0.0.102:3100/v1/auth/whoami");
+    expect(md).not.toContain("https://gatehouse.example.com/v1/skill");
+  });
+
+  test("split-DNS: bootstrap doc renders publicUrl when fetched via public host", async () => {
+    const splitApp = buildApp(db, policies, {
+      publicUrl: "https://gatehouse.example.com",
+      internalUrl: "http://10.0.0.102:3100",
+    });
+    const role = await createRole(splitApp, "split-dns-pub", ["agent"]);
+    const { body } = await generateLink(splitApp, role.role_id);
+
+    const res = await splitApp.request(`/v1/onboard/${body.token}`, {
+      headers: { host: "gatehouse.example.com" },
+    });
+    expect(res.status).toBe(200);
+    const md = await res.text();
+    expect(md).toContain(`https://gatehouse.example.com/v1/onboard/${body.token}/exchange`);
+    expect(md).toContain("https://gatehouse.example.com/v1/skill");
+    expect(md).not.toContain("http://10.0.0.102:3100/v1/skill");
   });
 });

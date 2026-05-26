@@ -64,6 +64,20 @@ function randomToken(): string {
 }
 
 function originFromRequest(c: any, config: GatehouseConfig): string {
+  // Split-DNS: if internalUrl is configured AND the inbound request arrived
+  // via the internal host, render the bootstrap doc with internalUrl so all
+  // subsequent curl examples (exchange, /v1/skill, /v1/auth/whoami) stay on
+  // the LAN path. Without this, an agent that fetched the doc via the LAN
+  // URL would still be told to curl the public URL for every later call.
+  if (config.internalUrl) {
+    try {
+      const internalHost = new URL(config.internalUrl).host;
+      const reqHost = c.req.header("x-forwarded-host") || c.req.header("host");
+      if (reqHost && reqHost === internalHost) return config.internalUrl;
+    } catch {
+      // Malformed internalUrl — fall through to publicUrl logic.
+    }
+  }
   if (config.publicUrl) return config.publicUrl;
   const proto = c.req.header("x-forwarded-proto") || "http";
   const host = c.req.header("x-forwarded-host") || c.req.header("host") || `localhost:${config.port}`;

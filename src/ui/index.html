@@ -4959,21 +4959,23 @@
                 <button class="btn btn-primary btn-sm" onclick="copyCredField('onboard-prompt-field')">Copy Prompt</button>
               </div>
               <p style="font-size:11px;color:var(--text-tertiary);margin:0 0 8px 0">Framed as a shell command so the agent curls the URL instead of opening it in a browser. Works in any chat channel.</p>
+              <p id="onboard-internal-default-note" style="display:none;font-size:11px;color:var(--text-secondary);margin:0 0 8px 0;padding:6px 8px;background:var(--bg-elevated,rgba(59,130,246,0.08));border-radius:4px">Using the internal URL (<code>GATEHOUSE_INTERNAL_URL</code> is configured). For an off-LAN agent, expand "Just the URL" below and use the public URL instead.</p>
               <textarea id="onboard-prompt-field" readonly class="input" style="width:100%;min-height:140px;font-family:var(--font-mono);font-size:11px;line-height:1.5;white-space:pre-wrap"></textarea>
               <p id="onboard-countdown" style="margin-top:8px;font-size:12px;color:var(--text-secondary)"></p>
             </div>
             <details style="margin-bottom:12px">
               <summary style="font-size:11px;color:var(--text-tertiary);cursor:pointer">Just the URL (for QR codes or manual paste)</summary>
-              <div style="display:flex;gap:8px;margin-top:8px">
-                <input type="text" class="input" readonly id="onboard-url-field" style="font-family:var(--font-mono);font-size:12px">
-                <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('onboard-url-field')">Copy</button>
-              </div>
               <div id="onboard-url-internal-row" style="display:none;margin-top:8px">
-                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Internal URL (hand to LAN agents that can't reach the public host):</div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Internal URL (recommended for LAN agents; used in the prompt above):</div>
                 <div style="display:flex;gap:8px">
                   <input type="text" class="input" readonly id="onboard-url-internal-field" style="font-family:var(--font-mono);font-size:12px">
                   <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('onboard-url-internal-field')">Copy</button>
                 </div>
+              </div>
+              <div id="onboard-url-public-label" style="display:none;font-size:11px;color:var(--text-tertiary);margin:8px 0 4px 0">Public URL (for off-LAN agents):</div>
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <input type="text" class="input" readonly id="onboard-url-field" style="font-family:var(--font-mono);font-size:12px">
+                <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('onboard-url-field')">Copy</button>
               </div>
             </details>
             <p style="font-size:11px;color:var(--warning);padding:8px 10px;background:var(--warning-subtle,rgba(251,191,36,0.08));border-radius:6px;margin-bottom:16px">Exchanging this link rotates the AppRole's secret_id. Any agent currently using the previous secret_id will need to re-onboard.</p>
@@ -5007,10 +5009,16 @@
         if (data.onboard_url_internal) {
           document.getElementById('onboard-url-internal-field').value = data.onboard_url_internal;
           document.getElementById('onboard-url-internal-row').style.display = 'block';
+          document.getElementById('onboard-url-public-label').style.display = 'block';
+          document.getElementById('onboard-internal-default-note').style.display = 'block';
         }
+        // When internal URL is configured, hand the agent the LAN path by
+        // default. The bootstrap-doc handler renders {{BASE_URL}} based on
+        // the inbound Host, so all subsequent curls stay on the same path.
+        const promptUrl = data.onboard_url_internal || data.onboard_url;
         document.getElementById('onboard-prompt-field').value =
           `Run this in your shell, then follow the instructions in the output:\n\n` +
-          `curl -fsSL "${data.onboard_url}" > /tmp/gatehouse-onboard.md\n` +
+          `curl -fsSL "${promptUrl}" > /tmp/gatehouse-onboard.md\n` +
           `cat /tmp/gatehouse-onboard.md\n\n` +
           `Do not open the URL in a browser. The body is markdown instructions ` +
           `with a one-time token, not a web page. If your harness has no shell, ` +
