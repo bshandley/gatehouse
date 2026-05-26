@@ -5,6 +5,14 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.18.3] - 2026-05-25
+
+### Docs
+
+- **Step 3 verify check now names the exchange response as the canonical source**, not the prose at the top of the bootstrap doc. Two concrete comparisons: `whoami.identity` equals `"approle:" + exchange.role_display_name`, and `whoami.policies` equals `exchange.policies` **as a set**. Adds an explicit "sort both arrays before comparing; ordering is not guaranteed" note so a naive `==` against ordered arrays can't pass review and then fail in the wild. Also documents that the strict-equality check (extra policies fail too) is intentional, since extra policies typically mean the AppRole was modified mid-onboard.
+- **Step 4 hoists the env block to the top of the step**. Previously the Hermes subsection inlined the three env-var lines and the other subsections referenced "the env vars above" against an inconsistent anchor. The env block now lives once at the top with a `Choosing the URL` callout: if `internal_url` is in the exchange response, write that for `GATEHOUSE_URL` so the agent's future calls take the LAN fast path; otherwise write `base_url`. Closes the previously-undefined case where the onboard doc said "prefer internal URL" but the persistent env file always pointed at `base_url`.
+- **Short TOC at the top** (Steps 1-5 in five lines) so an agent skimming a fresh fetch can orient before diving in. Adds about 130 bytes, the trade is worth it given the doc has grown across the recent iterations.
+
 ## [0.18.2] - 2026-05-25
 
 ### Fix

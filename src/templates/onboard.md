@@ -15,6 +15,14 @@ call in Step 2.
 Your identity for this vault: **{{ROLE_DISPLAY_NAME}}**
 Your policies: {{POLICIES}}
 
+**Steps:**
+
+1. Detect your harness
+2. Exchange the bootstrap token
+3. Fetch the skill body and verify (in memory)
+4. Persist env vars and skill to disk
+5. Confirm
+
 ## Step 1: Detect your harness
 
 Your own identity is the most reliable signal. A host machine can
@@ -108,11 +116,20 @@ later to pick up skill template improvements without re-onboarding.
 
     curl -fsSL -H "Authorization: Bearer <jwt>" {{BASE_URL}}/v1/auth/whoami
 
-If `identity` != `approle:{{ROLE_DISPLAY_NAME}}`, or the returned
-`policies` set differs from `{{POLICIES}}`, stop and tell the
-operator: your JWT was minted against a different role than this
-document promised, or the AppRole was edited mid-onboard. Do not
-persist mismatched values.
+Compare the whoami response against the exchange response from
+Step 2 (the canonical source: those JSON fields, NOT the prose at
+the top of this document):
+
+- `whoami.identity` must equal `"approle:" + exchange.role_display_name`.
+- `whoami.policies` must equal `exchange.policies` as a SET. Sort both
+  arrays (or pipe through `jq 'sort'`) before comparing; ordering
+  between the two endpoints is not guaranteed.
+
+If either check fails, stop and tell the operator. Likely causes:
+your JWT was minted against a different role than promised, the
+AppRole was edited between exchange and whoami, or values were copied
+wrong. The strict-equality check is intentional, extra or missing
+policies surface a real problem. Do not persist mismatched values.
 
 If you're on the "No filesystem" branch from Step 1, the verify is
 your finish line. Hold the JWT in memory, skip Step 4, and reply per
@@ -128,16 +145,22 @@ it). If you didn't expect to swap identities, confirm with the
 operator before continuing.
 
 Use the skill body fetched in Step 3 and the env values from Step 2.
+The env file is always these three lines:
+
+    GATEHOUSE_URL=<see "Choosing the URL" below>
+    GATEHOUSE_ROLE_ID=<exchange.role_id>
+    GATEHOUSE_SECRET_ID=<exchange.secret_id>
+
+**Choosing the URL**: if the exchange response includes `internal_url`,
+the operator has opted into split-DNS. Write `internal_url` so every
+future call from this agent takes the LAN fast path. Otherwise write
+`base_url`.
+
 Based on Step 1:
 
 ### Hermes Agent
 
-Write to `~/.hermes/.env`:
-
-    GATEHOUSE_URL=<base_url>
-    GATEHOUSE_ROLE_ID=<role_id>
-    GATEHOUSE_SECRET_ID=<secret_id>
-
+Write the env block above to `~/.hermes/.env`.
 Then call `skill_manage` with action `create`, name `gatehouse`, and
 the skill body from Step 3. Verify with `skill_view`.
 
