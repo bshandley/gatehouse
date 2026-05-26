@@ -5,6 +5,20 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.17.2] - 2026-05-25
+
+### Docs
+
+- **Onboarding doc no longer inlines the skill body.** The bootstrap markdown (`GET /v1/onboard/:token`) used to carry the ~330-line skill content inside `<!-- GATEHOUSE-SKILL-BEGIN/END -->` markers, and Step 3 asked the agent to transcribe it verbatim through a file-write tool. Onboarding agents reported this as the single biggest source of friction: token-heavy, error-prone, and pointless when `/v1/skill` already returns the rendered body. Step 3 now tells agents to `curl -H "Authorization: Bearer <jwt>" {{BASE_URL}}/v1/skill` after exchange and write the response to the harness-specific skill path. The bootstrap doc shrinks from ~490 lines to ~165.
+- **Skill body moved to `src/templates/skill.md`** as a standalone file; `/v1/skill` reads from it directly. `src/api/skill.ts` no longer parses markers out of `onboard.md`. The situation table stays as a footer reference in the bootstrap doc so the agent can glance at what their role grants without fetching the full skill.
+- **New "Login from a shell" snippet** in the skill body's HTTP fallback section. A copy-pasteable bash sequence that performs AppRole login, stashes the JWT to a mode-0600 file, unsets `GATEHOUSE_ROLE_ID` / `GATEHOUSE_SECRET_ID`, and shows the refresh pattern. Onboarding agents previously had to reinvent this dance from the rules in Operating Rules #1; some got it subtly wrong.
+- **Other onboarding template fixes**:
+  - Step 2 now shows the literal `curl -fsSL -X POST` command next to the `POST {{BASE_URL}}/v1/onboard/.../exchange` prose, so agents don't add `-H Content-Type: application/json -d '{}'` defensively.
+  - Step 2 adds a transient-error retry hint: if the initial network call fails with connection refused / timeout / DNS, retry once before escalating (fetching the bootstrap URL is idempotent until `/exchange`).
+  - Step 3 (Claude Code section) now tells the agent to surface the "quit and reopen Claude Code Desktop (Cmd-Q on macOS)" requirement to the user, so the skills panel rescans.
+  - Step 1 (Tool signals) drops the unverifiable "`Skill` tool that loads from `~/.claude/skills/`" clause. Agents can't introspect a tool's load paths from their context, so the simpler "a `Skill` tool means Claude Code" is what's left.
+- No API or wire-format change. Tests cover the new layout: `/v1/skill` still returns policy-aware content and `/v1/onboard/:token` still substitutes `{{SITUATION_TABLE}}` for the same gatehouse-tool assertions as before.
+
 ## [0.17.1] - 2026-05-15
 
 ### Fix

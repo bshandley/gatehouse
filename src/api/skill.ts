@@ -13,39 +13,20 @@ import { renderSituationTable } from "./onboard";
  * improvements without re-onboarding (which would side-effect a
  * secret_id rotation).
  *
- * The response is the content between the GATEHOUSE-SKILL-BEGIN /
- * -END markers in src/templates/onboard.md, with {{SITUATION_TABLE}}
- * substituted for the caller's policies. No bootstrap-token
- * substitution happens; this endpoint is purely about delivering the
- * skill body.
+ * The body lives in src/templates/skill.md and is also the canonical
+ * source the onboarding flow points agents at (Step 3 of onboard.md
+ * tells the agent to curl this endpoint).
  */
-
-const SKILL_BEGIN_MARKER = "<!-- GATEHOUSE-SKILL-BEGIN -->";
-const SKILL_END_MARKER = "<!-- GATEHOUSE-SKILL-END -->";
 
 export function skillRouter(policies: PolicyEngine, audit: AuditLog) {
   const router = new Hono();
 
-  // Load the template once at module init (mirrors onboard.ts pattern).
-  const templateUrl = new URL("../templates/onboard.md", import.meta.url).pathname;
-  let templateContent = "";
+  const templateUrl = new URL("../templates/skill.md", import.meta.url).pathname;
   let skillBodyTemplate = "";
   Bun.file(templateUrl)
     .text()
     .then((t) => {
-      templateContent = t;
-      // The template both *describes* the markers in prose (Step 3) and
-      // *uses* them as actual delimiters (Step 5). Use lastIndexOf so we
-      // pick the real markers, not the backtick-wrapped prose mentions.
-      const begin = t.lastIndexOf(SKILL_BEGIN_MARKER);
-      const end = t.lastIndexOf(SKILL_END_MARKER);
-      if (begin === -1 || end === -1 || end <= begin) {
-        console.error(
-          `[gatehouse:skill] skill markers not found in template ${templateUrl}; /v1/skill will return 500`
-        );
-        return;
-      }
-      skillBodyTemplate = t.slice(begin + SKILL_BEGIN_MARKER.length, end).trim();
+      skillBodyTemplate = t.trim();
     })
     .catch((e) => {
       console.error(`[gatehouse:skill] failed to load template from ${templateUrl}:`, e);
