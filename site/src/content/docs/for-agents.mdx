@@ -52,9 +52,96 @@ Authorization: Bearer eyJhbGciOi...
 
 The token expires after 24 hours. When you get a `401` response, re-login to get a fresh token.
 
+### Refreshing the JWT before it expires
+
+For long-running agents, exchange a still-valid JWT for a new one with a fresh 24h TTL using `POST /v1/auth/refresh`. This avoids re-reading `role_id` / `secret_id` from your environment on every cycle.
+
+```bash
+curl -X POST http://localhost:3100/v1/auth/refresh \
+  -H "Authorization: Bearer eyJhbGciOi..."
+```
+
+Response shape matches `/v1/auth/approle/login`:
+
+```json
+{
+  "token": "eyJhbGciOi...",
+  "identity": "approle:your-agent-name",
+  "policies": ["agent-readonly"],
+  "expires_in": 86400
+}
+```
+
+Refresh re-checks AppRole suspension, IP allowlist, and the current policy list, so the new token reflects any operator changes since your last login. Refresh **does not** issue a new JWT from an expired one — `401` from `/refresh` means the token is past its TTL or the AppRole was deleted/suspended; fall back to a full re-login from `role_id` / `secret_id`.
+
+### Refreshing the installed skill (without re-onboarding)
+
+When the operator ships an updated Gatehouse skill template, existing agents stay on whatever skill they got at first install until they re-onboard. Re-onboarding side-effects a `secret_id` rotation. To pick up skill improvements without rotating credentials, fetch the current skill body for your policies:
+
+```bash
+curl http://localhost:3100/v1/skill \
+  -H "Authorization: Bearer eyJhbGciOi..."
+```
+
+The response is `text/markdown` containing the same skill content the onboarding flow would install for an AppRole with your policies, with the situation table rendered against your current capabilities. Overwrite your installed skill file in place. No credential changes happen.
+
+### Credential rotation (operator-initiated)
+
+The operator generates a one-shot rotate URL via the admin UI or `POST /v1/rotate` (admin-auth). They hand the URL to you (out-of-band, the same way they handed you the original onboarding link).
+
+Fetch the URL to receive markdown instructions:
+
+```bash
+curl http://localhost:3100/v1/rotate/<rotate-token>
+```
+
+Then exchange exactly once to receive the new `secret_id`:
+
+```bash
+curl -X POST http://localhost:3100/v1/rotate/<rotate-token>/exchange
+```
+
+Response:
+
+```json
+{
+  "role_id": "role-...",
+  "secret_id": "<new-secret-id>",
+  "base_url": "http://localhost:3100",
+  "role_display_name": "your-agent-name"
+}
+```
+
+The `role_id`, your policies, and the installed skill are unchanged. Only `GATEHOUSE_SECRET_ID` in your env file needs to be rewritten with the new value. Any JWT you currently hold remains valid until its 24h TTL.
+
+If exchange returns `410 Gone`, the rotate token is consumed or expired. The operator must generate a new one.
+
+### Checking your current identity and token expiry
+
+`GET /v1/auth/whoami` introspects the current bearer token. Useful for confirming who you are, what policies are attached, and how much time is left before you need to `/refresh`.
+
+```bash
+curl http://localhost:3100/v1/auth/whoami \
+  -H "Authorization: Bearer eyJhbGciOi..."
+```
+
+Response:
+
+```json
+{
+  "identity": "approle:your-agent-name",
+  "policies": ["agent-readonly"],
+  "source": "approle",
+  "expires_at": "2026-04-26T00:00:00.000Z",
+  "expires_in": 86345
+}
+```
+
+`source` is one of `"approle"`, `"user"`, or `"root"`. Root tokens never expire, so `expires_at` and `expires_in` are absent in that case.
+
 ## Important: secrets are accessed by path, not by ID
 
-Secrets in Gatehouse have human-readable paths like `api-keys/openai` or `services/memos-token`. You always use the **path** in API URLs, never a UUID.
+Secrets in Gatehouse have human-readable paths like `api-keys/example` or `services/memos-token`. You always use the **path** in API URLs, never a UUID.
 
 **Do not confuse `secret_id` with a secret path.** The `secret_id` from AppRole login is a vault credential (like a password). It is not a reference to a stored secret. After login, discard it from your working context. To find actual secrets, use `GET /v1/secrets?prefix=` (see "List available secrets" below).
 
@@ -110,17 +197,15 @@ The response is filtered to only show secrets you can use via any capability (`r
 
 Two fields matter for figuring out how to use a secret without probing:
 
-- **`pattern_count`**: how many known-good request shapes other agents have verified for this secret.
-- **`top_pattern`**: when `pattern_count > 0`, a `METHOD url_template` preview of the highest-confidence pattern. This IS the endpoint; don't scan for ports.
+- **`pattern_count`** — how many known-good request shapes other agents have verified for this secret.
+- **`top_pattern`** — when `pattern_count > 0`, a `METHOD url_template` preview of the highest-confidence pattern. This IS the endpoint; don't scan for ports.
 
-If `pattern_count > 0`, call `gatehouse_patterns` (MCP) or `GET /v1/proxy/patterns?secret=<path>` for the full verified pattern including headers and body schema, then copy that shape. If `pattern_count == 0`, use `metadata.allowed_domains` as the canonical host; your first successful proxy call seeds a pattern for the next agent. If `gatehouse_list` returns an empty array, your policy grants nothing - stop and tell the operator rather than probing.
-
-If a secret has `metadata.allowed_path_prefixes` set, your URL must start with one of the listed prefixes. The proxy enforces this server-side; calling outside the allowed surface returns 403. Treat the prefix list as the only API endpoints this credential can touch and stay inside it.
+If `pattern_count > 0`, call `gatehouse_patterns` (MCP) or `GET /v1/proxy/patterns?secret=<path>` for the full verified pattern including headers and body schema, then copy that shape. If `pattern_count == 0`, use `metadata.allowed_domains` as the canonical host; your first successful proxy call seeds a pattern for the next agent. If `gatehouse_list` returns an empty array, your policy grants nothing — stop and tell the operator rather than probing.
 
 ### Get a secret's value
 
 ```bash
-curl http://localhost:3100/v1/secrets/api-keys/openai/value \
+curl http://localhost:3100/v1/secrets/api-keys/example/value \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -128,8 +213,8 @@ Response:
 
 ```json
 {
-  "path": "api-keys/openai",
-  "value": "<your-openai-key>",
+  "path": "api-keys/example",
+  "value": "sk-proj-abc123...",
   "version": 1
 }
 ```
@@ -137,7 +222,7 @@ Response:
 For plain text only (no JSON wrapper):
 
 ```bash
-curl http://localhost:3100/v1/secrets/api-keys/openai/value \
+curl http://localhost:3100/v1/secrets/api-keys/example/value \
   -H "Authorization: Bearer $TOKEN" \
   -H "Accept: text/plain"
 ```
@@ -147,13 +232,13 @@ Requires `read` capability on the path.
 ### Get secret metadata (no value)
 
 ```bash
-curl http://localhost:3100/v1/secrets/api-keys/openai \
+curl http://localhost:3100/v1/secrets/api-keys/example \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 Returns path, version, metadata, and timestamps, but not the secret value. Accepts any usable capability (`read`, `proxy`, `lease`, or `list`), so proxy-only AppRoles can inspect metadata for the secrets they can use. Only `/value` and `/versions` require `read`.
 
-In practice you shouldn't need this endpoint often - the same metadata is already returned by `GET /v1/secrets` for every secret in one round trip, so list first, fetch-by-path only when you specifically want one entry's metadata.
+In practice you shouldn't need this endpoint often — the same metadata is already returned by `GET /v1/secrets` for every secret in one round trip, so list first, fetch-by-path only when you specifically want one entry's metadata.
 
 ## Leasing secrets
 
@@ -162,7 +247,7 @@ Leases give you temporary, tracked access to a secret. The lease auto-expires af
 ### Check out a lease
 
 ```bash
-curl -X POST http://localhost:3100/v1/lease/api-keys/openai \
+curl -X POST http://localhost:3100/v1/lease/api-keys/example \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ttl": 300}'
@@ -176,10 +261,10 @@ Response:
 {
   "lease": {
     "id": "lease-xxxxxxxx",
-    "path": "api-keys/openai",
+    "path": "api-keys/example",
     "expires_at": "2025-01-15T12:05:00Z"
   },
-  "value": "<your-openai-key>"
+  "value": "sk-proj-abc123..."
 }
 ```
 
@@ -233,7 +318,7 @@ curl -X POST http://localhost:3100/v1/proxy \
   -d '{
     "method": "POST",
     "url": "https://api.openai.com/v1/chat/completions",
-    "inject": {"Authorization": "api-keys/openai"},
+    "inject": {"Authorization": "api-keys/example"},
     "headers": {"Content-Type": "application/json"},
     "body": {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
   }'
@@ -337,14 +422,14 @@ Before outputting text that might contain secrets, you can ask Gatehouse to reda
 curl -X POST http://localhost:3100/v1/scrub \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"text": "The key is <your-openai-key>"}'
+  -d '{"text": "The key is sk-proj-abc123..."}'
 ```
 
 Response:
 
 ```json
 {
-  "scrubbed": "The key is ***REDACTED***",
+  "scrubbed": "The key is sk-pro***REDACTED***",
   "redactions": [{"type": "openai_key", "count": 1}]
 }
 ```
