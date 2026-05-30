@@ -79,13 +79,13 @@ curl -X POST http://localhost:3100/v1/proxy \
   -d '{
     "method": "POST",
     "url": "https://api.openai.com/v1/chat/completions",
-    "inject": {"Authorization": "api-keys/openai"},
+    "inject": {"Authorization": "api-keys/example"},
     "headers": {"Content-Type": "application/json"},
     "body": {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
   }'
 ```
 
-The agent never sees `api-keys/openai`. Gatehouse resolves it server-side, attaches `Authorization: Bearer <value>`, forwards the request, records the pattern, and returns the response.
+The agent never sees `api-keys/example`. Gatehouse resolves it server-side, attaches `Authorization: Bearer <value>`, forwards the request, records the pattern, and returns the response.
 
 ## Onboarding an agent
 

@@ -43,7 +43,7 @@ The root token is for bootstrapping only. Create a real admin user and then unse
 ```bash
 export GATEHOUSE_TOKEN=<paste your JWT from the UI>
 
-curl -X POST http://localhost:3100/v1/secrets/api-keys/openai \
+curl -X POST http://localhost:3100/v1/secrets/api-keys/example \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"value": "sk-proj-...", "metadata": {"service": "openai", "env": "prod"}}'
@@ -52,7 +52,7 @@ curl -X POST http://localhost:3100/v1/secrets/api-keys/openai \
 Read it back:
 
 ```bash
-curl http://localhost:3100/v1/secrets/api-keys/openai/value \
+curl http://localhost:3100/v1/secrets/api-keys/example/value \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN"
 ```
 
@@ -61,7 +61,7 @@ curl http://localhost:3100/v1/secrets/api-keys/openai/value \
 Leasing is how agents get time-bounded access to a secret. The lease auto-expires after the TTL, and the reaper revokes anything that outlives it.
 
 ```bash
-curl -X POST http://localhost:3100/v1/lease/api-keys/openai \
+curl -X POST http://localhost:3100/v1/lease/api-keys/example \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ttl": 300}'

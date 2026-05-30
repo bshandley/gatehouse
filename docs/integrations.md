@@ -73,7 +73,7 @@ Add to `.claude/settings.json`:
 
 Once connected, Claude can call Gatehouse tools naturally:
 ```
-> Use gatehouse to get the OpenAI API key from api-keys/openai
+> Use gatehouse to get the OpenAI API key from api-keys/example
 > Lease the GitHub token from git/github-pat for 10 minutes
 > List all available secrets under api-keys/
 ```
@@ -271,7 +271,7 @@ In `openclaw.json`:
         "apiKey": {
           "source": "exec",
           "provider": "gatehouse",
-          "id": "api-keys/openai"
+          "id": "api-keys/example"
         }
       }
     }
@@ -294,7 +294,7 @@ Gatehouse lookups in your shell profile or startup script:
 export OPENAI_API_KEY=$(curl -s \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Accept: text/plain" \
-  http://gatehouse.local:3100/v1/secrets/api-keys/openai/value)
+  http://gatehouse.local:3100/v1/secrets/api-keys/example/value)
 
 export ANTHROPIC_API_KEY=$(curl -s \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
@@ -335,14 +335,14 @@ For non-MCP consumers (scripts, containers, GitLab CI, GitHub Actions):
 SECRET=$(curl -s \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Accept: text/plain" \
-  http://gatehouse.local:3100/v1/secrets/api-keys/openai/value)
+  http://gatehouse.local:3100/v1/secrets/api-keys/example/value)
 
 # Lease a secret (auto-expires)
 LEASE=$(curl -s -X POST \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ttl": 600}' \
-  http://gatehouse.local:3100/v1/lease/api-keys/openai)
+  http://gatehouse.local:3100/v1/lease/api-keys/example)
 
 # Extract value from lease response
 VALUE=$(echo $LEASE | jq -r '.value')
@@ -407,7 +407,7 @@ it server-side.
 Agents can call `gatehouse_proxy` directly:
 
 ```
-> Use gatehouse_proxy to call the OpenAI chat completions API with api-keys/openai
+> Use gatehouse_proxy to call the OpenAI chat completions API with api-keys/example
 ```
 
 The tool supports two injection styles:
@@ -418,7 +418,7 @@ The tool supports two injection styles:
   "method": "POST",
   "url": "https://api.openai.com/v1/chat/completions",
   "headers": {
-    "Authorization": "Bearer {{secret:api-keys/openai}}",
+    "Authorization": "Bearer {{secret:api-keys/example}}",
     "Content-Type": "application/json"
   },
   "body": {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
@@ -430,7 +430,7 @@ The tool supports two injection styles:
 {
   "method": "POST",
   "url": "https://api.openai.com/v1/chat/completions",
-  "inject": {"Authorization": "api-keys/openai"},
+  "inject": {"Authorization": "api-keys/example"},
   "headers": {"Content-Type": "application/json"},
   "body": {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
 }
@@ -448,7 +448,7 @@ curl -X POST http://gatehouse.local:3100/v1/proxy \
   -d '{
     "method": "GET",
     "url": "https://api.openai.com/v1/models",
-    "inject": {"Authorization": "api-keys/openai"}
+    "inject": {"Authorization": "api-keys/example"}
   }'
 ```
 
@@ -472,7 +472,7 @@ Set `allowed_domains` in a secret's metadata to restrict which hosts the secret
 can be forwarded to:
 
 ```bash
-curl -X POST http://gatehouse.local:3100/v1/secrets/api-keys/openai \
+curl -X POST http://gatehouse.local:3100/v1/secrets/api-keys/example \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -d '{"value": "sk-...", "metadata": {"allowed_domains": "api.openai.com,openai.com"}}'
 ```

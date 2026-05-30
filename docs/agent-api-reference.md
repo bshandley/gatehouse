@@ -135,7 +135,7 @@ Response:
 
 ## Important: secrets are accessed by path, not by ID
 
-Secrets in Gatehouse have human-readable paths like `api-keys/openai` or `services/memos-token`. You always use the **path** in API URLs, never a UUID.
+Secrets in Gatehouse have human-readable paths like `api-keys/example` or `services/memos-token`. You always use the **path** in API URLs, never a UUID.
 
 **Do not confuse `secret_id` with a secret path.** The `secret_id` from AppRole login is a vault credential (like a password). It is not a reference to a stored secret. After login, discard it from your working context. To find actual secrets, use `GET /v1/secrets?prefix=` (see "List available secrets" below).
 
@@ -199,7 +199,7 @@ If `pattern_count > 0`, call `gatehouse_patterns` (MCP) or `GET /v1/proxy/patter
 ### Get a secret's value
 
 ```bash
-curl http://localhost:3100/v1/secrets/api-keys/openai/value \
+curl http://localhost:3100/v1/secrets/api-keys/example/value \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -207,7 +207,7 @@ Response:
 
 ```json
 {
-  "path": "api-keys/openai",
+  "path": "api-keys/example",
   "value": "sk-proj-abc123...",
   "version": 1
 }
@@ -216,7 +216,7 @@ Response:
 For plain text only (no JSON wrapper):
 
 ```bash
-curl http://localhost:3100/v1/secrets/api-keys/openai/value \
+curl http://localhost:3100/v1/secrets/api-keys/example/value \
   -H "Authorization: Bearer $TOKEN" \
   -H "Accept: text/plain"
 ```
@@ -226,7 +226,7 @@ Requires `read` capability on the path.
 ### Get secret metadata (no value)
 
 ```bash
-curl http://localhost:3100/v1/secrets/api-keys/openai \
+curl http://localhost:3100/v1/secrets/api-keys/example \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -241,7 +241,7 @@ Leases give you temporary, tracked access to a secret. The lease auto-expires af
 ### Check out a lease
 
 ```bash
-curl -X POST http://localhost:3100/v1/lease/api-keys/openai \
+curl -X POST http://localhost:3100/v1/lease/api-keys/example \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ttl": 300}'
@@ -255,7 +255,7 @@ Response:
 {
   "lease": {
     "id": "lease-xxxxxxxx",
-    "path": "api-keys/openai",
+    "path": "api-keys/example",
     "expires_at": "2025-01-15T12:05:00Z"
   },
   "value": "sk-proj-abc123..."
@@ -294,7 +294,7 @@ curl -X POST http://localhost:3100/v1/proxy \
     "method": "POST",
     "url": "https://api.openai.com/v1/chat/completions",
     "headers": {
-      "Authorization": "Bearer {{secret:api-keys/openai}}",
+      "Authorization": "Bearer {{secret:api-keys/example}}",
       "Content-Type": "application/json"
     },
     "body": {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
@@ -312,7 +312,7 @@ curl -X POST http://localhost:3100/v1/proxy \
   -d '{
     "method": "POST",
     "url": "https://api.openai.com/v1/chat/completions",
-    "inject": {"Authorization": "api-keys/openai"},
+    "inject": {"Authorization": "api-keys/example"},
     "headers": {"Content-Type": "application/json"},
     "body": {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
   }'

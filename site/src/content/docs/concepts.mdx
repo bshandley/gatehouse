@@ -20,7 +20,7 @@ curl -X POST http://gatehouse:3100/v1/proxy \
   -d '{
     "method": "POST",
     "url": "https://api.openai.com/v1/chat/completions",
-    "inject": { "Authorization": "Bearer {api-keys/openai}" },
+    "inject": { "Authorization": "Bearer {api-keys/example}" },
     "body": { "model": "gpt-4", "messages": [...] }
   }'
 ```
