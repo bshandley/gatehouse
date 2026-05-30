@@ -55,6 +55,14 @@ Give each agent its own AppRole with the minimum capabilities it needs. An agent
 
 Gatehouse listens on port 3100 by default. For homelab use, keep it on a private network. If you must expose it to the internet, put it behind a reverse proxy with TLS (Caddy, nginx, Traefik) and consider IP allowlisting on the proxy.
 
+### Trusting the client IP behind a proxy
+
+The client IP drives every network-origin control: AppRole IP allowlists, the rotate-token IP allowlist, and the lease/proxy `auto_approve_from_ip` gate. Because `X-Forwarded-For` is just a request header, Gatehouse honors it only when the request's immediate TCP peer is a trusted reverse proxy. Otherwise the real socket address wins, so a client that sets its own `X-Forwarded-For` cannot impersonate a trusted network.
+
+Loopback (`127.0.0.0/8`, `::1`) is always trusted, which covers a reverse proxy running on the same host. If your proxy is on a separate host or a Docker network whose gateway is not loopback, list its address in `GATEHOUSE_TRUSTED_PROXIES` (comma-separated CIDRs, additive to the loopback defaults). When a forwarded chain is present, Gatehouse walks it right-to-left and takes the first hop that is not itself a trusted proxy as the real client.
+
+If you run behind such a proxy and rely on IP allowlists or auto-approve but leave `GATEHOUSE_TRUSTED_PROXIES` unset, these controls fail closed: the source IP becomes the proxy's address, allowlisted logins are denied, and auto-approve falls back to the human approval flow. Direct-connection deployments need no configuration.
+
 ### Proxy hardening
 
 The proxy (`POST /v1/proxy` and the MCP `gatehouse_proxy` tool) lets agents call upstream HTTP APIs without ever holding the credential. Three layers of scoping apply, in order:

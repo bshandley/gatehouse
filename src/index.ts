@@ -27,6 +27,8 @@ import { AuditLog } from "./audit/logger";
 import { SecretsEngine } from "./secrets/engine";
 import { PolicyEngine } from "./policy/engine";
 import { getConnInfo } from "hono/bun";
+import { resolveSourceIp, parseTrustedProxies } from "./auth/sourceIp";
+import { validateCIDRs } from "./auth/cidr";
 import { loadConfig } from "./config";
 import { VERSION } from "./version";
 import { EventBus } from "./events/bus";
@@ -91,20 +93,30 @@ app.use("*", async (c, next) => {
   c.header("X-Request-Id", requestId);
 });
 
-// Source IP middleware - prefers x-forwarded-for (behind reverse proxy), falls back to connection IP
-app.use("*", async (c, next) => {
-  const forwarded = c.req.header("x-forwarded-for");
-  const realIp = c.req.header("x-real-ip");
-  let sourceIp = forwarded?.split(",")[0]?.trim() || realIp || "unknown";
-  if (sourceIp === "unknown") {
-    try {
-      const info = getConnInfo(c);
-      sourceIp = info.remote?.address || "unknown";
-    } catch { /* not available in all contexts */ }
+// Source IP middleware. The source IP feeds every network-origin security
+// control (AppRole IP allowlists, the rotate-token allowlist, and the
+// lease/proxy auto_approve_from_ip gate), so forwarded headers are honored
+// only when the socket peer is a configured trusted proxy. Loopback is always
+// trusted; add more via GATEHOUSE_TRUSTED_PROXIES. See src/auth/sourceIp.ts.
+const trustedProxies = parseTrustedProxies(process.env.GATEHOUSE_TRUSTED_PROXIES);
+if (process.env.GATEHOUSE_TRUSTED_PROXIES) {
+  const cidrErr = validateCIDRs(trustedProxies);
+  if (cidrErr) {
+    console.warn(`[gatehouse] GATEHOUSE_TRUSTED_PROXIES has an invalid entry: ${cidrErr}`);
   }
-  // Strip IPv4-mapped IPv6 prefix (::ffff:10.0.0.1 → 10.0.0.1)
-  if (sourceIp.startsWith("::ffff:")) sourceIp = sourceIp.slice(7);
-  c.set("sourceIp", sourceIp);
+  console.log(`[gatehouse] honoring forwarded client IP from proxies: ${trustedProxies.join(", ")}`);
+}
+app.use("*", async (c, next) => {
+  let socketIp: string | null = null;
+  try {
+    socketIp = getConnInfo(c).remote?.address ?? null;
+  } catch { /* connection info not available in all contexts */ }
+  c.set("sourceIp", resolveSourceIp({
+    socketIp,
+    forwardedFor: c.req.header("x-forwarded-for"),
+    realIp: c.req.header("x-real-ip"),
+    trustedProxies,
+  }));
   await next();
 });
 

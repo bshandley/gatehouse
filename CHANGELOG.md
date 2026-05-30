@@ -5,6 +5,17 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.19.0] - 2026-05-30
+
+### Security
+
+- **`X-Forwarded-For` is no longer trusted by default for IP-based security decisions.** The source IP feeds every network-origin control in Gatehouse (AppRole IP allowlists, the rotate-token IP allowlist, and the lease/proxy `auto_approve_from_ip` gate). Previously the source IP was taken from the client-supplied `X-Forwarded-For` (or `X-Real-IP`) header unconditionally, so an off-network attacker holding valid credentials could set `X-Forwarded-For: <trusted-ip>` to satisfy an IP allowlist or auto-approve a secret that should have required human approval. Gatehouse now honors forwarded headers only when the request's immediate TCP peer is a trusted proxy, and otherwise uses the real socket address. Loopback (`127.0.0.0/8`, `::1`) is trusted by default so a reverse proxy colocated on the same host keeps working out of the box.
+
+  - **New `GATEHOUSE_TRUSTED_PROXIES` env var** (comma-separated CIDRs) to trust additional upstreams, e.g. a Docker network gateway or a LAN reverse proxy. It is additive to the always-on loopback defaults. When a forwarded chain is present, the right-most hop that is not itself a trusted proxy is taken as the real client.
+  - **Behavior change for reverse-proxy deployments.** If you run Gatehouse behind a proxy that is not on loopback (e.g. a separate host, or a Docker network that is not `127.0.0.1`) and you rely on IP allowlists or `auto_approve_from_ip`, set `GATEHOUSE_TRUSTED_PROXIES` to your proxy's address. Until you do, those controls fail closed: allowlisted logins are denied and auto-approve falls back to the human approval flow. Direct-connection deployments need no change.
+
+- **Proxy response scrubber now redacts the base64 form of injected credentials.** The `basic:` inject shorthand puts `Basic <base64(user:pass)>` on the wire. The response scrubber only redacted the raw secret value, so an upstream that echoed the `Authorization` header back in its body (common in 4xx errors) could return the credential in a base64 form the scrubber missed, which the agent could trivially decode. The scrubber now also redacts the base64 encoding of every injected value, on both the REST `/v1/proxy` and MCP `gatehouse_proxy` paths.
+
 ## [0.18.3] - 2026-05-25
 
 ### Docs

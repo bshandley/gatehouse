@@ -206,6 +206,31 @@ export function scrubResponseBody(body: string, secretValues: Iterable<string>):
   return out;
 }
 
+/**
+ * Build the set of strings the response scrubber must redact for a group of
+ * injected secret values. Includes each raw value plus its base64 form, because
+ * the proxy's `basic:` inject shorthand puts `Basic <base64(value)>` on the
+ * wire: an upstream that echoes the Authorization header back (common in 4xx
+ * error bodies) would otherwise return the credential in a base64 form that
+ * raw-value scrubbing misses, and the agent can trivially decode it. Registering
+ * the encoded form closes that leak.
+ */
+export function secretRedactionValues(values: Iterable<string>): string[] {
+  const out: string[] = [];
+  for (const v of values) {
+    if (!v) continue;
+    out.push(v);
+    try {
+      const b64 = btoa(v);
+      if (b64 && b64 !== v) out.push(b64);
+    } catch {
+      // Value isn't Latin1-encodable, so btoa() can't have produced an
+      // on-the-wire form for it; nothing extra to redact.
+    }
+  }
+  return out;
+}
+
 /** Maximum upstream response body size the proxy will buffer (bytes). */
 export const MAX_UPSTREAM_BODY_BYTES = 10 * 1024 * 1024; // 10 MiB
 

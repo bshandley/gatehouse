@@ -8,7 +8,7 @@ import type { RateLimiter } from "../rateLimits/limiter";
 import type { LeaseManager } from "../lease/manager";
 import type { AuthContext } from "../auth/middleware";
 import { enforceProxyGates } from "./proxyGates";
-import { isPrivateHost, scrubResponseBody, readCappedText, pathMatchesAnyPrefix } from "../security/ssrf";
+import { isPrivateHost, scrubResponseBody, secretRedactionValues, readCappedText, pathMatchesAnyPrefix } from "../security/ssrf";
 import { getProxyLimits } from "../settings/proxyLimits";
 
 /**
@@ -651,7 +651,10 @@ export function proxyRouter(
       // oversized/hostile upstream can't exhaust memory, then scrub any
       // injected secret values that the upstream echoed back.
       const rawResponseBody = await readCappedText(upstream, limits.max_body_bytes);
-      const responseBody = scrubResponseBody(rawResponseBody, resolved.values());
+      // Redact both the raw secret values and their on-the-wire encodings (e.g.
+      // the base64 form used by the basic: inject shorthand).
+      const redactValues = secretRedactionValues(resolved.values());
+      const responseBody = scrubResponseBody(rawResponseBody, redactValues);
       const responseHeaders: Record<string, string> = {};
 
       // Forward safe response headers (scrub any echoed secret values)
@@ -664,12 +667,12 @@ export function proxyRouter(
       ];
       for (const h of safeHeaders) {
         const v = upstream.headers.get(h);
-        if (v) responseHeaders[h] = scrubResponseBody(v, resolved.values());
+        if (v) responseHeaders[h] = scrubResponseBody(v, redactValues);
       }
       // Surface redirect target so callers know why they got a 3xx
       if (upstream.status >= 300 && upstream.status < 400) {
         const loc = upstream.headers.get("location");
-        if (loc) responseHeaders["location"] = scrubResponseBody(loc, resolved.values());
+        if (loc) responseHeaders["location"] = scrubResponseBody(loc, redactValues);
       }
 
       // Record pattern (fire-and-forget, non-critical)

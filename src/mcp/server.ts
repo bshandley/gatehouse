@@ -11,7 +11,7 @@ import type { DynamicSecretsManager } from "../dynamic/manager";
 import { scrubValue } from "../scrub/scrubber";
 import { v4 as uuid } from "uuid";
 import type { PatternEngine } from "../patterns/engine";
-import { isPrivateHost, scrubResponseBody, readCappedText, pathMatchesAnyPrefix } from "../security/ssrf";
+import { isPrivateHost, scrubResponseBody, secretRedactionValues, readCappedText, pathMatchesAnyPrefix } from "../security/ssrf";
 import { checkPrivateNetworkPolicy, resolveAutoInject } from "../api/proxy";
 import { getProxyLimits } from "../settings/proxyLimits";
 import { VERSION } from "../version";
@@ -806,8 +806,9 @@ export function createMCPHandler(
             }
 
             // Cap upstream body + scrub any injected secret values echoed back
+            // (raw values plus their on-the-wire encodings, e.g. base64).
             const rawBody = await readCappedText(upstream, limits.max_body_bytes);
-            const responseBody = scrubResponseBody(rawBody, resolved.values());
+            const responseBody = scrubResponseBody(rawBody, secretRedactionValues(resolved.values()));
             let parsed: any;
             try { parsed = JSON.parse(responseBody); } catch { parsed = responseBody; }
 
