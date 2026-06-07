@@ -9,6 +9,9 @@ import {
   emptyStateStats,
   emptyStateStatsLine,
   treeAuthChip,
+  hygieneFlags,
+  hygieneBadgeHtml,
+  formatHygieneSummary,
 } from "../src/ui/secret-detail-render.js";
 
 describe("referenceChipHtml", () => {
@@ -256,5 +259,58 @@ describe("treeAuthChip", () => {
   test("renders bare header when scheme=header but no header_name", () => {
     const html = treeAuthChip({ auth_scheme: "header" });
     expect(html).toContain("[header]");
+  });
+});
+
+describe("hygieneFlags", () => {
+  const daysAgo = (n) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+  test("fresh secret is neither stale nor old", () => {
+    const f = hygieneFlags({ updated_at: daysAgo(1), created_at: daysAgo(1), last_accessed_at: daysAgo(1) });
+    expect(f).toEqual({ stale: false, old: false });
+  });
+
+  test("unused over 90 days is stale (falls back to updated_at when never accessed)", () => {
+    const f = hygieneFlags({ updated_at: daysAgo(100), created_at: daysAgo(100), last_accessed_at: null });
+    expect(f.stale).toBe(true);
+  });
+
+  test("recent access keeps it non-stale even if updated long ago", () => {
+    const f = hygieneFlags({ updated_at: daysAgo(400), created_at: daysAgo(400), last_accessed_at: daysAgo(2) });
+    expect(f.stale).toBe(false);
+  });
+
+  test("updated over 18 months ago is old", () => {
+    const f = hygieneFlags({ updated_at: daysAgo(560), created_at: daysAgo(560), last_accessed_at: daysAgo(1) });
+    expect(f.old).toBe(true);
+  });
+});
+
+describe("hygieneBadgeHtml", () => {
+  const daysAgo = (n) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+  test("returns empty string for a healthy secret", () => {
+    expect(hygieneBadgeHtml({ updated_at: daysAgo(1), created_at: daysAgo(1), last_accessed_at: daysAgo(1) })).toBe("");
+  });
+
+  test("renders a stale badge", () => {
+    const html = hygieneBadgeHtml({ updated_at: daysAgo(100), created_at: daysAgo(100), last_accessed_at: null });
+    expect(html).toContain("stale");
+  });
+});
+
+describe("formatHygieneSummary", () => {
+  test("empty string when nothing flagged", () => {
+    expect(formatHygieneSummary({ stale_90d: 0, older_18mo: 0, total_secrets: 5 })).toBe("");
+  });
+
+  test("summarizes stale and old counts", () => {
+    expect(formatHygieneSummary({ stale_90d: 3, older_18mo: 1, total_secrets: 42 })).toBe(
+      "3 unused 90d, 1 over 18mo"
+    );
+  });
+
+  test("shows only the nonzero bucket", () => {
+    expect(formatHygieneSummary({ stale_90d: 2, older_18mo: 0, total_secrets: 9 })).toBe("2 unused 90d");
   });
 });

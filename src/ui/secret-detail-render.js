@@ -152,6 +152,48 @@ export function treeAuthChip(metadata) {
   return `<span class="tree-item-auth">[${esc(value)}]</span>`;
 }
 
+// Hygiene thresholds (sub-project D). Constants in v1.
+const STALE_MS = 90 * 86_400_000;        // 90 days unused
+const OLD_MS = 18 * 30 * 86_400_000;     // ~18 months since update
+
+function _parseTs(iso) {
+  if (!iso) return null;
+  const d = new Date(String(iso).endsWith("Z") ? iso : iso + "Z");
+  const t = d.getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+export function hygieneFlags(secret) {
+  const now = Date.now();
+  // Staleness uses last access, falling back to updated_at so a freshly
+  // written but never-read secret is not flagged (matches the server query).
+  const access = _parseTs(secret && secret.last_accessed_at) ?? _parseTs(secret && secret.updated_at);
+  const updated = _parseTs(secret && secret.updated_at);
+  const stale = access != null ? now - access > STALE_MS : false;
+  const old = updated != null ? now - updated > OLD_MS : false;
+  return { stale, old };
+}
+
+export function hygieneBadgeHtml(secret) {
+  const f = hygieneFlags(secret);
+  let html = "";
+  if (f.stale) {
+    html += ` <span class="badge" style="font-size:9px;background:rgba(251,191,36,0.12);color:var(--warning)" title="Not accessed in over 90 days">stale</span>`;
+  }
+  if (f.old) {
+    html += ` <span class="badge" style="font-size:9px;background:rgba(251,191,36,0.12);color:var(--warning)" title="Not updated in over 18 months">18mo+</span>`;
+  }
+  return html;
+}
+
+export function formatHygieneSummary(hygiene) {
+  if (!hygiene) return "";
+  const parts = [];
+  if (hygiene.stale_90d > 0) parts.push(`${hygiene.stale_90d} unused 90d`);
+  if (hygiene.older_18mo > 0) parts.push(`${hygiene.older_18mo} over 18mo`);
+  return parts.join(", ");
+}
+
 if (typeof window !== "undefined") {
   window.SecretDetail = {
     referenceChipHtml,
@@ -163,5 +205,8 @@ if (typeof window !== "undefined") {
     emptyStateStats,
     emptyStateStatsLine,
     treeAuthChip,
+    hygieneFlags,
+    hygieneBadgeHtml,
+    formatHygieneSummary,
   };
 }

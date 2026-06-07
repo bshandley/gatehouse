@@ -632,14 +632,6 @@ export function proxyRouter(
       // by lease without parsing metadata. Multi-secret proxy calls keep the
       // comma-joined list in metadata only.
       const topLeaseId = leaseIdsList.length === 1 ? leaseIdsList[0] : undefined;
-      audit.log({
-        identity: auth.identity,
-        action: "proxy.forward",
-        path: secretPaths.join(","),
-        source_ip: sourceIp,
-        ...(topLeaseId ? { lease_id: topLeaseId } : {}),
-        metadata: successMeta,
-      });
 
       // Count this call against AppRole + per-secret rate-limit buckets.
       // Upstream 4xx/5xx still counts: the gate work happened and the
@@ -654,7 +646,9 @@ export function proxyRouter(
       // Redact both the raw secret values and their on-the-wire encodings (e.g.
       // the base64 form used by the basic: inject shorthand).
       const redactValues = secretRedactionValues(resolved.values());
-      const responseBody = scrubResponseBody(rawResponseBody, redactValues);
+      const bodyScrub = scrubResponseBody(rawResponseBody, redactValues);
+      const responseBody = bodyScrub.body;
+      let redactionCount = bodyScrub.count;
       const responseHeaders: Record<string, string> = {};
 
       // Forward safe response headers (scrub any echoed secret values)
@@ -667,13 +661,34 @@ export function proxyRouter(
       ];
       for (const h of safeHeaders) {
         const v = upstream.headers.get(h);
-        if (v) responseHeaders[h] = scrubResponseBody(v, redactValues);
+        if (v) {
+          const hs = scrubResponseBody(v, redactValues);
+          responseHeaders[h] = hs.body;
+          redactionCount += hs.count;
+        }
       }
       // Surface redirect target so callers know why they got a 3xx
       if (upstream.status >= 300 && upstream.status < 400) {
         const loc = upstream.headers.get("location");
-        if (loc) responseHeaders["location"] = scrubResponseBody(loc, redactValues);
+        if (loc) {
+          const ls = scrubResponseBody(loc, redactValues);
+          responseHeaders["location"] = ls.body;
+          redactionCount += ls.count;
+        }
       }
+
+      // Now that the body/header scrub has run, the redaction count is known.
+      // Logging here (rather than before the upstream read) means an oversized
+      // upstream that throws in readCappedText produces only the failure row.
+      successMeta.redaction_count = String(redactionCount);
+      audit.log({
+        identity: auth.identity,
+        action: "proxy.forward",
+        path: secretPaths.join(","),
+        source_ip: sourceIp,
+        ...(topLeaseId ? { lease_id: topLeaseId } : {}),
+        metadata: successMeta,
+      });
 
       // Record pattern (fire-and-forget, non-critical)
       // Use the pre-injection URL (with {{secret:...}} placeholders) to avoid

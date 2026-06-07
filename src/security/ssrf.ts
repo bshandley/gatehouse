@@ -190,20 +190,28 @@ export function pathMatchesAnyPrefix(path: string, prefixes: string[]): boolean 
 /**
  * Replace every occurrence of an injected secret value in a response body
  * with "[REDACTED]". This defeats naive upstream echo ("your token is X").
+ * Returns the scrubbed body and the number of redactions made (used by the
+ * posture view to count credentials kept out of agent context).
  *
  * We intentionally skip values shorter than 8 chars to avoid mangling
  * arbitrary substrings, and skip values that are all-whitespace or empty.
  */
-export function scrubResponseBody(body: string, secretValues: Iterable<string>): string {
+export function scrubResponseBody(
+  body: string,
+  secretValues: Iterable<string>
+): { body: string; count: number } {
   let out = body;
+  let count = 0;
   for (const v of secretValues) {
     if (!v || v.length < 8) continue;
-    // Split+join is the fastest safe "replace all literal" in JS.
     if (out.includes(v)) {
-      out = out.split(v).join("[REDACTED]");
+      // split length minus 1 == number of occurrences replaced.
+      const parts = out.split(v);
+      count += parts.length - 1;
+      out = parts.join("[REDACTED]");
     }
   }
-  return out;
+  return { body: out, count };
 }
 
 /**

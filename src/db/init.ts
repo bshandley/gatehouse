@@ -25,7 +25,8 @@ export function initDB(dataDir: string): Database {
       metadata TEXT DEFAULT '{}',
       version INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      updated_at TEXT DEFAULT (datetime('now')),
+      last_accessed_at TEXT
     )
   `);
 
@@ -283,6 +284,15 @@ export function initDB(dataDir: string): Database {
   }
   if (leaseColNames.length > 0 && !leaseColNames.includes("request_expires_at")) {
     db.run("ALTER TABLE leases ADD COLUMN request_expires_at TEXT");
+  }
+
+  // Secrets migration: last_accessed_at for hygiene/posture (sub-project D).
+  // Backfill existing rows to updated_at as a reasonable "last touched" floor.
+  const secretCols = db.query("PRAGMA table_info(secrets)").all() as { name: string }[];
+  const secretColNames = secretCols.map((c) => c.name);
+  if (secretColNames.length > 0 && !secretColNames.includes("last_accessed_at")) {
+    db.run("ALTER TABLE secrets ADD COLUMN last_accessed_at TEXT");
+    db.run("UPDATE secrets SET last_accessed_at = updated_at WHERE last_accessed_at IS NULL");
   }
 
   // Indexes

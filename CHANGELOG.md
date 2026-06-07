@@ -5,6 +5,25 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.20.0] - 2026-06-07
+
+### Added
+
+- **Posture and value view on the dashboard.** The posture row surfaces "credentials kept out of agent context" (a rolling 7-day count of redactions) and blocked egress (with a by-reason breakdown on hover), plus a hygiene nudge that appears only when secrets need attention (unused 90d, older than 18mo) and links to the secrets list.
+- **`GET /v1/stats/posture?window=7d` (admin only)**: windowed posture aggregation from the audit log and the secrets table.
+- **`secrets.last_accessed_at`**: stamped on every value reveal (REST and MCP) and on static lease checkout. Existing rows are backfilled to `updated_at`.
+- **`scrub.redact` audit event**: recorded on explicit scrubs (`POST /v1/scrub` and the `gatehouse_scrub` MCP tool) when something was redacted.
+- **Secret-hygiene badges** ("stale", "18mo+") in the secrets tree and a "Last used" field in the secret detail panel.
+
+### Changed
+
+- **`scrubResponseBody` now returns the scrubbed body plus a redaction count.** The count is recorded in `proxy.forward` and `proxy.forward.mcp` audit metadata as `redaction_count`. As a side effect, an oversized upstream body that aborts the read now produces only a failure audit row, not a success row too.
+- **Dashboard simplified to a single posture row.** The standalone Active Leases, Audit Events (24h), and Policies stat cards have been removed: the active-lease count now rides in the Active Leases table header, Total Secrets moved into the posture row, and recent activity is covered by the audit feed below.
+
+### Notes
+
+- Hygiene thresholds (90 days unused, 18 months since update) are constants in this release. No automatic rotation or deletion: the view nudges, it never acts.
+
 ## [0.19.0] - 2026-05-30
 
 ### Security
@@ -131,7 +150,7 @@ level.
 
 ### Bug fix
 
-- **Lease approve/deny audits are now visible to the requesting agent.** Previously only the operator's `lease.approved` / `lease.denied` row was written, identity-scoped to the operator. Since the `/v1/audit` endpoint filters by caller identity for non-admins, agents could not see decisions on their own pending leases in their audit feed — the data was only reachable via `GET /v1/lease/<id>` polling or the SSE `lease_status_changed` event. Now a second mirror row is written under the agent's identity for both decisions, carrying `approved_by` (and `reason` for denials) in metadata. Admin audit views are unchanged; non-admin agents now see their own decision history.
+- **Lease approve/deny audits are now visible to the requesting agent.** Previously only the operator's `lease.approved` / `lease.denied` row was written, identity-scoped to the operator. Since the `/v1/audit` endpoint filters by caller identity for non-admins, agents could not see decisions on their own pending leases in their audit feed; the data was only reachable via `GET /v1/lease/<id>` polling or the SSE `lease_status_changed` event. Now a second mirror row is written under the agent's identity for both decisions, carrying `approved_by` (and `reason` for denials) in metadata. Admin audit views are unchanged; non-admin agents now see their own decision history.
 
 ## [0.14.4] - 2026-05-12
 

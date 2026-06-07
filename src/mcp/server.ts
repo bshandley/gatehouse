@@ -315,6 +315,7 @@ export function createMCPHandler(
             path: args.path,
             source_ip: sourceIp,
           });
+          secrets.markAccessed(args.path);
           return text(value);
         }
 
@@ -372,6 +373,7 @@ export function createMCPHandler(
 
           const result = leases.checkout(args.path, auth.identity, ttl);
           if (!result) return error(`Secret not found: "${args.path}"`);
+          secrets.markAccessed(args.path);
 
           return text(
             JSON.stringify(
@@ -556,6 +558,14 @@ export function createMCPHandler(
 
         case "gatehouse_scrub": {
           const result = scrubValue(args.text);
+          if (result.redactions.length > 0) {
+            audit.log({
+              identity: auth.identity,
+              action: "scrub.redact",
+              metadata: { count: String(result.redactions.length) },
+              source_ip: sourceIp,
+            });
+          }
           return text(
             JSON.stringify(
               {
@@ -792,14 +802,6 @@ export function createMCPHandler(
               mcpSuccessMeta.lease_id = mcpLeaseIdsList.join(",");
             }
             const mcpTopLeaseId = mcpLeaseIdsList.length === 1 ? mcpLeaseIdsList[0] : undefined;
-            audit.log({
-              identity: auth.identity,
-              action: "proxy.forward.mcp",
-              path: [...refs].join(","),
-              source_ip: sourceIp,
-              ...(mcpTopLeaseId ? { lease_id: mcpTopLeaseId } : {}),
-              metadata: mcpSuccessMeta,
-            });
 
             if (rateLimiter) {
               rateLimiter.recordCall(auth.role_id || "", [...refs]);
@@ -808,7 +810,17 @@ export function createMCPHandler(
             // Cap upstream body + scrub any injected secret values echoed back
             // (raw values plus their on-the-wire encodings, e.g. base64).
             const rawBody = await readCappedText(upstream, limits.max_body_bytes);
-            const responseBody = scrubResponseBody(rawBody, secretRedactionValues(resolved.values()));
+            const mcpScrub = scrubResponseBody(rawBody, secretRedactionValues(resolved.values()));
+            const responseBody = mcpScrub.body;
+            mcpSuccessMeta.redaction_count = String(mcpScrub.count);
+            audit.log({
+              identity: auth.identity,
+              action: "proxy.forward.mcp",
+              path: [...refs].join(","),
+              source_ip: sourceIp,
+              ...(mcpTopLeaseId ? { lease_id: mcpTopLeaseId } : {}),
+              metadata: mcpSuccessMeta,
+            });
             let parsed: any;
             try { parsed = JSON.parse(responseBody); } catch { parsed = responseBody; }
 

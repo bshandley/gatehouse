@@ -9,6 +9,7 @@ export interface StoredSecret {
   version: number;
   created_at: string;
   updated_at: string;
+  last_accessed_at: string | null;
 }
 
 /**
@@ -227,7 +228,7 @@ export class SecretsEngine {
   getMeta(path: string): StoredSecret | null {
     const row = this.db
       .query(
-        "SELECT path, metadata, version, created_at, updated_at FROM secrets WHERE path = ?"
+        "SELECT path, metadata, version, created_at, updated_at, last_accessed_at FROM secrets WHERE path = ?"
       )
       .get(path) as any;
 
@@ -239,13 +240,48 @@ export class SecretsEngine {
       version: row.version,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      last_accessed_at: row.last_accessed_at ?? null,
+    };
+  }
+
+  /**
+   * Record that a secret's value was read, for hygiene/posture (sub-project D).
+   * One indexed-by-primary-key UPDATE on a path already doing a decrypt; cheap.
+   * Silently no-ops on a missing path so read handlers never have to guard.
+   */
+  markAccessed(path: string): void {
+    this.db
+      .query("UPDATE secrets SET last_accessed_at = datetime('now') WHERE path = ?")
+      .run(path);
+  }
+
+  /**
+   * Hygiene buckets for the posture view (sub-project D). Index-free counts
+   * straight from the secrets table. Staleness uses last_accessed_at, falling
+   * back to updated_at so a freshly written but never-read secret is not flagged.
+   * Thresholds are constants in v1 (90 days unused, 18 months since update).
+   */
+  hygieneCounts(): { stale_90d: number; older_18mo: number; total_secrets: number } {
+    const row = this.db
+      .query(
+        `SELECT
+           COUNT(*) AS total_secrets,
+           COALESCE(SUM(CASE WHEN COALESCE(last_accessed_at, updated_at) < datetime('now','-90 days') THEN 1 ELSE 0 END), 0) AS stale_90d,
+           COALESCE(SUM(CASE WHEN updated_at < datetime('now','-18 months') THEN 1 ELSE 0 END), 0) AS older_18mo
+         FROM secrets`
+      )
+      .get() as { total_secrets: number; stale_90d: number; older_18mo: number };
+    return {
+      stale_90d: row.stale_90d,
+      older_18mo: row.older_18mo,
+      total_secrets: row.total_secrets,
     };
   }
 
   list(prefix: string = ""): StoredSecret[] {
     const rows = this.db
       .query(
-        "SELECT path, metadata, version, created_at, updated_at FROM secrets WHERE path LIKE ? ORDER BY path"
+        "SELECT path, metadata, version, created_at, updated_at, last_accessed_at FROM secrets WHERE path LIKE ? ORDER BY path"
       )
       .all(`${prefix}%`) as any[];
 
@@ -255,6 +291,7 @@ export class SecretsEngine {
       version: r.version,
       created_at: r.created_at,
       updated_at: r.updated_at,
+      last_accessed_at: r.last_accessed_at ?? null,
     }));
   }
 

@@ -216,6 +216,7 @@ export function leaseRouter(
       return c.json({ error: "Secret not found", request_id: c.get("requestId") }, 404);
     }
 
+    secrets?.markAccessed(rawPath);
     return c.json({
       lease: result.lease,
       value: result.value,

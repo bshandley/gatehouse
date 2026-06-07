@@ -1,6 +1,19 @@
 import { Database } from "bun:sqlite";
 import type { EventBus } from "../events/bus";
 
+/**
+ * Normalize a caller-supplied `since` value to the shape SQLite's
+ * datetime('now') writes into audit_log.timestamp ("YYYY-MM-DD HH:MM:SS").
+ * An ISO string ("YYYY-MM-DDTHH:MM:SS.sssZ") would otherwise lose the entire
+ * boundary day in a lexical "timestamp >= ?" comparison, because the "T"
+ * separator (0x54) sorts after the stored space (0x20). The transform is a
+ * no-op on values already in SQLite form, on date-only values, and on the
+ * "2000-..." style literals used in tests.
+ */
+function normalizeSqliteSince(s: string): string {
+  return s.replace("T", " ").replace(/\.\d{1,3}/, "").replace(/Z$/, "");
+}
+
 export interface AuditEntry {
   identity: string;
   action: string;
@@ -105,7 +118,7 @@ export class AuditLog {
     }
     if (opts.since) {
       sql += " AND timestamp >= ?";
-      params.push(opts.since);
+      params.push(normalizeSqliteSince(opts.since));
     }
 
     sql += ` ORDER BY timestamp DESC LIMIT ?`;
@@ -165,5 +178,71 @@ export class AuditLog {
       .query("SELECT COUNT(*) as cnt FROM audit_log")
       .get() as { cnt: number };
     return row.cnt;
+  }
+
+  /**
+   * Sum the redaction counts recorded on proxy and scrub audit rows since the
+   * given ISO timestamp. proxy.forward* rows store the count under
+   * metadata.redaction_count; scrub.redact rows store it under metadata.count.
+   * Powers the "credentials kept out of agent context" posture stat.
+   */
+  sumRedactions(since: string): number {
+    const row = this.db
+      .query(
+        `SELECT COALESCE(SUM(
+           CAST(COALESCE(
+             json_extract(metadata, '$.redaction_count'),
+             json_extract(metadata, '$.count'),
+             '0'
+           ) AS INTEGER)
+         ), 0) AS total
+         FROM audit_log
+         WHERE timestamp >= ?
+           AND action IN ('proxy.forward', 'proxy.forward.mcp', 'scrub.redact')`
+      )
+      .get(since) as { total: number };
+    return row.total;
+  }
+
+  /**
+   * Count blocked outbound proxy attempts since the given ISO timestamp,
+   * broken down by reason. Two sources: dedicated blocked actions
+   * (proxy.blocked.rate_limit, proxy.blocked.approval) and failed proxy
+   * forwards carrying a blocking metadata.reason. Powers the posture
+   * "blocked egress" stat.
+   */
+  blockedEgress(since: string): { total: number; by_reason: Record<string, number> } {
+    const by_reason: Record<string, number> = {};
+
+    const blockedActions = this.db
+      .query(
+        `SELECT action, COUNT(*) AS cnt FROM audit_log
+         WHERE timestamp >= ?
+           AND action IN ('proxy.blocked.rate_limit', 'proxy.blocked.approval')
+         GROUP BY action`
+      )
+      .all(since) as { action: string; cnt: number }[];
+    for (const r of blockedActions) {
+      const key = r.action === "proxy.blocked.rate_limit" ? "rate_limit" : "approval";
+      by_reason[key] = (by_reason[key] || 0) + r.cnt;
+    }
+
+    const failedForwards = this.db
+      .query(
+        `SELECT json_extract(metadata, '$.reason') AS reason, COUNT(*) AS cnt FROM audit_log
+         WHERE timestamp >= ?
+           AND action IN ('proxy.forward', 'proxy.forward.mcp')
+           AND success = 0
+           AND json_extract(metadata, '$.reason') IN
+             ('ssrf_blocked', 'domain_blocked', 'path_prefix_blocked', 'policy_denied')
+         GROUP BY reason`
+      )
+      .all(since) as { reason: string; cnt: number }[];
+    for (const r of failedForwards) {
+      by_reason[r.reason] = (by_reason[r.reason] || 0) + r.cnt;
+    }
+
+    const total = Object.values(by_reason).reduce((a, b) => a + b, 0);
+    return { total, by_reason };
   }
 }

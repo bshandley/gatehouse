@@ -182,6 +182,21 @@ rules:
     expect(parsed.ttl_seconds).toBe(60);
   });
 
+  test("gatehouse_lease stamps last_accessed_at on the secret", async () => {
+    await mcp.handleToolCall(
+      "gatehouse_put",
+      { path: "api-keys/leasestamp", value: "secret123" },
+      adminAuth
+    );
+    expect(secrets.getMeta("api-keys/leasestamp")!.last_accessed_at).toBeNull();
+    await mcp.handleToolCall(
+      "gatehouse_lease",
+      { path: "api-keys/leasestamp", ttl: 60 },
+      adminAuth
+    );
+    expect(secrets.getMeta("api-keys/leasestamp")!.last_accessed_at).not.toBeNull();
+  });
+
   test("gatehouse_lease returns error for missing secret", async () => {
     const result = await mcp.handleToolCall(
       "gatehouse_lease",
@@ -243,6 +258,49 @@ rules:
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.redaction_count).toBe(0);
     expect(parsed.scrubbed).toBe("just normal text");
+  });
+
+  test("gatehouse_proxy success audit row records redaction_count", async () => {
+    // Seed a secret long enough (>=8 chars) for the response scrubber.
+    const secretValue = "sk-supersecret-1234";
+    await mcp.handleToolCall(
+      "gatehouse_put",
+      { path: "api-keys/example", value: secretValue },
+      adminAuth
+    );
+
+    // Stub fetch so the upstream echoes the injected secret back once. The
+    // scrubber redacts that single occurrence, so redaction_count === 1.
+    const savedFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ echoed: secretValue }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+
+    try {
+      const result = await mcp.handleToolCall(
+        "gatehouse_proxy",
+        {
+          url: "https://api.example.com/v1/thing",
+          method: "GET",
+          auto_inject: ["api-keys/example"],
+        },
+        adminAuth
+      );
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.status).toBe(200);
+      // Response returned to the caller is scrubbed, not the raw secret.
+      expect(parsed.body.echoed).toBe("[REDACTED]");
+    } finally {
+      globalThis.fetch = savedFetch;
+    }
+
+    const rows = audit.query({ action: "proxy.forward.mcp", limit: 10 });
+    const success = rows.find((r) => r.success);
+    expect(success).toBeDefined();
+    expect(success!.metadata.redaction_count).toBe("1");
   });
 
   test("gatehouse_status returns identity and health", async () => {

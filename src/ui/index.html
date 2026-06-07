@@ -419,6 +419,31 @@
       letter-spacing: -0.02em;
       line-height: 1;
     }
+    /* Posture row: three high-signal numbers, not four padded ones. */
+    .stat-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+
+    /* Hygiene is a call to action, not a stat. A slim line that only appears
+       when there is debt to act on, and links to the secrets list. */
+    .hygiene-nudge {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 28px;
+      padding: 11px 16px;
+      background: rgba(251, 191, 36, 0.06);
+      border: 1px solid rgba(251, 191, 36, 0.18);
+      border-radius: var(--radius-lg);
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .hygiene-nudge.visible { display: flex; }
+    .hygiene-nudge:hover { border-color: rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.1); }
+    .hygiene-nudge:focus-visible { outline: 2px solid var(--warning); outline-offset: 2px; }
+    .hygiene-nudge-dot { color: var(--warning); font-weight: 700; }
+    .hygiene-nudge-arrow { margin-left: auto; color: var(--warning); font-weight: 600; }
+    .card-title-count { color: var(--text-tertiary); font-weight: 500; margin-left: 4px; }
 
     /* Cards */
     .card {
@@ -1938,6 +1963,7 @@
 
     @media (max-width: 1000px) {
       .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .stat-grid.cols-3 { grid-template-columns: 1fr; }
       .secrets-layout { grid-template-columns: 1fr; }
       .detail-meta { grid-template-columns: 1fr 1fr; }
       .pattern-detail-grid { grid-template-columns: 1fr; }
@@ -2108,16 +2134,21 @@
         </div>
       </div>
       <div class="page-content">
-        <div class="stat-grid">
-          <div class="stat-card stagger-1"><div class="stat-label">Total Secrets</div><div class="stat-value" id="stat-secrets">-</div></div>
-          <div class="stat-card stagger-2"><div class="stat-label">Active Leases</div><div class="stat-value" id="stat-leases">-</div></div>
-          <div class="stat-card stagger-3"><div class="stat-label">Audit Events (24h)</div><div class="stat-value" id="stat-audit">-</div></div>
-          <div class="stat-card stagger-4"><div class="stat-label">Policies</div><div class="stat-value" id="stat-policies">-</div></div>
+        <div class="stat-grid cols-3">
+          <div class="stat-card stagger-1"><div class="stat-label">Kept Out of Agent Context (7d)</div><div class="stat-value" id="stat-redactions">-</div></div>
+          <div class="stat-card stagger-2"><div class="stat-label">Blocked Egress (7d)</div><div class="stat-value" id="stat-blocked" title="">-</div></div>
+          <div class="stat-card stagger-3"><div class="stat-label">Total Secrets</div><div class="stat-value" id="stat-secrets">-</div></div>
+        </div>
+
+        <div class="hygiene-nudge" id="dash-hygiene-nudge" role="button" tabindex="0" title="Review flagged secrets" onclick="showPage('secrets')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showPage('secrets');}">
+          <span class="hygiene-nudge-dot">!</span>
+          <span id="dash-hygiene-text"></span>
+          <span class="hygiene-nudge-arrow">&rarr;</span>
         </div>
 
         <div class="card stagger-2 card-spaced">
           <div class="card-header">
-            <span class="card-title">Active Leases</span>
+            <span class="card-title">Active Leases<span class="card-title-count" id="dash-leases-count"></span></span>
             <span class="meta-sm">Live TTL countdown</span>
           </div>
           <div class="card-body">
@@ -3216,21 +3247,22 @@
   // Dashboard
   async function loadDashboard() {
     try {
-      const [secretsData, leasesData, auditData, policiesData] = await Promise.all([
+      const [secretsData, leasesData, auditData, postureData] = await Promise.all([
         api('/v1/secrets').catch(() => ({ secrets: [] })),
         api('/v1/lease').catch(() => ({ leases: [] })),
         api('/v1/audit?limit=100').catch(() => ({ entries: [] })),
-        api('/v1/policy').catch(() => ({ policies: [] }))
+        api('/v1/stats/posture?window=7d').catch(() => null)
       ]);
 
       document.getElementById('stat-secrets').textContent = secretsData.secrets?.length ?? 0;
-      document.getElementById('stat-leases').textContent = leasesData.leases?.length ?? 0;
-      const now = new Date();
-      const dayAgo = new Date(now.getTime() - 86400000).toISOString();
-      const recent = (auditData.entries || []).filter(e => e.timestamp >= dayAgo);
-      document.getElementById('stat-audit').textContent = recent.length;
-      const pArr = policiesData.policies || [];
-      document.getElementById('stat-policies').textContent = Array.isArray(pArr) ? pArr.length : 0;
+
+      // Active leases live in the table below; surface the count in its header
+      // rather than as a duplicate stat card.
+      const leaseCount = leasesData.leases?.length ?? 0;
+      const leaseCountEl = document.getElementById('dash-leases-count');
+      if (leaseCountEl) leaseCountEl.textContent = leaseCount ? ` (${leaseCount})` : '';
+
+      renderPosture(postureData);
 
       renderLeaseTable(leasesData.leases || [], 'dash-leases-body');
 
@@ -3242,6 +3274,39 @@
       startLeaseCountdown();
     } catch (e) {
       console.error('Dashboard load error:', e);
+    }
+  }
+
+  function renderPosture(posture) {
+    const redEl = document.getElementById('stat-redactions');
+    const blkEl = document.getElementById('stat-blocked');
+    const nudge = document.getElementById('dash-hygiene-nudge');
+    const nudgeText = document.getElementById('dash-hygiene-text');
+    if (!posture) {
+      if (redEl) redEl.textContent = '-';
+      if (blkEl) blkEl.textContent = '-';
+      if (nudge) nudge.classList.remove('visible');
+      return;
+    }
+    // Headline number gets thousands separators; it is meant to read big.
+    if (redEl) redEl.textContent = (posture.redactions?.count ?? 0).toLocaleString();
+    if (blkEl) {
+      const be = posture.blocked_egress || { total: 0, by_reason: {} };
+      blkEl.textContent = be.total ?? 0;
+      const breakdown = Object.entries(be.by_reason || {})
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ');
+      blkEl.title = breakdown || 'No blocked egress in the last 7 days';
+    }
+    // Hygiene nudge: only present when there is something to act on.
+    if (nudge && nudgeText) {
+      const summary = window.SecretDetail ? window.SecretDetail.formatHygieneSummary(posture.hygiene) : '';
+      if (summary) {
+        nudgeText.textContent = summary;
+        nudge.classList.add('visible');
+      } else {
+        nudge.classList.remove('visible');
+      }
     }
   }
 
@@ -3304,7 +3369,8 @@
           ? ' <span class="badge" style="font-size:9px;background:rgba(251,191,36,0.12);color:var(--warning)" title="Requires human approval before agents can use this secret">🔒 approval</span>'
           : '';
         const authChip = window.SecretDetail ? window.SecretDetail.treeAuthChip(item.metadata) : '';
-        html += `<div class="tree-item ${active}" onclick="window._selectSecret('${esc(item.path)}')">${esc(name)}${authChip}${approvalBadge}</div>`;
+        const hygieneBadge = window.SecretDetail ? window.SecretDetail.hygieneBadgeHtml(item) : '';
+        html += `<div class="tree-item ${active}" onclick="window._selectSecret('${esc(item.path)}')">${esc(name)}${authChip}${approvalBadge}${hygieneBadge}</div>`;
       }
     }
     if (!secrets.length) html = '<div class="empty-state">No secrets stored yet. Click <strong>+ New Secret</strong> in the page header to add one.</div>';
@@ -3374,7 +3440,7 @@
           ${window.SecretDetail.referenceChipHtml(path)}
         </div>
         ${description ? `<div class="detail-description">${esc(description)}</div>` : ''}
-        <div class="detail-stamps">v${meta.version} . created ${esc(window.SecretDetail.relativeTime(meta.created_at))} . updated ${esc(window.SecretDetail.relativeTime(meta.updated_at))}</div>
+        <div class="detail-stamps">v${meta.version} . created ${esc(window.SecretDetail.relativeTime(meta.created_at))} . updated ${esc(window.SecretDetail.relativeTime(meta.updated_at))} . last used ${meta.last_accessed_at ? esc(window.SecretDetail.relativeTime(meta.last_accessed_at)) : 'never'}</div>
       </div>
     `;
 

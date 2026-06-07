@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { scrubValue, containsCredentials } from "../scrub/scrubber";
 import type { AuthContext } from "../auth/middleware";
+import type { AuditLog } from "../audit/logger";
 
-export function scrubRouter() {
+export function scrubRouter(audit: AuditLog) {
   const router = new Hono();
 
   // POST /v1/scrub - redact credentials from text
@@ -19,6 +20,19 @@ export function scrubRouter() {
     }
 
     const result = scrubValue(body.text);
+
+    // Posture: count credentials kept out of agent context. Only explicit,
+    // low-volume user-driven scrubs are logged, and only when something matched.
+    if (result.redactions.length > 0) {
+      const auth = c.get("auth") as AuthContext | undefined;
+      audit.log({
+        identity: auth?.identity || "anonymous",
+        action: "scrub.redact",
+        metadata: { count: String(result.redactions.length) },
+        source_ip: c.get("sourceIp"),
+      });
+    }
+
     return c.json(result);
   });
 

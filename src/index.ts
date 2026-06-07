@@ -18,6 +18,7 @@ import { proxyRouter } from "./api/proxy";
 import { handleGetProxyLimits, handlePostProxyLimits } from "./api/settings.proxyLimits";
 import { dynamicRouter } from "./api/dynamic";
 import { scrubRouter } from "./api/scrub";
+import { statsRouter } from "./api/stats";
 import { DynamicSecretsManager } from "./dynamic/manager";
 import { PatternEngine } from "./patterns/engine";
 import { patternsRouter } from "./api/patterns";
@@ -505,7 +506,8 @@ app.route("/v1/mcp", mcpHttpRouter(secrets, leases, policies, audit, patternEngi
 app.route("/v1/proxy/patterns", patternsRouter(patternEngine, policies));
 app.route("/v1/proxy", proxyRouter(secrets, policies, audit, patternEngine, db, rateLimiter, leases));
 app.route("/v1/dynamic", dynamicRouter(dynamicSecrets, policies, audit));
-app.route("/v1/scrub", scrubRouter());
+app.route("/v1/scrub", scrubRouter(audit));
+app.route("/v1/stats", statsRouter(audit, secrets, policies));
 app.route("/v1/me", meRouter(db, audit));
 
 // Graceful shutdown

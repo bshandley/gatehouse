@@ -270,6 +270,7 @@ export function secretsRouter(
         path,
         source_ip: c.get("sourceIp"),
       });
+      secrets.markAccessed(path);
 
       // Return raw value for exec-based secret providers (e.g. OpenClaw)
       if (c.req.header("Accept") === "text/plain") {
@@ -298,6 +299,7 @@ export function secretsRouter(
         metadata: { version: String(v) },
         source_ip: c.get("sourceIp"),
       });
+      secrets.markAccessed(path);
       if (c.req.header("Accept") === "text/plain") return c.text(value);
       return c.json({ path, version: v, value });
     }
