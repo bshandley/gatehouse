@@ -5,6 +5,13 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.20.1] - 2026-06-19
+
+### Fixed
+
+- **`set +o history` no longer aborts the shell-login snippet.** The "Login from a shell" block in the gatehouse skill template (`src/templates/skill.md`, served at `GET /v1/skill`) opened with `set +o history 2>/dev/null`. Under the non-interactive zsh of the Claude Code Bash tool, that builtin returns non-zero and aborts the rest of the command, so the login never ran and produced no output (the harness's secret-scrubbing hid the failure). Tool-call commands never touch interactive shell history, so the line protected nothing. Removed it; the snippet still keeps secrets out of context by writing the JWT to a file and `unset`-ing the vars.
+- **Skill template now self-heals when the AppRole env vars are absent.** Onboarding writes `GATEHOUSE_ROLE_ID`/`GATEHOUSE_SECRET_ID` to a `.env.gatehouse` file and defers sourcing to the operator, but the skill's Connect section assumed the vars were already exported and never named the file, so a fresh session that had not sourced it had no credentials and no recovery path. The Connect section now points at the per-harness `.env.gatehouse` path (`~/.claude/.env.gatehouse` for Claude Code, `~/.pi/agent/.env.gatehouse` for Pi, `.env.gatehouse` in the working directory otherwise), shows how to source it (`set -a; . <path>; set +a`), and says to re-run onboarding if neither the vars nor the file exist.
+
 ## [0.20.0] - 2026-06-07
 
 ### Added

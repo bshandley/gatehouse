@@ -17,6 +17,14 @@ echo, log, or pass role_id or secret_id as literals in code, tool
 calls, or output. Read them from the environment only at the moment
 you exchange them for a JWT.
 
+If those vars are not already in the environment, the installer wrote
+them to a `.env.gatehouse` file at onboarding time: `~/.claude/.env.gatehouse`
+under Claude Code, `~/.pi/agent/.env.gatehouse` under Pi, or
+`.env.gatehouse` in the working directory otherwise (use the path your
+harness was given at install). Source it just before you log in, then
+read the vars: `set -a; . <path>; set +a`. If neither the vars nor the
+file exist, stop and tell the operator to re-run onboarding.
+
 Login: `POST {GATEHOUSE_URL}/v1/auth/approle/login` with body
 `{"role_id": "$GATEHOUSE_ROLE_ID", "secret_id": "$GATEHOUSE_SECRET_ID"}`.
 Store the returned JWT in memory only. The JWT expires in 24h.
@@ -50,9 +58,8 @@ under the same auth.
 
 When you're calling Gatehouse from `bash`/`curl` with no MCP wiring,
 use this pattern verbatim. It keeps role_id, secret_id, and the JWT
-out of your context window and shell history:
+out of your context window:
 
-    set +o history 2>/dev/null
     umask 077
     JWT=$(curl -fsSL -X POST -H "Content-Type: application/json" \
       -d "$(jq -nc --arg r "$GATEHOUSE_ROLE_ID" --arg s "$GATEHOUSE_SECRET_ID" \
