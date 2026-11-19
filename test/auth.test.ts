@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { Hono } from "hono";
 import { initDB } from "../src/db/init";
-import { authRouter, _resetRateLimitForTests } from "../src/api/auth";
+import { authRouter } from "../src/api/auth";
 import { authMiddleware } from "../src/auth/middleware";
 import type { GatehouseConfig } from "../src/config";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -54,11 +54,6 @@ describe("Auth API", () => {
   let dir: string;
 
   beforeEach(() => {
-    // The failed-login limiter is module-level state keyed by source IP, so it
-    // outlives each test and each test file. Without a reset, failures left on
-    // 127.0.0.1 by earlier tests push later ones over the limit (429), and
-    // whether that happens depends on file order.
-    _resetRateLimitForTests();
     dir = mkdtempSync(join(tmpdir(), "gatehouse-auth-test-"));
     db = initDB(dir);
     process.env.GATEHOUSE_ROOT_TOKEN = TEST_ROOT_TOKEN;
