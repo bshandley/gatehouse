@@ -239,6 +239,30 @@ describe("Proxy Router", () => {
     expect(body.error).toContain("not in the allowed domains");
   });
 
+  test("host:port entry allows that port and blocks others", async () => {
+    secrets.put("api-keys/example", "sk-test-openai-key-123", { allowed_domains: "127.0.0.1:59999" });
+    const call = (port: number) =>
+      app.request("/v1/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: `http://127.0.0.1:${port}/x`,
+          method: "GET",
+          timeout: 1000,
+          headers: { Authorization: "Bearer {{secret:api-keys/example}}" },
+        }),
+      });
+
+    const wrongPort = await call(59998);
+    expect(wrongPort.status).toBe(403);
+    expect((await wrongPort.json()).error).toContain("not in the allowed domains");
+
+    // Nothing listens on 59999, so the forward fails, but not at the allowlist.
+    const rightPort = await call(59999);
+    const body = await rightPort.json();
+    expect(String(body.error ?? "")).not.toContain("not in the allowed domains");
+  });
+
   test("allows request to permitted domain", async () => {
     // This will actually try to call api.openai.com and likely fail/timeout,
     // but it should NOT return 403

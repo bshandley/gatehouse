@@ -23,6 +23,7 @@ import type { LeaseManager } from "../lease/manager";
 import type { SecretsEngine } from "../secrets/engine";
 import type { AuditLog } from "../audit/logger";
 import { ipMatchesAllowlist } from "../auth/cidr";
+import { splitList } from "../ui/list-validate.js";
 
 export interface GatesContext {
   auth: AuthContext;
@@ -157,7 +158,7 @@ export function enforceProxyGates(ctx: GatesContext): GatesAllowed | GatesBlocke
 
     const allowlistRaw = meta.metadata.auto_approve_from_ip;
     if (allowlistRaw) {
-      const cidrs = allowlistRaw.split(",").map((s) => s.trim()).filter(Boolean);
+      const cidrs = splitList(allowlistRaw);
       if (ipMatchesAllowlist(ctx.sourceIp, cidrs)) {
         const autoTtl = parseInt(meta.metadata.auto_approve_ttl_seconds || "300", 10);
         const lease = ctx.leases.autoApprove(

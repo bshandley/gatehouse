@@ -6,10 +6,16 @@
   <title>Gatehouse</title>
   <meta name="description" content="Secrets vault for homelab AI agents">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='190 50 220 230'%3E%3Cg transform='translate(0,328) scale(0.1,-0.1)'%3E%3Cpath fill='%236c63ff' d='M2490 2696 l-485 -122 0 -519 c0 -471 2 -528 19 -605 73 -333 278 -607 608 -812 134 -83 327 -172 373 -172 48 0 282 114 411 199 257 171 449 412 528 661 52 167 51 156 51 719 l0 529 -485 123 c-267 67 -496 122 -510 122 -14 0 -243 -55 -510 -123z'/%3E%3Cpath fill='%23ffffff' d='M2935 2303 c-278 -41 -485 -277 -485 -553 0 -259 188 -492 439 -545 89 -19 137 -19 224 0 105 22 192 70 272 150 107 106 165 235 165 366 0 89 1 89 -242 89 -192 0 -206 1 -223 20 -31 34 -86 45 -127 26 -85 -40 -92 -154 -12 -207 48 -32 119 -19 147 28 6 10 47 13 169 13 l160 0 -7 -37 c-32 -172 -206 -321 -386 -331 -323 -19 -548 312 -413 607 115 254 444 331 654 155 57 -48 120 -29 120 36 0 46 -102 121 -219 159 -60 20 -183 32 -236 24z'/%3E%3C/g%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Instrument+Sans:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    /* Fonts are bundled and served by Gatehouse. The UI makes no third-party requests. */
+    @font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url("/ui/fonts/dm-sans-latin-400-normal.woff2") format("woff2"); }
+    @font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url("/ui/fonts/dm-sans-latin-500-normal.woff2") format("woff2"); }
+    @font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url("/ui/fonts/dm-sans-latin-600-normal.woff2") format("woff2"); }
+    @font-face { font-family: 'Instrument Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url("/ui/fonts/instrument-sans-latin-500-normal.woff2") format("woff2"); }
+    @font-face { font-family: 'Instrument Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url("/ui/fonts/instrument-sans-latin-600-normal.woff2") format("woff2"); }
+    @font-face { font-family: 'Instrument Sans'; font-style: normal; font-weight: 700; font-display: swap; src: url("/ui/fonts/instrument-sans-latin-700-normal.woff2") format("woff2"); }
+    @font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url("/ui/fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2"); }
+    @font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url("/ui/fonts/jetbrains-mono-latin-500-normal.woff2") format("woff2"); }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     /* Dark theme (default) */
@@ -648,7 +654,18 @@
       display: flex; gap: 8px; justify-content: flex-end;
       padding-top: 16px; border-top: 1px solid var(--border);
     }
-    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
+    /* The action row stays pinned to the bottom of a scrolling dialog, so Save
+       and Cancel are always reachable. The negative offsets cancel the
+       dialog's own 28px padding. */
+    .modal-actions {
+      display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px;
+      position: sticky; bottom: -28px; z-index: 2;
+      margin-left: -28px; margin-right: -28px; margin-bottom: -28px;
+      padding: 16px 28px 28px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    }
 
     /* Confirm dialog */
     .confirm-dialog {
@@ -1385,6 +1402,25 @@
       flex: 1; min-width: 100px;
     }
     .tag-inline-input::placeholder { color: var(--text-tertiary); }
+    .list-input { min-width: 0; width: 100%; }
+    /* The text box inside a list input is bare: the wrapper draws the frame.
+       These must outrank the generic input rules used inside dialogs. */
+    .list-input input.tag-inline-input,
+    .modal .list-input input.tag-inline-input {
+      background: transparent; border: none; box-shadow: none; outline: none;
+      padding: 3px 2px; margin: 0; height: auto; width: auto;
+      flex: 1 1 120px; min-width: 120px;
+      font-family: var(--font-mono); font-size: 13px;
+    }
+    .list-input .tag-token { animation: none; }
+    .list-input .tag-token-text { cursor: text; }
+    .list-input .tag-token.invalid {
+      background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.5); color: var(--danger);
+    }
+    .list-input .tag-token.invalid .tag-token-remove { color: var(--danger); }
+    .list-input.has-error { border-color: var(--danger); }
+    .list-input-error { font-size: 12px; color: var(--danger); margin-top: 4px; min-height: 0; }
+    .list-input-error:empty { display: none; }
     .tag-suggestions {
       position: absolute; top: calc(100% + 4px); left: 0; right: 0;
       background: var(--bg-tertiary); border: 1px solid var(--border-hover);
@@ -1970,12 +2006,44 @@
       .pattern-summary { flex-wrap: wrap; }
       .pattern-stats { width: 100%; justify-content: flex-end; }
     }
+    .mobile-bar, .mobile-nav-backdrop { display: none; }
     @media (max-width: 700px) {
-      .sidebar { display: none; }
-      .main { margin-left: 0; }
+      /* The sidebar becomes a drawer, opened from the top bar. */
+      .mobile-bar {
+        display: flex; align-items: center; gap: 12px;
+        position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 90;
+        padding: 0 12px;
+        background: var(--bg-secondary); border-bottom: 1px solid var(--border);
+      }
+      .mobile-bar-title { font-family: var(--font-heading); font-weight: 700; font-size: 16px; }
+      .mobile-nav-toggle {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 40px; height: 40px; border-radius: var(--radius);
+        background: none; border: 1px solid var(--border); color: var(--text-primary); cursor: pointer;
+      }
+      .sidebar { transform: translateX(-100%); transition: transform 0.2s ease; z-index: 210; box-shadow: none; }
+      body.nav-open .sidebar { transform: none; box-shadow: 0 0 60px var(--shadow-color); }
+      body.nav-open .mobile-nav-backdrop {
+        display: block; position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.6);
+      }
+      /* The content column must be allowed to shrink below its widest child,
+         and wide tables scroll inside their card instead of widening the page. */
+      .main { margin-left: 0; padding-top: 52px; min-width: 0; max-width: 100vw; }
+      .page, .page-content { min-width: 0; max-width: 100%; }
+      .page-header { padding: 16px; flex-wrap: wrap; gap: 12px; }
+      .page-content { padding: 16px; }
+      .page-content .card, .page-content .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .stat-grid, .stat-grid.cols-3 { grid-template-columns: 1fr; }
+      .page-content [style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+      .modal { min-width: 0; width: calc(100vw - 24px); max-height: 92vh; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sidebar { transition: none; }
     }
   </style>
     <script type="module" src="/ui/secret-form-metadata.js"></script>
+    <script type="module" src="/ui/list-input.js"></script>
+    <script type="module" src="/ui/shell.js"></script>
     <script type="module" src="/ui/secret-detail-render.js"></script>
 </head>
 <body>
@@ -2044,7 +2112,14 @@
 
 <!-- App Shell -->
 <div id="app-shell" class="app hidden">
-  <aside class="sidebar">
+  <header class="mobile-bar">
+    <button type="button" class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Menu" aria-expanded="false" aria-controls="sidebar-nav">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <span class="mobile-bar-title">Gatehouse</span>
+  </header>
+  <div class="mobile-nav-backdrop" id="mobile-nav-backdrop"></div>
+  <aside class="sidebar" id="sidebar-nav">
     <div class="sidebar-header">
       <div class="sidebar-logo"><svg viewBox="190 50 220 230" width="32" height="32" preserveAspectRatio="xMidYMid meet"><g transform="translate(0,328) scale(0.1,-0.1)"><path fill="#6c63ff" d="M2490 2696 l-485 -122 0 -519 c0 -471 2 -528 19 -605 73 -333 278 -607 608 -812 134 -83 327 -172 373 -172 48 0 282 114 411 199 257 171 449 412 528 661 52 167 51 156 51 719 l0 529 -485 123 c-267 67 -496 122 -510 122 -14 0 -243 -55 -510 -123z"/><path fill="#ffffff" d="M2935 2303 c-278 -41 -485 -277 -485 -553 0 -259 188 -492 439 -545 89 -19 137 -19 224 0 105 22 192 70 272 150 107 106 165 235 165 366 0 89 1 89 -242 89 -192 0 -206 1 -223 20 -31 34 -86 45 -127 26 -85 -40 -92 -154 -12 -207 48 -32 119 -19 147 28 6 10 47 13 169 13 l160 0 -7 -37 c-32 -172 -206 -321 -386 -331 -323 -19 -548 312 -413 607 115 254 444 331 654 155 57 -48 120 -29 120 36 0 46 -102 121 -219 159 -60 20 -183 32 -236 24z"/></g></svg></div>
       <span class="sidebar-title">Gatehouse</span>
@@ -3754,11 +3829,12 @@
             <div class="form-subheading">Network scope</div>
             <div class="form-group">
               <label class="form-label">Allowed domains</label>
-              <input type="text" id="new-secret-allowed-domains" placeholder="api.example.com, *.example.org" spellcheck="false">
+              <input type="text" id="new-secret-allowed-domains" data-list-kind="host" placeholder="api.example.com, 10.0.0.50:5230" spellcheck="false">
+              <p class="form-help">Hosts this secret may be sent to. A domain covers its subdomains. Also accepts <code>*.domain</code>, <code>host:port</code>, and CIDR ranges.</p>
             </div>
             <div class="form-group">
               <label class="form-label">Allowed path prefixes</label>
-              <input type="text" id="new-secret-allowed-path-prefixes" placeholder="/v1/, /v2/" spellcheck="false">
+              <input type="text" id="new-secret-allowed-path-prefixes" data-list-kind="pathPrefix" placeholder="/v1/, /v2/" spellcheck="false">
             </div>
             <div class="form-group">
               <div class="toggle-wrap">
@@ -3779,8 +3855,8 @@
 
             <div class="form-subheading">Auto-approval</div>
             <div class="form-group">
-              <label class="form-label">Auto-approve from IP</label>
-              <input type="text" id="new-secret-auto-ip" placeholder="10.0.0.5" spellcheck="false" oninput="document.getElementById('new-secret-auto-ttl').disabled = !this.value.trim()">
+              <label class="form-label">Auto-approve from IPs</label>
+              <input type="text" id="new-secret-auto-ip" data-list-kind="cidr" placeholder="10.0.0.5, 10.0.0.0/24" spellcheck="false" oninput="document.getElementById('new-secret-auto-ttl').disabled = !this.value.trim()">
             </div>
             <div class="form-group">
               <label class="form-label">Auto-approve TTL (seconds)</label>
@@ -3815,6 +3891,10 @@
     };
 
     window._saveNewSecret = async function() {
+      {
+        const listErr = window.ListInput && window.ListInput.firstError(document.getElementById('modal-container'));
+        if (listErr) { toast(`${listErr.label}: ${listErr.detail}`, 'error'); return; }
+      }
       const path = document.getElementById('new-secret-path').value.trim();
       const value = document.getElementById('new-secret-value').value;
       if (!path || !value) { toast('Path and value required', 'error'); return; }
@@ -3921,11 +4001,12 @@
             <div class="form-subheading">Network scope</div>
             <div class="form-group">
               <label class="form-label">Allowed domains</label>
-              <input type="text" id="edit-secret-allowed-domains" value="${esc(state.allowed_domains)}" placeholder="api.example.com, *.example.org" spellcheck="false">
+              <input type="text" id="edit-secret-allowed-domains" data-list-kind="host" value="${esc(state.allowed_domains)}" placeholder="api.example.com, 10.0.0.50:5230" spellcheck="false">
+              <p class="form-help">Hosts this secret may be sent to. A domain covers its subdomains. Also accepts <code>*.domain</code>, <code>host:port</code>, and CIDR ranges.</p>
             </div>
             <div class="form-group">
               <label class="form-label">Allowed path prefixes</label>
-              <input type="text" id="edit-secret-allowed-path-prefixes" value="${esc(state.allowed_path_prefixes)}" placeholder="/v1/, /v2/" spellcheck="false">
+              <input type="text" id="edit-secret-allowed-path-prefixes" data-list-kind="pathPrefix" value="${esc(state.allowed_path_prefixes)}" placeholder="/v1/, /v2/" spellcheck="false">
             </div>
             <div class="form-group">
               <div class="toggle-wrap">
@@ -3946,8 +4027,8 @@
 
             <div class="form-subheading">Auto-approval</div>
             <div class="form-group">
-              <label class="form-label">Auto-approve from IP</label>
-              <input type="text" id="edit-secret-auto-ip" value="${esc(state.auto_approve_from_ip)}" placeholder="10.0.0.5" spellcheck="false" oninput="document.getElementById('edit-secret-auto-ttl').disabled = !this.value.trim()">
+              <label class="form-label">Auto-approve from IPs</label>
+              <input type="text" id="edit-secret-auto-ip" data-list-kind="cidr" value="${esc(state.auto_approve_from_ip)}" placeholder="10.0.0.5, 10.0.0.0/24" spellcheck="false" oninput="document.getElementById('edit-secret-auto-ttl').disabled = !this.value.trim()">
             </div>
             <div class="form-group">
               <label class="form-label">Auto-approve TTL (seconds)</label>
@@ -3982,6 +4063,10 @@
     };
 
     window._saveEditSecret = async function(targetPath) {
+      {
+        const listErr = window.ListInput && window.ListInput.firstError(document.getElementById('modal-container'));
+        if (listErr) { toast(`${listErr.label}: ${listErr.detail}`, 'error'); return; }
+      }
       const newValue = document.getElementById('edit-secret-value').value;
 
       const editState = window.SecretForm.DEFAULT_STATE();
@@ -4645,7 +4730,8 @@
             placeholder="${paths.length ? 'Add more…' : 'Search paths or type a glob…'}"
             onfocus="openSuggestions(${index})"
             oninput="filterSuggestions(${index})"
-            onkeydown="tagInputKeydown(event, ${index})">
+            onkeydown="tagInputKeydown(event, ${index})"
+            onpaste="tagInputPaste(event, ${index})">
           <div class="tag-suggestions" id="tag-suggestions-${index}"></div>` : ''}
         </div>
         <div class="rule-caps">${capsHtml}</div>
@@ -4662,6 +4748,11 @@
     const container = document.getElementById('policy-rules-container');
     if (!container) return [];
     const rows = container.querySelectorAll('.rule-row');
+    // Commit any path still being typed, so Save does not silently drop it.
+    Array.from(rows).forEach((row, i) => {
+      const pending = row.querySelector('.tag-inline-input');
+      if (pending && pending.value.trim()) addPathTag(i, pending.value);
+    });
     return Array.from(rows).map(row => {
       const paths = Array.from(row.querySelectorAll('.tag-token')).map(t => t.dataset.path);
       const caps = Array.from(row.querySelectorAll('.cap-chip.active')).map(el => el.textContent.trim());
@@ -4711,12 +4802,22 @@
     const input = row.querySelector('.tag-inline-input');
     if (!wrapper || !input) return;
 
+    // A pasted or typed list adds every entry.
+    const parts = window.ListValidate ? window.ListValidate.splitList(value) : [value.trim()].filter(Boolean);
+    if (parts.length > 1) {
+      parts.forEach(p => addPathTag(ruleIndex, p));
+      return;
+    }
     const trimmed = value.trim();
     if (!trimmed) return;
+    if (window.ListValidate) {
+      const reason = window.ListValidate.validateEntry('policyPath', trimmed);
+      if (reason) { toast(`Path "${trimmed}": ${reason}`, 'error'); return; }
+    }
 
     // Don't add duplicates
     const existing = Array.from(row.querySelectorAll('.tag-token')).map(t => t.dataset.path);
-    if (existing.includes(trimmed)) return;
+    if (existing.includes(trimmed)) { input.value = ''; return; }
 
     const tag = document.createElement('span');
     tag.className = 'tag-token';
@@ -4780,6 +4881,14 @@
     return esc(text.slice(0, idx)) + '<strong style="color:var(--accent)">' + esc(text.slice(idx, idx + query.length)) + '</strong>' + esc(text.slice(idx + query.length));
   }
 
+  // Pasting a list (commas, spaces or newlines) adds every path at once.
+  window.tagInputPaste = function(event, ruleIndex) {
+    const text = (event.clipboardData || window.clipboardData)?.getData('text') ?? '';
+    if (!window.ListValidate || window.ListValidate.splitList(text).length <= 1) return;
+    event.preventDefault();
+    addPathTag(ruleIndex, (event.target.value ? event.target.value + ' ' : '') + text);
+  };
+
   window.tagInputKeydown = function(event, ruleIndex) {
     const dropdown = document.getElementById(`tag-suggestions-${ruleIndex}`);
 
@@ -4794,7 +4903,23 @@
       return;
     }
 
+    // Comma and space commit like Enter, so a list can be typed straight through.
+    if (event.key === ',' || event.key === ' ') {
+      event.preventDefault();
+      if (event.target.value.trim()) addPathTag(ruleIndex, event.target.value);
+      return;
+    }
+
+    // Tab commits what was typed and lets focus move on.
+    if (event.key === 'Tab') {
+      if (event.target.value.trim()) addPathTag(ruleIndex, event.target.value);
+      return;
+    }
+
     if (event.key === 'Escape') {
+      // Keep Escape local while the suggestion list is open, so it closes the
+      // list instead of the surrounding dialog.
+      if (dropdown && dropdown.classList.contains('open')) event.stopPropagation();
       closeSuggestions(ruleIndex);
       return;
     }
@@ -4945,7 +5070,10 @@
         return `<tr>
         <td class="mono" style="font-size:11px" title="${esc(r.role_id)}">${esc(r.role_id.slice(0, 20))}...</td>
         <td style="font-weight:500">${esc(r.display_name)}</td>
-        <td>${(r.policies || []).map(p => `<span class="cap-badge cap-read">${esc(p)}</span>`).join(' ')}${rlBadge}</td>
+        <td>${(r.policies || []).map(p => `<span class="cap-badge cap-read">${esc(p)}</span>`).join(' ')}${rlBadge}${
+          Array.isArray(r.ip_allowlist) && r.ip_allowlist.length
+            ? ` <span class="badge badge-neutral" style="font-size:9px" title="${esc('Allowed source IPs: ' + r.ip_allowlist.join(', '))}">IP-restricted</span>`
+            : ''}</td>
         <td>${r.suspended
           ? '<span class="badge badge-danger" style="font-size:10px">Suspended</span>'
           : '<span class="badge badge-success" style="font-size:10px">Active</span>'}</td>
@@ -5313,6 +5441,11 @@
             </div>
             <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">Limits apply to proxy calls. The most restrictive wins.</div>
           </div>
+          <div class="form-group">
+            <label class="form-label">Allowed source IPs (optional)</label>
+            <input type="text" id="new-agent-ip-allowlist" data-list-kind="cidr" placeholder="10.0.0.5, 10.0.0.0/24" spellcheck="false">
+            <p class="form-help">Where this AppRole may log in and refresh from. IP addresses or CIDR ranges. Leave empty for no restriction.</p>
+          </div>
           <div class="modal-actions">
             <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
             <button class="btn btn-primary" onclick="window._createAgent()">Create AppRole</button>
@@ -5326,6 +5459,9 @@
     window._createAgent = async function() {
       const name = document.getElementById('new-agent-name').value.trim();
       if (!name) { toast('Display name required', 'error'); return; }
+      const listErr = window.ListInput && window.ListInput.firstError(document.getElementById('modal-container'));
+      if (listErr) { toast(`${listErr.label}: ${listErr.detail}`, 'error'); return; }
+      const ip_allowlist = window.ListValidate.splitList(document.getElementById('new-agent-ip-allowlist').value);
 
       // Rate limits: empty string -> null (no limit), otherwise parseInt.
       const readRl = (id) => {
@@ -5345,6 +5481,7 @@
           rate_limit_per_minute,
           rate_limit_per_hour,
           rate_limit_per_day,
+          ...(ip_allowlist.length ? { ip_allowlist } : {}),
         } });
         if (selectedPolicies.length === 0) {
           // Non-blocking: the credentials modal still shows after this toast
@@ -5453,6 +5590,7 @@
     // Pull rate-limit values from the role record (not carried on the data
     // attributes since they're nullable ints).
     let rlMinute = null, rlHour = null, rlDay = null;
+    let ipAllowlist = [];
     try {
       const data = await api('/v1/auth/approle');
       const r = (data.roles || []).find(x => x.role_id === roleId);
@@ -5460,6 +5598,7 @@
         rlMinute = r.rate_limit_per_minute ?? null;
         rlHour = r.rate_limit_per_hour ?? null;
         rlDay = r.rate_limit_per_day ?? null;
+        ipAllowlist = Array.isArray(r.ip_allowlist) ? r.ip_allowlist : [];
       }
     } catch { /* empty */ }
 
@@ -5535,6 +5674,11 @@
             </div>
             <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">Limits apply to proxy calls. The most restrictive wins.</div>
           </div>
+          <div class="form-group">
+            <label class="form-label">Allowed source IPs (optional)</label>
+            <input type="text" id="edit-agent-ip-allowlist" data-list-kind="cidr" value="${esc(ipAllowlist.join(', '))}" placeholder="10.0.0.5, 10.0.0.0/24" spellcheck="false">
+            <p class="form-help">Where this AppRole may log in and refresh from. IP addresses or CIDR ranges. Leave empty for no restriction.</p>
+          </div>
           <div class="modal-actions">
             <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
             <button class="btn btn-primary" onclick="window._saveEditAgent()">Save Changes</button>
@@ -5549,6 +5693,9 @@
       const name = document.getElementById('edit-agent-name').value.trim();
       if (!name) { toast('Display name required', 'error'); return; }
       if (!selectedPolicies.length) { toast('At least one policy required', 'error'); return; }
+      const listErr = window.ListInput && window.ListInput.firstError(document.getElementById('modal-container'));
+      if (listErr) { toast(`${listErr.label}: ${listErr.detail}`, 'error'); return; }
+      const ip_allowlist = window.ListValidate.splitList(document.getElementById('edit-agent-ip-allowlist').value);
 
       const readRl = (id) => {
         const v = document.getElementById(id).value.trim();
@@ -5569,6 +5716,7 @@
             rate_limit_per_minute,
             rate_limit_per_hour,
             rate_limit_per_day,
+            ip_allowlist,
           }
         });
         toast('AppRole updated', 'success');
@@ -5948,11 +6096,14 @@
       const hint = opts.hint ? ` <span style="color:var(--text-tertiary);font-weight:400;">(${esc(opts.hint)})</span>` : '';
       const helpHtml = opts.help ? `<div style="font-size:11px;color:var(--text-tertiary);margin:-4px 0 8px;font-family:var(--font-mono);">${opts.help}</div>` : '';
       if (opts.rows) {
-        return `<label class="detail-field-label">${label}${reqMark}${hint}</label>
-          <textarea class="input dyn-cfg" data-key="${key}"${reqAttr}${ph} rows="${opts.rows}" style="margin-top:4px;margin-bottom:8px;font-family:var(--font-mono);font-size:12px;">${esc(fieldVal)}</textarea>${helpHtml}`;
+        return `<label class="detail-field-label" for="dyn-cfg-${key}">${label}${reqMark}${hint}</label>
+          <textarea class="input dyn-cfg" id="dyn-cfg-${key}" data-key="${key}"${reqAttr}${ph} rows="${opts.rows}" style="margin-top:4px;margin-bottom:8px;font-family:var(--font-mono);font-size:12px;">${esc(fieldVal)}</textarea>${helpHtml}`;
       }
-      return `<label class="detail-field-label">${label}${reqMark}${hint}</label>
-        <input class="input dyn-cfg" data-key="${key}" type="${type}"${reqAttr}${val}${ph} style="margin-top:4px;margin-bottom:8px;">${helpHtml}`;
+      // opts.list turns the field into a list input (see /ui/list-input.js).
+      // The stored value stays a comma-joined string, as the providers expect.
+      const listAttr = opts.list ? ` data-list-kind="${opts.list}" data-list-sep=","` : '';
+      return `<label class="detail-field-label" for="dyn-cfg-${key}">${label}${reqMark}${hint}</label>
+        <input class="input dyn-cfg" id="dyn-cfg-${key}" data-key="${key}" aria-label="${esc(label)}" type="${type}"${reqAttr}${val}${ph}${listAttr} style="margin-top:4px;margin-bottom:8px;">${helpHtml}`;
     };
 
     const layouts = {
@@ -5960,21 +6111,21 @@
         f('host','Host',{placeholder:'localhost',required:true}), f('port','Port',{value:'5432'}),
         f('database','Database',{placeholder:'mydb',required:true}), f('user','Admin User',{placeholder:'postgres',required:true}),
         f('password','Admin Password',{type:'password',required:!isEdit}),
-        f('grants','Grants',{value:'SELECT',hint:'comma-separated',placeholder:'SELECT,INSERT,UPDATE',help:'Table: SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'}),
+        f('grants','Grants',{list:'phrase',value:'SELECT',placeholder:'SELECT, INSERT, UPDATE',help:'Table: SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'}),
         f('schema','Schema',{value:'public'}),
       ],
       mysql: [
         f('host','Host',{placeholder:'localhost',required:true}), f('port','Port',{value:'3306'}),
         f('database','Database',{placeholder:'mydb',required:true}), f('user','Admin User',{placeholder:'root',required:true}),
         f('password','Admin Password',{type:'password',required:!isEdit}),
-        f('grants','Grants',{value:'SELECT',hint:'comma-separated',placeholder:'SELECT,INSERT,UPDATE',help:'Valid: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER'}),
+        f('grants','Grants',{list:'phrase',value:'SELECT',placeholder:'SELECT, INSERT, UPDATE',help:'Valid: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER'}),
         f('allowed_host','Allowed Host',{value:'%',hint:'MySQL user host'}),
       ],
       mongodb: [
         f('host','Host',{placeholder:'localhost',required:true}), f('port','Port',{value:'27017'}),
         f('database','Database',{placeholder:'mydb',required:true}), f('user','Admin User',{placeholder:'admin',required:true}),
         f('password','Admin Password',{type:'password',required:!isEdit}),
-        f('roles','Roles',{value:'read',hint:'comma-separated',placeholder:'read,readWrite,dbAdmin'}),
+        f('roles','Roles',{list:'word',value:'read',placeholder:'read, readWrite, dbAdmin'}),
         f('auth_source','Auth Source',{placeholder:'admin',hint:'optional'}),
       ],
       redis: [
@@ -6002,9 +6153,9 @@
             <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;margin-top:6px;" onclick="copyToClipboard(document.getElementById('ca-host-commands').textContent)">Copy Commands</button>
           </div>
         </div>`,
-        f('principals','Principals',{placeholder:'ubuntu,deploy',hint:'comma-separated usernames',required:true}),
-        f('extensions','Extensions',{value:'permit-pty',hint:'comma-separated',placeholder:'permit-pty,permit-port-forwarding'}),
-        f('allowed_hosts','Allowed Hosts',{placeholder:'10.0.0.107,db.lab',hint:'advisory: comma-separated hosts that trust this CA. Surfaced to agents in gatehouse_list and checkout; NOT enforced at the cert level.'}),
+        f('principals','Principals',{list:'word',placeholder:'ubuntu, deploy',hint:'SSH usernames',required:true}),
+        f('extensions','Extensions',{list:'word',value:'permit-pty',placeholder:'permit-pty, permit-port-forwarding'}),
+        f('allowed_hosts','Allowed Hosts',{list:'word',placeholder:'10.0.0.107, db.lab',hint:'advisory: hosts that trust this CA. Surfaced to agents in gatehouse_list and checkout; NOT enforced at the cert level.'}),
       ],
     };
 
@@ -6109,6 +6260,10 @@
   window.editDynamicConfig = editDynamicConfig;
 
   async function saveDynamicConfig() {
+    {
+      const listErr = window.ListInput && window.ListInput.firstError(document.getElementById('modal-container'));
+      if (listErr) { toast(`${listErr.label}: ${listErr.detail}`, 'error'); return; }
+    }
     const path = document.getElementById('dyn-path').value.trim();
     const providerEl = document.getElementById('dyn-provider');
     const provider_type = providerEl.disabled ? providerEl.options[providerEl.selectedIndex].value : providerEl.value;
@@ -6146,6 +6301,10 @@
   }
 
   async function testDynamicConnection() {
+    {
+      const listErr = window.ListInput && window.ListInput.firstError(document.getElementById('modal-container'));
+      if (listErr) { toast(`${listErr.label}: ${listErr.detail}`, 'error'); return; }
+    }
     const path = document.getElementById('dyn-path')?.value.trim();
     const providerEl = document.getElementById('dyn-provider');
     const provider_type = providerEl?.disabled ? providerEl.options[providerEl.selectedIndex].value : providerEl?.value;

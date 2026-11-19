@@ -21,6 +21,8 @@ The Dashboard shows the operational state of the vault at a glance:
 
 The Secrets tab has a tree view on the left (paths grouped by prefix) and a detail panel on the right. The detail panel shows metadata, version, and timestamps. The secret value is hidden behind a **Reveal** button that requires confirmation and logs the action to the audit trail.
 
+Fields that take several values (allowed domains, path prefixes, auto-approve IPs, policy paths, AppRole source IPs, and the dynamic secret lists) share one list input. Type an entry and press Enter, comma, space, or Tab to add it, or paste a whole list at once. Backspace removes the last entry, and clicking an entry puts it back in the field to edit. Each entry is checked as you add it; an invalid one turns red with the reason and blocks Save.
+
 ## Leases
 
 Active leases are shown first, with live TTL countdowns updated every second. A second tab lists leases waiting for approval. Expired and revoked leases are not shown here; their history is in the audit log.
@@ -31,11 +33,13 @@ Policies are displayed as cards listing the rules and which AppRoles reference e
 
 ## AppRoles
 
-The AppRoles tab manages machine credentials for agent harnesses. Each row has four icon+label actions: **Onboard** (generate a one-time onboarding link), **Edit** (rename, change policies, toggle suspend), **Suspend/Reinstate**, and **Delete**.
+The AppRoles tab manages machine credentials for agent harnesses. Each row has four icon+label actions: **Onboard** (generate a one-time onboarding link), **Edit** (rename, change policies, rate limits, and allowed source IPs), **Suspend/Reinstate**, and **Delete**.
 
 Creating an AppRole opens a credentials-first modal with amber borders showing the `role_id` and `secret_id`. Both values must be copied before dismissal; dismissing without copying both prompts a confirmation. A **Generate onboarding prompt** button on the same modal produces a short curl-to-tempfile snippet you can paste into an agent chat; the agent fetches the bootstrap markdown, exchanges the token once, and writes durable credentials to its own filesystem. Raw secrets never cross the chat window.
 
 If an AppRole is created with zero policies, the UI confirms before proceeding, and the rendered onboard markdown instructs the agent to halt rather than probe.
+
+**Allowed source IPs** restricts where an AppRole may log in and refresh from: IP addresses or CIDR ranges, empty for no restriction. A restricted AppRole shows an **IP-restricted** badge in the list.
 
 ## Users
 

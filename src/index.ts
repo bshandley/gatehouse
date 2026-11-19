@@ -30,6 +30,7 @@ import { PolicyEngine } from "./policy/engine";
 import { getConnInfo } from "hono/bun";
 import { resolveSourceIp, parseTrustedProxies } from "./auth/sourceIp";
 import { validateCIDRs } from "./auth/cidr";
+import { uiAssetsRouter, UI_CSP } from "./api/uiAssets";
 import { loadConfig } from "./config";
 import { VERSION } from "./version";
 import { EventBus } from "./events/bus";
@@ -190,7 +191,7 @@ app.get("/", async (c) => {
     const html = await Bun.file(uiPath).text();
     c.header(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:;"
+      UI_CSP
     );
     // Force revalidation on every request. Without this, browsers cache the
     // single-file HTML aggressively and operators keep running stale UIs
@@ -203,33 +204,8 @@ app.get("/", async (c) => {
   }
 });
 
-// Serve the secret-form metadata helper module. The UI imports this as
-// <script type="module" src="/ui/secret-form-metadata.js"> from index.html
-// so the inline modal handlers can call window.SecretForm.buildMetadata().
-app.get("/ui/secret-form-metadata.js", async (c) => {
-  const jsPath = new URL("./ui/secret-form-metadata.js", import.meta.url).pathname;
-  try {
-    const js = await Bun.file(jsPath).text();
-    c.header("Content-Type", "application/javascript; charset=utf-8");
-    c.header("Cache-Control", "no-cache, must-revalidate");
-    return c.body(js);
-  } catch {
-    return c.text("Not found", 404);
-  }
-});
-
-// Serve the secret-detail render helper module.
-app.get("/ui/secret-detail-render.js", async (c) => {
-  const jsPath = new URL("./ui/secret-detail-render.js", import.meta.url).pathname;
-  try {
-    const js = await Bun.file(jsPath).text();
-    c.header("Content-Type", "application/javascript; charset=utf-8");
-    c.header("Cache-Control", "no-cache, must-revalidate");
-    return c.body(js);
-  } catch {
-    return c.text("Not found", 404);
-  }
-});
+// UI helper modules and bundled fonts (see src/api/uiAssets.ts).
+app.route("/ui", uiAssetsRouter());
 
 // Auth routes (login, token exchange - no auth middleware)
 app.route("/v1/auth", authRouter(db, config, audit, leases));
@@ -436,6 +412,12 @@ app.post("/v1/admin/rotate-key", async (c) => {
 // Server-Sent Events stream: audit fanout + heartbeat ticks.
 // Admins see all events; non-admins see only events whose identity matches theirs.
 app.get("/v1/events", (c) => {
+  // Bun closes a connection that is idle for 10s by default, which is shorter
+  // than the 20s heartbeat and cut every stream mid-flight. Turn the idle
+  // timeout off for this request only. Under Bun, Hono's c.env is the server.
+  try {
+    (c.env as { timeout?: (req: Request, seconds: number) => void } | undefined)?.timeout?.(c.req.raw, 0);
+  } catch { /* not running under Bun.serve (tests) */ }
   const auth = c.get("auth") as any;
   const isAdmin = policies.check(auth.policies, "*", "admin");
   const self = auth.identity;

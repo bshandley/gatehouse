@@ -10,6 +10,8 @@ import type { AuthContext } from "../auth/middleware";
 import { enforceProxyGates } from "./proxyGates";
 import { isPrivateHost, scrubResponseBody, secretRedactionValues, readCappedText, pathMatchesAnyPrefix } from "../security/ssrf";
 import { getProxyLimits } from "../settings/proxyLimits";
+import { splitList } from "../ui/list-validate.js";
+import { hostAllowed } from "../security/domainAllowlist";
 
 /**
  * Proxy request format - three injection styles supported:
@@ -184,27 +186,6 @@ function injectSecrets(
   });
 }
 
-
-/**
- * Validate that a URL's hostname is in the allowed domains list.
- */
-function checkDomainAllowlist(
-  url: string,
-  allowedDomains: string[]
-): { allowed: boolean; hostname: string } {
-  try {
-    const parsed = new URL(url);
-    const hostname = parsed.hostname;
-    const allowed =
-      allowedDomains.length === 0 ||
-      allowedDomains.some(
-        (d) => hostname === d || hostname.endsWith(`.${d}`)
-      );
-    return { allowed, hostname };
-  } catch {
-    return { allowed: false, hostname: "invalid" };
-  }
-}
 
 export function proxyRouter(
   secrets: SecretsEngine,
@@ -418,16 +399,10 @@ export function proxyRouter(
       // Check domain allowlist from secret metadata
       const meta = secrets.getMeta(path);
       if (meta?.metadata?.allowed_domains) {
-        const domains = meta.metadata.allowed_domains
-          .split(",")
-          .map((d) => d.trim())
-          .filter(Boolean);
+        const domains: string[] = splitList(meta.metadata.allowed_domains);
 
         if (domains.length > 0) {
-          const { allowed, hostname } = checkDomainAllowlist(
-            resolvedUrl,
-            domains
-          );
+          const { allowed, hostname } = hostAllowed(resolvedUrl, domains);
 
           if (!allowed) {
             audit.log({
@@ -457,10 +432,7 @@ export function proxyRouter(
 
       // Check path-prefix allowlist from secret metadata
       if (meta?.metadata?.allowed_path_prefixes) {
-        const prefixes = meta.metadata.allowed_path_prefixes
-          .split(",")
-          .map((p) => p.trim())
-          .filter(Boolean);
+        const prefixes: string[] = splitList(meta.metadata.allowed_path_prefixes);
 
         if (prefixes.length > 0) {
           const resolvedPath = parsedResolvedUrl?.pathname ?? targetPath;

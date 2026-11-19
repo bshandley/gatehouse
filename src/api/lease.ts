@@ -7,6 +7,7 @@ import type { AuditLog } from "../audit/logger";
 import type { AuthContext } from "../auth/middleware";
 import type { SecretsEngine } from "../secrets/engine";
 import { ipMatchesAllowlist } from "../auth/cidr";
+import { splitList } from "../ui/list-validate.js";
 
 export function leaseRouter(
   leases: LeaseManager,
@@ -175,7 +176,7 @@ export function leaseRouter(
         const allowlistRaw = meta.metadata.auto_approve_from_ip;
         const sourceIp = (c.get("sourceIp") as string | undefined) || "";
         if (allowlistRaw) {
-          const cidrs = allowlistRaw.split(",").map((s) => s.trim()).filter(Boolean);
+          const cidrs = splitList(allowlistRaw);
           if (ipMatchesAllowlist(sourceIp, cidrs)) {
             const autoTtl = parseInt(meta.metadata.auto_approve_ttl_seconds || "300", 10);
             leases.autoApprove(

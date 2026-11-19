@@ -18,6 +18,9 @@ import { VERSION } from "../version";
 import type { RateLimiter } from "../rateLimits/limiter";
 import { enforceProxyGates } from "../api/proxyGates";
 import { LeaseValidationError } from "../lease/manager";
+import { splitList } from "../ui/list-validate.js";
+import { hostAllowed } from "../security/domainAllowlist";
+import { validateListMetadata } from "../secrets/metadataValidation";
 
 /**
  * Gatehouse MCP Server
@@ -337,7 +340,7 @@ export function createMCPHandler(
               const allowlistRaw = meta.metadata.auto_approve_from_ip;
               let autoApproved = false;
               if (allowlistRaw && sourceIp) {
-                const cidrs = allowlistRaw.split(",").map((s: string) => s.trim()).filter(Boolean);
+                const cidrs = splitList(allowlistRaw);
                 const { ipMatchesAllowlist } = await import("../auth/cidr");
                 if (ipMatchesAllowlist(sourceIp, cidrs)) {
                   const autoTtl = parseInt(meta.metadata.auto_approve_ttl_seconds || "300", 10);
@@ -544,7 +547,11 @@ export function createMCPHandler(
               `Access denied: no write permission on "${args.path}"`
             );
           }
-          const stored = secrets.put(args.path, args.value, args.metadata);
+          const checkedMeta = validateListMetadata(args.metadata);
+          if (!checkedMeta.ok) {
+            return error(checkedMeta.error);
+          }
+          const stored = secrets.put(args.path, args.value, checkedMeta.metadata);
           audit.log({
             identity: auth.identity,
             action: "secret.write.mcp",
@@ -683,10 +690,10 @@ export function createMCPHandler(
             // Domain allowlist check
             const meta = secrets.getMeta(path);
             if (meta?.metadata?.allowed_domains) {
-              const domains = meta.metadata.allowed_domains.split(",").map((d: string) => d.trim()).filter(Boolean);
+              const domains: string[] = splitList(meta.metadata.allowed_domains);
               if (domains.length > 0) {
                 const hostname = parsedResolvedUrl?.hostname ?? "invalid";
-                if (!parsedResolvedUrl || !domains.some((d: string) => hostname === d || hostname.endsWith(`.${d}`))) {
+                if (!parsedResolvedUrl || !hostAllowed(parsedResolvedUrl, domains).allowed) {
                   audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, metadata: { target_url: args.url, target_path: targetPath, hostname, reason: "domain_blocked", allowed_domains: meta.metadata.allowed_domains }, success: false });
                   return error(`Domain ${hostname} not in allowed domains for secret "${path}"`);
                 }
@@ -695,7 +702,7 @@ export function createMCPHandler(
 
             // Path-prefix allowlist check
             if (meta?.metadata?.allowed_path_prefixes) {
-              const prefixes = meta.metadata.allowed_path_prefixes.split(",").map((p: string) => p.trim()).filter(Boolean);
+              const prefixes: string[] = splitList(meta.metadata.allowed_path_prefixes);
               if (prefixes.length > 0) {
                 const resolvedPath = parsedResolvedUrl?.pathname ?? targetPath;
                 if (!pathMatchesAnyPrefix(resolvedPath, prefixes)) {

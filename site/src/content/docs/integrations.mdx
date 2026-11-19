@@ -485,6 +485,22 @@ curl -X POST http://gatehouse.local:3100/v1/secrets/api-keys/example \
 
 If an agent tries to proxy this secret to `evil.com`, Gatehouse blocks it with a 403.
 
+Each entry is one of:
+
+| Entry | Matches |
+|---|---|
+| `example.com` | that host and any subdomain, on any port |
+| `*.example.com` | subdomains only |
+| `example.com:8443` | as above, on that port only |
+| `10.0.0.50:5230` | that IP on that port |
+| `[fd00::1]:8080` | an IPv6 address with a port |
+| `10.0.0.0/24` | any IP-literal host inside the range |
+
+Separate entries with commas, spaces, or newlines. Gatehouse validates the
+list when the secret is written and rejects an invalid entry with a 400 that
+names it. The same applies to `allowed_path_prefixes` (each entry starts with
+`/`) and `auto_approve_from_ip` (IP addresses or CIDR ranges).
+
 ---
 
 ## Dynamic secrets

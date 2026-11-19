@@ -354,6 +354,45 @@ can be forwarded to:</p>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{&quot;value&quot;: &quot;sk-...&quot;, &quot;metadata&quot;: {&quot;allowed_domains&quot;: &quot;api.openai.com,openai.com&quot;}}&#39;</span></span></code></pre>
 <p>If an agent tries to proxy this secret to <code>evil.com</code>, Gatehouse blocks it with a 403.</p>
+<p>Each entry is one of:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Entry</th><th>Matches</th></tr></thead><tbody><tr><td><code>example.com</code></td><td>that host and any subdomain, on any port</td></tr><tr><td><code>*.example.com</code></td><td>subdomains only</td></tr><tr><td><code>example.com:8443</code></td><td>as above, on that port only</td></tr><tr><td><code>10.0.0.50:5230</code></td><td>that IP on that port</td></tr><tr><td><code>[fd00::1]:8080</code></td><td>an IPv6 address with a port</td></tr><tr><td><code>10.0.0.0/24</code></td><td>any IP-literal host inside the range</td></tr></tbody></table>
+<p>Separate entries with commas, spaces, or newlines. Gatehouse validates the
+list when the secret is written and rejects an invalid entry with a 400 that
+names it. The same applies to <code>allowed_path_prefixes</code> (each entry starts with
+<code>/</code>) and <code>auto_approve_from_ip</code> (IP addresses or CIDR ranges).</p>
 <hr/>
 <h2 id="dynamic-secrets">Dynamic secrets<a class="heading-anchor" aria-label="Link to this heading" href="#dynamic-secrets">#</a></h2>
 <p>For databases and other backends that support programmatic credential creation,

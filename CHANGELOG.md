@@ -5,6 +5,30 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.21.0] - 2026-11-18
+
+List entry in the web UI is rebuilt around one input, the allowed-domains matcher now honours the forms the product documents, and the UI shell gets keyboard, phone and offline fixes.
+
+### Added
+
+- **One list input for every multi-value field.** Allowed domains, allowed path prefixes, auto-approve IPs, AppRole source IPs, and the dynamic secret grants, roles, principals, extensions and allowed hosts all use the same chip input. Enter, comma, space, Tab or clicking away adds an entry. Pasting a list splits it on commas, spaces and newlines. Backspace removes the last entry; clicking an entry puts it back in the field to edit. Each entry is validated as it is added, and an invalid one turns red with the reason and blocks Save.
+- **Policy paths accept lists.** The policy rule path field now commits on comma, space and Tab as well as Enter, accepts a pasted list, validates each path, and no longer drops a path that was typed but not committed when you click Save.
+- **AppRole "Allowed source IPs" in the UI.** The `ip_allowlist` field has been in the API since AppRole IP restrictions shipped and had no form. It is now on the create and edit dialogs, and restricted AppRoles show an **IP-restricted** badge.
+- **`allowed_domains` entries can carry a port, a wildcard, or a range.** `host:port` restricts the port, `*.example.com` matches subdomains only, and a CIDR such as `10.0.0.0/24` matches any IP-literal host in the range. IPv6 literals are supported (`[fd00::1]:8080`).
+- **Phone layout.** Below 700px the sidebar becomes a drawer opened from a top bar, pages no longer scroll sideways, and wide tables scroll inside their card.
+
+### Fixed
+
+- **`allowed_domains` entries with a port or a `*.` prefix never matched.** The matcher compared the URL hostname to the entry verbatim, so `10.0.0.50:5230` (the form shown in the agent reference) and `*.example.org` (the form's own placeholder) blocked every request. The REST proxy and the MCP proxy now share one matcher that implements both. **If a secret has such an entry, it starts to allow the host it names.** Entries that matched before match exactly as before.
+- **Secret metadata lists are validated when written.** `allowed_domains`, `allowed_path_prefixes` and `auto_approve_from_ip` were stored unchecked, so a mistyped or space-separated list saved and then never matched. `POST` and `PATCH /v1/secrets/:path`, the bulk import and the MCP `gatehouse_put` tool now return an error naming the key and the bad entry. Valid lists are stored as `a, b, c`. Existing values are untouched until the next write, and readers now split on whitespace as well as commas.
+- **The live event stream was cut every 10 seconds.** `GET /v1/events` sends a heartbeat every 20s, but Bun closes idle connections after 10s. The stream now opts out of the idle timeout.
+- **Dialogs close on Escape, trap focus, and keep their buttons visible.** Escape does what clicking the backdrop does, so dialogs that confirm before closing still do. Focus moves into a dialog when it opens and returns to the opener when it closes. The Save and Cancel row stays pinned while a long dialog scrolls. Dialogs are announced as dialogs, and form labels are tied to their fields.
+
+### Changed
+
+- **The UI makes no third-party requests.** Its three fonts (DM Sans, Instrument Sans, JetBrains Mono, all SIL OFL) are bundled and served from `/ui/fonts/`. Before, the page loaded them from Google Fonts and blocked on that request when the host was unreachable. The page's Content-Security-Policy no longer lists any external origin.
+- "Auto-approve from IP" is now "Auto-approve from IPs". It always accepted a list; the form now says so.
+
 ## [0.20.2] - 2026-11-18
 
 An accuracy release. The docs were audited against the route handlers and corrected wherever they disagreed with the code; two bugs found along the way are fixed.

@@ -6,6 +6,7 @@ import type { AuditLog } from "../audit/logger";
 import type { AuthContext } from "../auth/middleware";
 import type { PatternEngine } from "../patterns/engine";
 import type { DynamicSecretsManager } from "../dynamic/manager";
+import { validateListMetadata } from "../secrets/metadataValidation";
 
 const PATH_REGEX = /^[a-zA-Z0-9/_-]+$/;
 const MAX_METADATA_VALUE_SIZE = 1024; // 1KB per value
@@ -115,6 +116,11 @@ export function bulkSecretsRouter(
       if (!policies.check(auth.policies, it.path, "write")) {
         return c.json({ error: `${it.path}: write forbidden`, request_id: c.get("requestId") }, 403);
       }
+      const checked = validateListMetadata(it.metadata);
+      if (!checked.ok) {
+        return c.json({ error: `${it.path}: ${checked.error}`, request_id: c.get("requestId") }, 400);
+      }
+      it.metadata = checked.metadata;
     }
 
     if (body.dry_run) {
@@ -387,7 +393,12 @@ export function secretsRouter(
       }
     }
 
-    const result = secrets.put(path, body.value, body.metadata);
+    const checked = validateListMetadata(body.metadata);
+    if (!checked.ok) {
+      return c.json({ error: checked.error, request_id: c.get("requestId") }, 400);
+    }
+
+    const result = secrets.put(path, body.value, checked.metadata);
 
     audit.log({
       identity: auth.identity,
@@ -434,7 +445,12 @@ export function secretsRouter(
       }
     }
 
-    const result = secrets.setMetadata(path, metadata);
+    const checked = validateListMetadata(metadata);
+    if (!checked.ok) {
+      return c.json({ error: checked.error, request_id: c.get("requestId") }, 400);
+    }
+
+    const result = secrets.setMetadata(path, checked.metadata);
     if (!result) {
       return c.json({ error: "Not found", request_id: c.get("requestId") }, 404);
     }

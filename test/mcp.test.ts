@@ -118,6 +118,18 @@ rules:
     expect(result.isError).toBeUndefined();
   });
 
+  test("gatehouse_put rejects an invalid list in metadata and stores nothing", async () => {
+    const result = await mcp.handleToolCall(
+      "gatehouse_put",
+      { path: "api-keys/bad", value: "secret123", metadata: { allowed_domains: "https://api.example.com/v1" } },
+      adminAuth
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("allowed_domains");
+    const read = await mcp.handleToolCall("gatehouse_get", { path: "api-keys/bad" }, adminAuth);
+    expect(read.isError).toBe(true);
+  });
+
   test("gatehouse_get retrieves a secret", async () => {
     await mcp.handleToolCall(
       "gatehouse_put",

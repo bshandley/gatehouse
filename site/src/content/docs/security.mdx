@@ -68,7 +68,7 @@ If you run behind such a proxy and rely on IP allowlists or auto-approve but lea
 The proxy (`POST /v1/proxy` and the MCP `gatehouse_proxy` tool) lets agents call upstream HTTP APIs without ever holding the credential. Three layers of scoping apply, in order:
 
 1. **Policy.** The agent's AppRole must have the `proxy` capability on the secret it wants to inject. No policy match, no proxy call.
-2. **`allowed_domains` per secret.** Restricts which hostnames the secret can be forwarded to. A secret with `allowed_domains = "api.openai.com"` cannot be used to call `evil.com` even if the agent's policy allows proxy on it.
+2. **`allowed_domains` per secret.** Restricts which hosts the secret can be forwarded to. A secret with `allowed_domains = "api.openai.com"` cannot be used to call `evil.com` even if the agent's policy allows proxy on it. An entry is a domain (which covers its subdomains), `*.domain`, `host:port`, or a CIDR range, and the list is validated when the secret is written.
 3. **`allowed_path_prefixes` per secret.** Restricts which URL paths a secret can hit, useful for scoping a broad credential (e.g. a fine-grained GitHub PAT) to a single repo's API surface. Match is path-segment aligned.
 
 **Private-network access** is allowed by default (`GATEHOUSE_PROXY_ALLOW_PRIVATE` is unset or anything other than `"false"`). This matches the homelab posture where your services live on `10.x` or `192.168.x` and blocking them by default would make the proxy useless. For deployments exposed to the public internet, set `GATEHOUSE_PROXY_ALLOW_PRIVATE=false` to fail-closed against `127.x`, `169.254.169.254`, `10.0.0.0/8`, etc., and selectively re-enable per secret with `metadata.allow_private=true`.
