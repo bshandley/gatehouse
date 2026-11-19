@@ -13,6 +13,7 @@ test-data/
 .claude/
 .remember/
 .superpowers/
+graphify-out/
 
 # OS junk
 .DS_Store
