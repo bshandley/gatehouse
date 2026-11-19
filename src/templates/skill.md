@@ -114,7 +114,7 @@ secret_id:
      you're looking for something to call through the proxy.
    - Static only: `pattern_count` (how many known-good request shapes
      exist) and `top_pattern` (the highest-confidence pattern, e.g.
-     `POST http://10.0.0.102:5230/api/v1/memos`). `top_pattern` IS
+     `POST http://10.0.0.50:5230/api/v1/memos`). `top_pattern` IS
      your endpoint.
    - Dynamic only: `provider_type` (e.g. `postgresql`, `ssh-cert`) and
      a `metadata` object with advisory routing info (`allowed_hosts`
@@ -156,13 +156,13 @@ The flow:
    max 86400s) and write a clear justification (1 to 3 sentences)
    describing what API endpoint you'll hit and roughly what for.
    - MCP: `gatehouse_request_access(path, ttl, justification)`.
-   - HTTP: `POST {{BASE_URL}}/v1/lease/<path>/request` with
+   - HTTP: `POST {GATEHOUSE_URL}/v1/lease/<path>/request` with
      `{"ttl": 300, "justification": "<why>", "request_ttl": 3600}`.
      Returns `{lease_id, status, request_expires_at, expires_at_if_approved}`.
 2. Wait. Poll every 30 to 60 seconds (NOT faster). Do not re-request;
    duplicates dedupe to the same lease_id.
    - MCP: `gatehouse_status` shows your `pending_leases` count.
-   - HTTP: `GET {{BASE_URL}}/v1/lease/<lease_id>` and check `.status`
+   - HTTP: `GET {GATEHOUSE_URL}/v1/lease/<lease_id>` and check `.status`
      for `approved` / `denied`.
 3. Once approved, your `gatehouse_proxy` and `gatehouse_lease` calls
    against this secret succeed for the lease duration. The approved
@@ -207,7 +207,7 @@ and a clock.
   `POST /v1/dynamic/<path>/checkout` (HTTP). The response body
   includes a `credential` object whose shape depends on
   `provider_type`: SSH cert configs return
-  `{private_key, certificate, username, ...}`, DB providers return
+  `{private_key, public_key, certificate, principals, ...}`, DB providers return
   `{username, password, host, ...}`.
 - Do NOT pass the credential to `gatehouse_proxy`. Proxy only knows
   static secrets. Consume the credential directly in your tool call

@@ -153,7 +153,7 @@ Windsurf supports MCP via `~/.codeium/windsurf/mcp_config.json`.
 ```
 
 After adding, restart Windsurf. Gatehouse tools will appear in the MCP panel.
-Gatehouse exposes 8 tools - well under Windsurf's 100-tool limit.
+Gatehouse exposes 11 tools - well under Windsurf's 100-tool limit.
 
 ---
 
@@ -416,7 +416,7 @@ Agents can call `gatehouse_proxy` directly:
 > Use gatehouse_proxy to call the OpenAI chat completions API with api-keys/example
 ```
 
-The tool supports two injection styles:
+The tool supports three injection styles (template, header injection, and `auto_inject`, where a list of secret paths is injected using each secret's `metadata.header_name`). The first two:
 
 **Template style** - `{{secret:path}}` placeholders in headers, URL, or body:
 ```json

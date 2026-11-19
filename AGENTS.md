@@ -111,7 +111,7 @@ If `pattern_count == 0` fall back to `metadata.allowed_domains` to discover the 
 - The JWT expires after 24 h. Handle `401` by refreshing or logging in again.
 - `secret_id` is a credential, **not** a secret path. Keep it: it is needed to log in again once the JWT has expired and can no longer be refreshed.
 - Proxy mode never returns the secret value. Gatehouse buffers the upstream response and redacts any echoed secret values before returning it.
-- Policies are defined in `config/policies/*.yaml` or managed through the `/v1/policy` API. After editing the YAML files, an admin applies them with `POST /v1/policy/reload`; no restart is needed.
+- Policies are defined in `config/policies/*.yaml` or managed through the `/v1/policy` API. `POST /v1/policy/reload` (admin) imports YAML policies that are not yet in the database, with no restart. It does not overwrite a policy that already exists: change those through the API.
 - API paths are relative to the server's base URL (`http://<host>:3100` by default). The port is set on the server with `GATEHOUSE_PORT`.
 
 ---

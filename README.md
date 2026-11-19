@@ -32,7 +32,7 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 - **Pattern learning.** Successful proxy calls become normalized templates. Agents query them before making a first call, so they stop guessing.
 - **Dynamic secrets.** Short-lived credentials for PostgreSQL, MySQL/MariaDB, MongoDB, Redis, and SSH certificates. Configs encrypted at rest.
 - **Onboarding links.** Generate a one-time bootstrap URL in the web UI; the agent curls it, exchanges the token, and auto-installs a `gatehouse` skill into its harness. Credentials never appear in chat.
-- **MCP + REST.** 9 MCP tools for Claude Code, Codex, Cursor, Windsurf, OpenCode; parallel REST API for everything else.
+- **MCP + REST.** 11 MCP tools for Claude Code, Codex, Cursor, Windsurf, OpenCode; parallel REST API for everything else.
 - **Per-agent identity.** Each agent gets its own AppRole with scoped policies and a full audit trail.
 - **Key rotation.** Rotate the master key and re-wrap all DEKs in one API call, zero downtime.
 - **Web UI.** Dark-themed control panel with command palette (Cmd/Ctrl+K) for managing secrets, leases, agents, patterns, and audit logs.

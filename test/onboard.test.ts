@@ -330,26 +330,26 @@ rules:
     // every curl example so all subsequent calls stay on the fast path.
     const splitApp = buildApp(db, policies, {
       publicUrl: "https://gatehouse.example.com",
-      internalUrl: "http://10.0.0.102:3100",
+      internalUrl: "http://10.0.0.50:3100",
     });
     const role = await createRole(splitApp, "split-dns-int", ["agent"]);
     const { body } = await generateLink(splitApp, role.role_id);
 
     const res = await splitApp.request(`/v1/onboard/${body.token}`, {
-      headers: { host: "10.0.0.102:3100" },
+      headers: { host: "10.0.0.50:3100" },
     });
     expect(res.status).toBe(200);
     const md = await res.text();
-    expect(md).toContain(`http://10.0.0.102:3100/v1/onboard/${body.token}/exchange`);
-    expect(md).toContain("http://10.0.0.102:3100/v1/skill");
-    expect(md).toContain("http://10.0.0.102:3100/v1/auth/whoami");
+    expect(md).toContain(`http://10.0.0.50:3100/v1/onboard/${body.token}/exchange`);
+    expect(md).toContain("http://10.0.0.50:3100/v1/skill");
+    expect(md).toContain("http://10.0.0.50:3100/v1/auth/whoami");
     expect(md).not.toContain("https://gatehouse.example.com/v1/skill");
   });
 
   test("split-DNS: bootstrap doc renders publicUrl when fetched via public host", async () => {
     const splitApp = buildApp(db, policies, {
       publicUrl: "https://gatehouse.example.com",
-      internalUrl: "http://10.0.0.102:3100",
+      internalUrl: "http://10.0.0.50:3100",
     });
     const role = await createRole(splitApp, "split-dns-pub", ["agent"]);
     const { body } = await generateLink(splitApp, role.role_id);
@@ -361,6 +361,6 @@ rules:
     const md = await res.text();
     expect(md).toContain(`https://gatehouse.example.com/v1/onboard/${body.token}/exchange`);
     expect(md).toContain("https://gatehouse.example.com/v1/skill");
-    expect(md).not.toContain("http://10.0.0.102:3100/v1/skill");
+    expect(md).not.toContain("http://10.0.0.50:3100/v1/skill");
   });
 });

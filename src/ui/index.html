@@ -2623,13 +2623,6 @@
           <div class="danger-zone-body">
             <div class="danger-item">
               <div class="danger-item-info">
-                <h4>Purge Expired Leases</h4>
-                <p>Remove all expired lease records from the database.</p>
-              </div>
-              <button class="btn btn-danger btn-sm" onclick="purgeExpiredLeases()">Purge</button>
-            </div>
-            <div class="danger-item">
-              <div class="danger-item-info">
                 <h4>Purge Old Audit Entries</h4>
                 <p>Delete audit log entries older than the configured retention window. Cannot be undone.</p>
               </div>
@@ -2728,7 +2721,7 @@
     doLogin, doLogout, doSSOLogin, showPage, filterSecretTree,
     openCreateSecretModal, openCreateAgentModal,
     reloadPolicies, toggleAuditLive, exportAuditLog,
-    loadDashboard, loadAuditLog, purgeExpiredLeases, purgeAuditLog, openRotateKeyModal, toast, toggleTheme,
+    loadDashboard, loadAuditLog, purgeAuditLog, openRotateKeyModal, toast, toggleTheme,
     openPolicyEditor, saveSSOSettings, toggleSSOEnabled, toggleSSOTrustUnverified,
     saveProxyLimits, loadProxyLimits,
     switchLoginTab, openCreateUserModal,
@@ -6622,11 +6615,6 @@
     }
   }
 
-  async function purgeExpiredLeases() {
-    if (!await ghConfirm({ title: 'Purge Expired Leases', message: 'Remove all expired lease records from the database?', confirmText: 'Purge', type: 'warning' })) return;
-    toast('Purge requested (handled by reaper)', 'success');
-  }
-
   async function purgeAuditLog() {
     if (!await ghConfirm({
       title: 'Purge Old Audit Entries',
@@ -6942,7 +6930,6 @@
   window.toggleSSOEnabled = toggleSSOEnabled;
   window.toggleSSOTrustUnverified = toggleSSOTrustUnverified;
   window.saveSSOSettings = saveSSOSettings;
-  window.purgeExpiredLeases = purgeExpiredLeases;
   window.purgeAuditLog = purgeAuditLog;
   window.openRotateKeyModal = openRotateKeyModal;
 </script>

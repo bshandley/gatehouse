@@ -71,9 +71,15 @@ Response:
 
 ```json
 {
-  "lease_id": "lease-abc123",
-  "value": "sk-proj-...",
-  "expires_at": "2026-04-10T12:05:00Z"
+  "lease": {
+    "id": "lease-abc123",
+    "secret_path": "api-keys/example",
+    "identity": "my-agent",
+    "ttl_seconds": 300,
+    "expires_at": "2026-04-10T12:05:00Z",
+    "status": "approved"
+  },
+  "value": "sk-proj-..."
 }
 ```
 

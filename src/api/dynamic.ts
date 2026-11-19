@@ -366,7 +366,7 @@ export function dynamicRouter(
       return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
     }
 
-    const deleted = dynamic.deleteConfig(path);
+    const deleted = await dynamic.deleteConfig(path);
     if (!deleted) {
       return c.json({ error: "Dynamic secret not found", request_id: c.get("requestId") }, 404);
     }

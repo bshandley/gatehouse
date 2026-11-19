@@ -97,7 +97,8 @@ Single source of truth: `src/version.ts` (`export const VERSION`).
 - `test/mcp.test.ts` imports VERSION at runtime, so it stays in sync
   automatically.
 - `Dockerfile` accepts `VERSION` as a build arg.
-- `package.json` is currently not kept in sync and is not load-bearing.
+- `package.json` carries the same version. It is not load-bearing, but bump
+  it with `src/version.ts` so the two do not drift.
 
 Bump rules (pre-1.0):
 
@@ -106,7 +107,7 @@ Bump rules (pre-1.0):
 
 Release procedure:
 
-1. Update `VERSION` in `src/version.ts`.
+1. Update `VERSION` in `src/version.ts` and `version` in `package.json`.
 2. Update `CHANGELOG.md` with the new version block.
 3. Commit using the existing style: `feat(0.x.y): summary` or `fix(0.x.y): summary`
    (`git log` shows the pattern).

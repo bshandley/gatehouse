@@ -23,11 +23,11 @@ The Secrets tab has a tree view on the left (paths grouped by prefix) and a deta
 
 ## Leases
 
-Active leases are shown first, with live TTL countdowns updated every second. Lease history (expired and revoked leases) is sortable and filterable by identity.
+Active leases are shown first, with live TTL countdowns updated every second. A second tab lists leases waiting for approval. Expired and revoked leases are not shown here; their history is in the audit log.
 
 ## Policies
 
-Policies are displayed as cards listing the rules and which AppRoles reference each one. Policies defined in YAML files and policies stored in the database are shown together, with their source indicated. Use **Reload** to pick up YAML changes without restarting the container.
+Policies are displayed as cards listing the rules and which AppRoles reference each one. Policies defined in YAML files and policies stored in the database are shown together, with their source indicated. Use **Reload** to import YAML policies that are not yet in the database, without restarting the container. Reload does not overwrite a policy that already exists: edit those in the UI or through the `/v1/policy` API.
 
 ## AppRoles
 
@@ -47,23 +47,22 @@ Manage dynamic secret provider configurations. Create a config for PostgreSQL, M
 
 ## Patterns
 
-Browse learned API call patterns, grouped by secret path. Each pattern shows the method, URL template, header and body schema, confidence score, and the list of agents that have verified it. Operators can pin patterns (to prevent deletion) or delete them.
+Browse learned API call patterns, grouped by secret path. Each pattern shows the method, URL template, header and body schema, confidence score, and the list of agents that have verified it. Operators can pin patterns or delete them. A pinned pattern sorts first and is always offered as a suggestion; pinning does not protect it from deletion.
 
 ## Audit Log
 
-Full audit log with filtering by identity, action, path, and date range. Live tail mode auto-refreshes every 5 seconds. Export as JSON for ingestion into external log tools.
+Full audit log with filtering by identity, action, and path. Live tail mode auto-refreshes every 5 seconds. Export as JSON for ingestion into external log tools.
 
 ## Settings
 
 The Settings page is a stack of admin-only cards. From top to bottom:
 
-- **Health Status**: live server version, uptime, database size, master key fingerprint, and last key rotation date.
+- **Health Status**: live server version and uptime, plus the database engine (SQLite, WAL mode) and the encryption cipher.
 - **Appearance**: toggle the dark / light theme. The choice persists per-browser in `localStorage`.
 - **Server Configuration**: read-only readout of the active runtime config: port, JWT expiry, root-token-set flag, lease reaper interval, default and bounding lease TTLs, and SSO enabled state. Reflects what `GET /v1/config` returns.
 - **SSO / OAuth Configuration**: full OIDC setup: enable toggle, issuer URL, client ID and secret, redirect URI, scopes, and a "Trust email without `email_verified` claim" toggle for IdPs (notably PocketID) that omit that claim. A **Test SSO** link opens the IdP authorize URL in a new tab so you can probe the flow without logging out. Saving validates the issuer's `.well-known/openid-configuration` discovery doc before persisting; bad URLs fail loudly.
 - **Proxy Limits**: two number inputs that override the proxy's request-timeout ceiling (default 120 seconds, range 1 second to 30 minutes) and upstream-response body cap (default 10 MiB, range 1 KiB to 100 MiB). Changes take effect on the next proxy request, no restart needed. Useful for endpoints that legitimately return large payloads (file fetches, audio transcription, image generation).
 - **Two-Factor Authentication**: your own TOTP enrollment status. From here you can enable 2FA (scan a QR with any RFC 6238 authenticator), regenerate recovery codes, or disable. Admins manage other users' 2FA from the Users tab.
-- **Danger Zone**: three wired actions, each behind a confirm:
-  - **Purge Expired Leases**: drop lease rows whose TTL has elapsed.
+- **Danger Zone**: two actions, each behind a confirm:
   - **Purge Old Audit Entries**: trim the audit log past a chosen retention cutoff (`POST /v1/audit/purge`).
   - **Rotate Encryption Key**: swap the master key and re-wrap every DEK and dynamic config in one atomic operation (`POST /v1/admin/rotate-key`). Back up the old key before running this.

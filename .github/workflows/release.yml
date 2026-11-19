@@ -38,10 +38,9 @@ jobs:
 
           # Primary source: CHANGELOG.md sections from this release back to
           # (but not including) the previous tag. This carries the rationale
-          # that lives in commit bodies, not just subjects. The sync script
-          # bundles multiple Gitea commits into one GitHub release, so any
-          # intermediate ## [x.y.z] entries between the previous synced tag
-          # and this one are picked up too.
+          # that lives in commit bodies, not just subjects. Any intermediate
+          # ## [x.y.z] entries between the previous tag and this one are
+          # picked up too.
           CHANGELOG_BODY=""
           if [ -f CHANGELOG.md ]; then
             if [ -n "$PREV_VER" ]; then
@@ -63,7 +62,7 @@ jobs:
 
           # Commit-subject summary, grouped by conventional-commit type.
           # Always rendered as a supplementary section so operators can see
-          # the granular Gitea history that contributed to this release.
+          # the individual commits that contributed to this release.
           COMMITS=$(git log --pretty=format:'%s' "$RANGE")
           declare -A SECTION_HEADINGS=(
             [feat]="### Features"

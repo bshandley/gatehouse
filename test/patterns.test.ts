@@ -67,9 +67,9 @@ describe("PatternEngine", () => {
 
     test("preserves scheme, host, and port", () => {
       const result = engine.normalizeUrl(
-        "http://10.0.0.102:5230/api/v1/memos"
+        "http://10.0.0.50:5230/api/v1/memos"
       );
-      expect(result).toBe("http://10.0.0.102:5230/api/v1/memos");
+      expect(result).toBe("http://10.0.0.50:5230/api/v1/memos");
     });
 
     test("leaves non-variable path segments intact", () => {
@@ -561,7 +561,7 @@ describe("PatternEngine", () => {
         identity: "agent-julian",
       });
       engine.record({
-        secret_paths: ["api-keys/openai"],
+        secret_paths: ["api-keys/example"],
         method: "POST",
         url: "https://api.openai.com/v1/chat/completions",
         request_headers: ["Content-Type", "Authorization"],

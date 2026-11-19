@@ -5,6 +5,37 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.20.2] - 2026-11-18
+
+An accuracy release. The docs were audited against the route handlers and corrected wherever they disagreed with the code; two bugs found along the way are fixed.
+
+### Fixed
+
+- **`DELETE /v1/dynamic/:path` now returns 404 for a config that does not exist.** The handler did not `await` the async delete, so the not-found check never fired and every delete reported `{"deleted": true}`.
+- **Skill template no longer sends agents a literal `{{BASE_URL}}`.** Two URLs in the approval-flow section of `src/templates/skill.md` (served at `GET /v1/skill`) used a placeholder that nothing substitutes. They now use `{GATEHOUSE_URL}` like the rest of the template. A test fails if the template gains another unsubstituted placeholder.
+- **`docker-compose.yml` no longer blocks private-network proxying by default.** The compose file defaulted `GATEHOUSE_PROXY_ALLOW_PRIVATE` to `false` while its own comment, `.env.example` and the server default all said private ranges are allowed. It now defaults to `true`. **If you run the stock compose file on an internet-exposed host and relied on the old default, set `GATEHOUSE_PROXY_ALLOW_PRIVATE=false` explicitly.**
+- **Order-dependent test failures.** The login, onboarding and rotation rate limiters are module-level state shared by every test file. A shared test preload (`test/preload.ts`, wired through `bunfig.toml`) now resets them before each test. CI runs on Bun 1.3, matching the Docker image.
+
+### Removed
+
+- **"Purge Expired Leases" button** in Settings. It showed a confirmation and a toast and did nothing; there is no lease purge endpoint. Expired leases are already handled by the reaper.
+- **`debug` as a documented `GATEHOUSE_LOG_LEVEL` value.** It never differed from `info`. The values are `info` (request logging on) and `error` (request logging off).
+- **`db:migrate` script** from `package.json`. It pointed at a file that does not exist; the schema is created and upgraded at startup.
+
+### Docs
+
+- **API reference:** the Patterns routes live under `/v1/proxy/patterns` (not `/v1/patterns`), pin is `PUT`, and there is no get-by-id route. `POST /v1/onboard` returns `onboard_url`, not `url`. Onboarding links are revoked by `id`, not by token. The MCP tools table lists all 11 tools with the capabilities the code checks.
+- **Dynamic secret providers:** every example config is rewritten to the real shape (`path`, `provider_type`, and a flat string `config`). The old examples used fields that do not exist, such as `connection_string` and `creation_statements`, and the SSH provider type is `ssh-cert`.
+- **Security:** the JWT secret is derived from the master key on every start, not persisted. The master key is read only from the environment; the Docker secrets file mount the docs described is not supported.
+- **Web UI:** removed descriptions of lease history, a master key fingerprint, last-rotation date and an audit date-range filter, none of which exist. Reload imports new YAML policies and does not overwrite existing ones. Pinning a pattern does not protect it from deletion.
+- **Agent reference and integrations:** private-network proxying is allowed by default. Corrected the secret value, lease, scrub and pattern response shapes, and the tool counts (11, not 8 or 9).
+- **Also corrected:** the `inject` example in Concepts (a bare secret path, not `Bearer {path}`), the lease response in Getting Started, the 2FA location in Authentication, the SSO redirect URI in `.env.example` (`/v1/auth/sso/callback`), and `AGENTS.md`.
+
+### Changed
+
+- **Site builds on Astro 7.** `site/bun.lock` still pinned Astro 6 after the dependency bump; it now matches `site/package.json`. `bun run site:build` runs Astro under the Bun runtime, so it no longer depends on the installed Node version.
+- `package.json` now carries the real version.
+
 ## [0.20.1] - 2026-06-19
 
 ### Fixed

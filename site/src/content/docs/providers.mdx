@@ -9,6 +9,8 @@ import Callout from "../../components/Callout.astro";
 
 Gatehouse ships with five dynamic secret providers. Each provider has its own configuration schema and a different set of required privileges on the target system.
 
+A config is created with `POST /v1/dynamic` (admin) or through the web UI. The body is `{ "path", "provider_type", "config" }`, and every value inside `config` is a string: lists such as grants and principals are comma-separated.
+
 ## PostgreSQL
 
 Creates a time-bounded role with the privileges you specify, then drops the role when the lease expires.
@@ -19,18 +21,21 @@ Creates a time-bounded role with the privileges you specify, then drops the role
 
 ```json
 {
-  "provider": "postgresql",
-  "connection_string": "postgresql://gatehouse_admin:pw@db.internal:5432/appdb",
-  "creation_statements": [
-    "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';",
-    "GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
-  ],
-  "revocation_statements": [
-    "REVOKE ALL ON ALL TABLES IN SCHEMA public FROM \"{{name}}\";",
-    "DROP ROLE \"{{name}}\";"
-  ]
+  "path": "db/postgres-prod",
+  "provider_type": "postgresql",
+  "config": {
+    "host": "db.internal",
+    "port": "5432",
+    "database": "appdb",
+    "user": "gatehouse_admin",
+    "password": "admin-password",
+    "grants": "SELECT,INSERT,UPDATE",
+    "schema": "public"
+  }
 }
 ```
+
+Required: `host`, `database`, `user`, `password`. Optional: `port`, `grants`, `schema`, `ssl`, `ssl_ca`.
 
 ## MySQL / MariaDB
 
@@ -44,13 +49,21 @@ Creates a time-bounded role with the privileges you specify, then drops the role
 
 ```json
 {
-  "provider": "mysql",
-  "connection_string": "mysql://gatehouse_admin:pw@db.internal:3306/appdb",
-  "grants": ["SELECT", "INSERT"],
-  "database": "appdb",
-  "host_pattern": "%"
+  "path": "db/mysql-prod",
+  "provider_type": "mysql",
+  "config": {
+    "host": "db.internal",
+    "port": "3306",
+    "database": "appdb",
+    "user": "gatehouse_admin",
+    "password": "admin-password",
+    "grants": "SELECT,INSERT",
+    "allowed_host": "%"
+  }
 }
 ```
+
+Required: `host`, `database`, `user`, `password`. Optional: `port`, `grants`, `allowed_host`, `ssl`, `ssl_ca`.
 
 ## MongoDB
 
@@ -60,12 +73,21 @@ Uses `db.createUser()` and `db.dropUser()` with the `root` role on the admin DB 
 
 ```json
 {
-  "provider": "mongodb",
-  "connection_string": "mongodb://gatehouse_admin:pw@mongo.internal:27017/admin",
-  "target_database": "appdb",
-  "roles": ["readWrite"]
+  "path": "db/mongo-prod",
+  "provider_type": "mongodb",
+  "config": {
+    "host": "mongo.internal",
+    "port": "27017",
+    "database": "appdb",
+    "user": "gatehouse_admin",
+    "password": "admin-password",
+    "roles": "readWrite",
+    "auth_source": "admin"
+  }
 }
 ```
+
+Required: `host`, `database`, `user`, `password`. Optional: `port`, `roles`, `auth_source`, `ssl`.
 
 ## Redis
 
@@ -75,11 +97,19 @@ Uses Redis ACLs (`ACL SETUSER`, `ACL DELUSER`). Requires Redis 6.0+.
 
 ```json
 {
-  "provider": "redis",
-  "connection_string": "redis://gatehouse_admin:pw@cache.internal:6379",
-  "acl_rules": "~app:* +@read +@write"
+  "path": "cache/redis-prod",
+  "provider_type": "redis",
+  "config": {
+    "host": "cache.internal",
+    "port": "6379",
+    "password": "admin-password",
+    "commands": "+@read +@write",
+    "keys": "~app:*"
+  }
 }
 ```
+
+Required: `host`, `password`. Optional: `port`, `db`, `commands`, `keys`, `ssl`, `ssl_ca`.
 
 ## SSH certificates
 
@@ -97,10 +127,14 @@ Signs ephemeral SSH certificates with a CA key stored in Gatehouse. Agents prese
 
 ```json
 {
-  "provider": "ssh",
-  "ca_private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
-  "principals": ["deploy", "readonly"],
-  "validity_seconds": 3600,
-  "extensions": { "permit-pty": "", "permit-port-forwarding": "" }
+  "path": "ssh/prod-servers",
+  "provider_type": "ssh-cert",
+  "config": {
+    "ca_private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----",
+    "principals": "deploy,readonly",
+    "extensions": "permit-pty,permit-port-forwarding"
+  }
 }
 ```
+
+Required: `ca_private_key`. Optional: `principals`, `extensions`, `allowed_hosts`. There is no validity setting in the config: a certificate is valid for the TTL requested at checkout.

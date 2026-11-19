@@ -13,11 +13,12 @@ services:
       - GATEHOUSE_MASTER_KEY=${GATEHOUSE_MASTER_KEY}
       # Bootstrap root token. Remove after creating users/AppRoles.
       - GATEHOUSE_ROOT_TOKEN=${GATEHOUSE_ROOT_TOKEN:-gatehouse-root-changeme}
-      # Allow proxying to private/LAN IPs (10.x, 192.168.x, etc.)
-      # Required for most homelab setups where services are on local network.
-      # Without this, proxy requests to LAN addresses return 403 SSRF block.
-      - GATEHOUSE_PROXY_ALLOW_PRIVATE=${GATEHOUSE_PROXY_ALLOW_PRIVATE:-false}
-      # Log level: debug, info, or error
+      # Proxying to private/LAN IPs (10.x, 192.168.x, etc.) is allowed by
+      # default, since homelab services live on the local network. Set to
+      # "false" to block them (403 SSRF block), e.g. when Gatehouse is
+      # exposed on the public internet.
+      - GATEHOUSE_PROXY_ALLOW_PRIVATE=${GATEHOUSE_PROXY_ALLOW_PRIVATE:-true}
+      # Log level: info (request logging on) or error (request logging off)
       - GATEHOUSE_LOG_LEVEL=${GATEHOUSE_LOG_LEVEL:-info}
       # Public URL used when generating onboarding links. Set when Gatehouse
       # runs behind a reverse proxy or on a LAN IP and the inbound Host

@@ -5,7 +5,7 @@ sidebar_order: 1
 sidebar_group: "REFERENCE"
 ---
 
-All REST routes under `/v1/` require `Authorization: Bearer <token>` except `/v1/auth/*` and `/health`.
+All REST routes under `/v1/` require `Authorization: Bearer <token>`, except `/health`, the login and SSO routes under `/v1/auth/`, and the token-bearing onboarding and rotation links (`/v1/onboard/:token`, `/v1/rotate/:token` and their `/exchange` routes). The admin routes under `/v1/auth/` (AppRole and user management) do require a token.
 
 ## Health and metadata
 
@@ -40,11 +40,11 @@ One-time bootstrap tokens that hand an agent durable AppRole credentials without
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/v1/onboard` | Create an onboarding link for an AppRole (admin). Returns `{ token, url, expires_at }`. |
+| POST | `/v1/onboard` | Create an onboarding link for an AppRole (admin). Returns `{ id, token, onboard_url, onboard_url_internal, expires_at, role_display_name, policies }`. |
 | GET | `/v1/onboard` | List active onboarding links (admin). |
 | GET | `/v1/onboard/:token` | Fetch the rendered markdown bootstrap document (unauthenticated, idempotent until exchange). |
 | POST | `/v1/onboard/:token/exchange` | One-shot exchange: consumes the token, returns `{ token (JWT), role_id, secret_id, base_url, mcp_url, role_display_name, policies, expires_in }`. |
-| DELETE | `/v1/onboard/:token` | Revoke an unused onboarding link (admin). |
+| DELETE | `/v1/onboard/:id` | Revoke an unused onboarding link by its `id` (`onboard-...`), not by its token (admin). |
 
 ## TOTP self-service
 
@@ -99,10 +99,9 @@ One-time bootstrap tokens that hand an agent durable AppRole credentials without
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/v1/patterns` | Query learned patterns (admin). |
-| GET | `/v1/patterns/:id` | Get a pattern by ID (admin). |
-| POST | `/v1/patterns/:id/pin` | Pin or unpin a pattern (admin). |
-| DELETE | `/v1/patterns/:id` | Delete a pattern (admin). |
+| GET | `/v1/proxy/patterns` | List all learned patterns (admin). With `?secret=<path>`, return the patterns for that secret (`proxy` or `read` on the path). |
+| PUT | `/v1/proxy/patterns/:id/pin` | Pin or unpin a pattern (admin). |
+| DELETE | `/v1/proxy/patterns/:id` | Delete a pattern (admin). |
 
 ## Policies
 
@@ -156,10 +155,12 @@ One-time bootstrap tokens that hand an agent durable AppRole credentials without
 |---|---|---|
 | `gatehouse_get` | Read a secret value | `read` on path |
 | `gatehouse_lease` | Checkout with TTL | `lease` on path |
+| `gatehouse_checkout` | Check out temporary credentials from a dynamic secret | `lease` on path |
 | `gatehouse_revoke` | Revoke an active lease | Owner or `admin` |
-| `gatehouse_list` | List secret paths | `read` or `list` on path |
+| `gatehouse_list` | List secret paths | None required. Results are filtered to paths where you hold `list`, `read`, `proxy` or `lease` |
 | `gatehouse_put` | Store or update a secret | `write` on path |
 | `gatehouse_scrub` | Redact credentials from text | Any authenticated |
 | `gatehouse_proxy` | Forward HTTP request with injection | `proxy` on each path |
-| `gatehouse_patterns` | Query learned API patterns by path | `read` on path |
+| `gatehouse_patterns` | Query learned API patterns by path | `proxy` or `read` on path |
+| `gatehouse_request_access` | Request an approval-gated lease | `proxy` or `lease` on path |
 | `gatehouse_status` | Health and identity info | Any authenticated |

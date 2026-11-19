@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Hono } from "hono";
-import { authRouter, _resetRateLimitForTests } from "../src/api/auth";
+import { authRouter } from "../src/api/auth";
 import { AuditLog } from "../src/audit/logger";
 import { deriveKey } from "../src/secrets/engine";
 import type { GatehouseConfig } from "../src/config";
@@ -108,7 +108,6 @@ describe("GET /v1/auth/sso/status", () => {
   let dir: string;
 
   beforeEach(() => {
-    _resetRateLimitForTests();
     dir = mkdtempSync(join(tmpdir(), "gatehouse-sso-status-"));
     db = initDB(dir);
     app = buildSsoApp(db);
@@ -166,7 +165,6 @@ describe("GET /v1/auth/sso/start", () => {
   let idp: Awaited<ReturnType<typeof startFakeIdp>>;
 
   beforeEach(async () => {
-    _resetRateLimitForTests();
     dir = mkdtempSync(join(tmpdir(), "gatehouse-sso-start-"));
     db = initDB(dir);
     app = buildSsoApp(db);
@@ -251,7 +249,6 @@ describe("GET /v1/auth/sso/callback - happy path", () => {
   let idp: Awaited<ReturnType<typeof startFakeIdp>>;
 
   beforeEach(async () => {
-    _resetRateLimitForTests();
     dir = mkdtempSync(join(tmpdir(), "gatehouse-sso-cb-"));
     db = initDB(dir);
     app = buildSsoApp(db);
@@ -371,7 +368,6 @@ describe("GET /v1/auth/sso/callback - invalid_state failures", () => {
   let idp: Awaited<ReturnType<typeof startFakeIdp>>;
 
   beforeEach(async () => {
-    _resetRateLimitForTests();
     dir = mkdtempSync(join(tmpdir(), "gatehouse-sso-cb-state-"));
     db = initDB(dir);
     app = buildSsoApp(db);
@@ -435,7 +431,6 @@ describe("GET /v1/auth/sso/callback - exchange and verify failures", () => {
   let idp: Awaited<ReturnType<typeof startFakeIdp>>;
 
   beforeEach(async () => {
-    _resetRateLimitForTests();
     dir = mkdtempSync(join(tmpdir(), "gatehouse-sso-cb-fail-"));
     db = initDB(dir);
     app = buildSsoApp(db);
@@ -593,7 +588,6 @@ describe("GET /v1/auth/sso/callback - user lookup failures", () => {
   let idp: Awaited<ReturnType<typeof startFakeIdp>>;
 
   beforeEach(async () => {
-    _resetRateLimitForTests();
     dir = mkdtempSync(join(tmpdir(), "gatehouse-sso-cb-user-"));
     db = initDB(dir);
     app = buildSsoApp(db);

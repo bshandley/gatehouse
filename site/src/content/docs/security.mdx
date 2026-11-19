@@ -20,7 +20,7 @@ Gatehouse is designed for the homelab threat model: a single operator, one or mo
 
 ## What Gatehouse does not protect against
 
-- **Host compromise.** If an attacker gets root on the container host, they can read the master key from process memory, `/proc/$PID/environ`, or via `docker inspect` if the master key is set as an env var. For higher-trust deployments, pass the master key via a Docker secrets mount instead of an env var.
+- **Host compromise.** If an attacker gets root on the container host, they can read the master key from process memory, `/proc/$PID/environ`, or via `docker inspect` if the master key is set as an env var. Gatehouse reads the master key only from the `GATEHOUSE_MASTER_KEY` env var (there is no file or Docker secrets option), so limit who can reach the Docker socket and the host.
 - **A malicious admin.** An admin user with the `admin` capability can read any secret and revoke any lease. The audit log records what they did, but it does not prevent them.
 - **Side channels in upstream APIs.** If an agent proxies a request and the upstream API includes the credential in its response (a misconfiguration on the upstream's side), Gatehouse cannot un-leak it.
 
@@ -31,7 +31,7 @@ Gatehouse is designed for the homelab threat model: a single operator, one or mo
 The `GATEHOUSE_MASTER_KEY` is never written to disk by Gatehouse. Losing it means losing access to every encrypted secret. Store the master key:
 
 - **For homelabs:** in a password manager separate from the one that holds Gatehouse credentials, plus a printed backup in a safe place.
-- **For higher-trust deployments:** use Docker secrets (mounted as a file at `/run/secrets/master_key`) instead of an env var, so the key does not appear in `docker inspect` output or `/proc/$PID/environ`.
+- **For higher-trust deployments:** the key is still supplied as an env var, so it is visible in `docker inspect` output and `/proc/$PID/environ`. Inject it at container start from your secret store rather than keeping it in a compose file or `.env` on disk, and restrict access to the Docker socket.
 
 <Callout type="warning" title="Do not check in your master key">
   The master key is a 32-byte secret. Never commit it to a git repo, never paste it into Slack, never send it in an email.
@@ -89,6 +89,6 @@ If your IdP's authentication assurance is weaker than your local TOTP setup, lea
 
 - **Symmetric encryption:** XSalsa20-Poly1305 via `tweetnacl`. Per-secret random 32-byte DEK, encrypted with a KEK derived from the master key via HKDF-SHA256 with a domain separation label.
 - **Password hashing:** Argon2id via `Bun.password.hash` with default parameters (64 MiB memory, 3 iterations, parallelism 1).
-- **JWT signing:** HS256 with the `GATEHOUSE_JWT_SECRET` env var (generated at first startup if unset and persisted to the config directory).
+- **JWT signing:** HS256 with the `GATEHOUSE_JWT_SECRET` env var (if unset, derived from the master key with HKDF on every start; nothing is persisted).
 - **TOTP:** RFC 6238, SHA1, 6 digits, 30-second period.
 - **Recovery codes:** 10 one-time codes per user, each 8 characters, hashed with Argon2id before storage.

@@ -178,9 +178,9 @@ Response:
       "path": "services/memos-pat",
       "version": 1,
       "created_at": "...",
-      "metadata": {"allowed_domains": "10.0.0.102:5230", "header_name": "Authorization"},
+      "metadata": {"allowed_domains": "10.0.0.50:5230", "header_name": "Authorization"},
       "pattern_count": 4,
-      "top_pattern": "POST http://10.0.0.102:5230/api/v1/memos"
+      "top_pattern": "POST http://10.0.0.50:5230/api/v1/memos"
     },
     {"path": "api-keys/anthropic", "version": 1, "created_at": "...", "pattern_count": 0}
   ]
@@ -208,8 +208,7 @@ Response:
 ```json
 {
   "path": "api-keys/example",
-  "value": "sk-proj-abc123...",
-  "version": 1
+  "value": "sk-proj-abc123..."
 }
 ```
 
@@ -255,8 +254,10 @@ Response:
 {
   "lease": {
     "id": "lease-xxxxxxxx",
-    "path": "api-keys/example",
-    "expires_at": "2025-01-15T12:05:00Z"
+    "secret_path": "api-keys/example",
+    "ttl_seconds": 300,
+    "expires_at": "2025-01-15T12:05:00Z",
+    "status": "approved"
   },
   "value": "sk-proj-abc123..."
 }
@@ -357,12 +358,12 @@ Gatehouse looks up `services/my-token`, gets the raw value, and automatically ad
 
 ### Proxying to private/local networks
 
-By default, Gatehouse blocks proxy requests to private IP ranges (10.x, 192.168.x, localhost, etc.) to prevent SSRF attacks. If you need to proxy to a service on your local network, your operator needs to either:
+By default, Gatehouse allows proxy requests to private IP ranges (10.x, 192.168.x, localhost, etc.), because homelab services live there. An operator can turn that off:
 
-- Set `GATEHOUSE_PROXY_ALLOW_PRIVATE=true` in Gatehouse's environment, or
-- Add `allow_private: "true"` to the secret's metadata
+- `GATEHOUSE_PROXY_ALLOW_PRIVATE=false` in Gatehouse's environment blocks private ranges for every secret (SSRF protection for internet-exposed deployments). A secret can then be re-allowed with `allow_private: "true"` in its metadata.
+- `allow_private: "false"` in a secret's metadata blocks private ranges for that secret only.
 
-If you see an error about "private/internal networks are blocked", ask your operator to enable this.
+If you see an error about "private/internal networks are blocked", one of these is set. Ask your operator.
 
 ## Dynamic secrets
 
@@ -424,7 +425,7 @@ Response:
 ```json
 {
   "scrubbed": "The key is sk-pro***REDACTED***",
-  "redactions": [{"type": "openai_key", "count": 1}]
+  "redactions": [{"type": "openai_key", "position": 11}]
 }
 ```
 
@@ -454,7 +455,9 @@ Response:
       "verified_by": 3,
       "total_successes": 47,
       "total_failures": 2,
-      "last_used": "2026-04-09T..."
+      "pinned": false,
+      "created_at": "2026-04-01T...",
+      "updated_at": "2026-04-09T..."
     }
   ]
 }
@@ -513,6 +516,8 @@ If your harness supports MCP (Model Context Protocol), you can use Gatehouse as 
 | `gatehouse_put` | Store/update a secret |
 | `gatehouse_list` | List secret paths |
 | `gatehouse_lease` | Check out a secret with TTL |
+| `gatehouse_checkout` | Check out temporary credentials from a dynamic secret |
+| `gatehouse_request_access` | Request an approval-gated lease on a secret |
 | `gatehouse_revoke` | Revoke an active lease |
 | `gatehouse_scrub` | Redact credentials from text |
 | `gatehouse_proxy` | Forward HTTP request with secret injection |
