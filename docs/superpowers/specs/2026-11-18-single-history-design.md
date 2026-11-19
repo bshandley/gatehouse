@@ -1,7 +1,7 @@
 # Single history: GitHub main is canonical
 
 Date: 2026-11-18
-Status: design, approved in chat, cutover pending
+Status: cutover completed 2026-11-18
 Scope: repository topology and release workflow. No product code changes.
 
 ## Problem
