@@ -187,8 +187,11 @@ but rendered in the UI).
 ## CLI surface and where it hangs
 
 There is no CLI dispatcher today. The server is `bun run src/index.ts`; MCP
-stdio is a separate entry (`src/mcp-stdio.ts`) selected by argv; `db:migrate`
-is a standalone script. Precedent is standalone scripts run via bun.
+stdio is a separate entry (`src/mcp-stdio.ts`) selected by argv; the site tooling
+(`site/scripts/sync-docs.ts`, `site/scripts/publish.ts`) and
+`scripts/screenshots.ts` are standalone scripts. There is no migration script:
+`src/db/init.ts` creates and upgrades the schema at startup. Precedent is
+standalone scripts run via bun.
 
 Add `src/cli.ts` as a subcommand dispatcher: `backup`, `import`, `export`,
 `verify`. Wire `package.json` scripts and a thin `gatehouse` shim so both of
