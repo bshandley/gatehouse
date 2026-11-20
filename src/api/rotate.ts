@@ -85,7 +85,7 @@ function originFromRequest(c: any, config: GatehouseConfig): string {
       const reqHost = c.req.header("x-forwarded-host") || c.req.header("host");
       if (reqHost && reqHost === internalHost) return config.internalUrl;
     } catch {
-      // Malformed internalUrl — fall through to publicUrl logic.
+      // Malformed internalUrl: fall through to publicUrl logic.
     }
   }
   if (config.publicUrl) return config.publicUrl;
@@ -104,7 +104,7 @@ function renderRotateMarkdown(opts: {
 
 You are about to receive a fresh \`secret_id\` for an existing
 AppRole. Your \`role_id\`, your policies, and the installed Gatehouse
-skill all stay the same — only the \`secret_id\` changes.
+skill all stay the same. Only the \`secret_id\` changes.
 
 This document contains a one-time rotate token. The token is consumed
 when you call \`/exchange\` in Step 2, NOT when you fetch this
@@ -149,7 +149,7 @@ Stop and tell the operator to generate a new one.
 In the env file detected in Step 1, replace ONLY the
 \`GATEHOUSE_SECRET_ID=...\` line with the new value. Do NOT change
 \`GATEHOUSE_ROLE_ID\` or \`GATEHOUSE_URL\`. Do NOT touch the
-installed Gatehouse skill — rotation does not change skill content.
+installed Gatehouse skill: rotation does not change skill content.
 
 ## Step 4: Confirm
 
@@ -158,7 +158,7 @@ Reply in one line:
     Gatehouse secret_id rotated for role ${opts.roleDisplayName}.
 
 The next login (or 401 + relogin) will use the new \`secret_id\`. Any
-JWT you currently hold remains valid until its 24h TTL — that's
+JWT you currently hold remains valid until its 24h TTL. That's
 expected.
 `;
 }

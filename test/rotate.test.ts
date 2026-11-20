@@ -293,7 +293,7 @@ rules:
 
     // The body must NOT include the bootstrap-only material (Step 1
     // through Step 4 of the onboard template). Use bootstrap-specific
-    // markers, not just "/exchange" — the rotate-flow row in the HTTP
+    // markers, not just "/exchange": the rotate-flow row in the HTTP
     // fallback table also mentions /v1/rotate/<token>/exchange, which
     // is intentional skill content.
     expect(md).not.toContain("Step 1: Detect your harness");

@@ -1,0 +1,258 @@
+---
+title: "Passthrough"
+description: "Use the agent secrets vault from any SDK, CLI, or tool by changing its base URL: /p/<alias>/ forwards to the real API with the real key injected."
+sidebar_order: 6
+sidebar_group: "USING GATEHOUSE"
+---
+
+import Callout from "../../components/Callout.astro";
+
+`POST /v1/proxy` only works for clients that know Gatehouse's JSON envelope. Passthrough makes Gatehouse look like the upstream API instead. Give a secret an alias and an upstream URL, then point any client's base URL at `https://gatehouse.example.com/p/<alias>` and put a Gatehouse credential where the real key would go:
+
+```sh
+export OPENAI_BASE_URL=https://gatehouse.example.com/p/openai/v1
+export OPENAI_API_KEY="$GATEHOUSE_PT_KEY"   # a Gatehouse credential, not the real key
+python my_script.py                         # unmodified, streaming included
+```
+
+Gatehouse authenticates the caller, runs every control `/v1/proxy` runs (the `proxy` capability, AppRole and per-secret rate limits, approval-gated leases, `allowed_domains`, `allowed_path_prefixes`, the private-network policy, `tls_allow_insecure`, response scrubbing, audit), swaps in the real credential, and streams the upstream response back with its own status and headers. No envelope.
+
+## Binding a secret to an alias
+
+Two secret metadata keys, both or neither:
+
+| Key | Rule |
+|---|---|
+| `passthrough_alias` | `^[a-z0-9][a-z0-9-]{0,62}$`. Unique across all secrets (a duplicate is a 409). |
+| `upstream_url` | Absolute `http` or `https` URL. No query, fragment, or userinfo. May carry a path prefix. Stored in canonical form. If the secret has `allowed_domains`, the host must satisfy it. |
+
+The credential is injected the same way as `auto_inject` on `/v1/proxy`: `header_name` (default `Authorization`) and `auth_scheme` (default `Bearer` for `Authorization`, none for any other header). With `auth_scheme: Basic`, a `user:password` value is base64-encoded for you. `Host`, `Cookie`, `Content-Length`, `Forwarded`, `Via`, `X-Real-IP`, hop-by-hop headers, and `X-Forwarded-*` cannot be the injection header.
+
+Set both in the web UI (the **Passthrough** group on the secret form; the detail view then shows the base URL with a copy button), or with the API:
+
+```sh
+curl -fsS -X POST "$GATEHOUSE_URL/v1/secrets/api-keys/example" \
+  -H "Authorization: Bearer $GATEHOUSE_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"value\": \"$OPENAI_REAL_KEY\", \"metadata\": {\"passthrough_alias\": \"openai\", \"upstream_url\": \"https://api.openai.com\"}}"
+```
+
+A secret with no alias is unreachable through `/p/`.
+
+**Upgrading from 0.23 or earlier.** The two keys are validated together on every metadata write, so a secret that already has a free-form `upstream_url` metadata key and no `passthrough_alias` cannot have its metadata saved until `upstream_url` is removed or an alias is added. A rollback to a version that carries such metadata is refused the same way.
+
+<Callout type="warning" title="An alias grants nothing">
+  Setting an alias does not give anyone access. The caller still needs a hand-authored policy, attached to its AppRole, granting `proxy` on the secret's path. An AppRole without that gets `403 forbidden`.
+</Callout>
+
+```yaml
+name: openai-passthrough
+rules:
+  - path: "api-keys/example"
+    capabilities: [proxy]
+```
+
+## Mapping
+
+`/p/<alias>/<rest>?<query>` forwards to `upstream_url` + `/<rest>` + `?<query>`. With `upstream_url` `https://api.openai.com`, `/p/openai/v1/models` goes to `https://api.openai.com/v1/models`. With `https://ha.example.com/api`, `/p/homeassistant/states` goes to `https://ha.example.com/api/states`.
+
+The caller cannot leave the configured origin or path prefix. Dot segments (`.`, `..`, and their `%2e` forms) are resolved by the server before routing, so `/p/openai/x/../models` is forwarded as `/models`, and a path that resolves outside `/p/<alias>/` never reaches the route (plain `404`). Anything that would still escape the prefix after that is `400 bad_path`: an encoded slash or backslash, a double-encoded dot, slash, or backslash, a `.` or `..` path parameter, a raw backslash, or a control character. The query string is forwarded as URL serialisation leaves it, which can percent-encode a character the caller sent raw (a space or a quote, for example). It is never written to the audit log or the request log.
+
+Methods: GET, POST, PUT, PATCH, DELETE, HEAD. Anything else is `405`. OPTIONS is answered by the CORS middleware and never forwarded.
+
+## Caller credentials
+
+An SDK has one slot for a key and sends it wherever that API expects it, so Gatehouse reads the caller's credential from the same header it is about to overwrite. First valid hit wins:
+
+1. The secret's injection header (`header_name`, default `Authorization`), with the scheme removed. For `Basic`, the credential is the decoded password.
+2. `Authorization: Bearer`.
+3. `x-api-key`.
+
+None of these headers reaches the upstream. Two credential forms are accepted.
+
+**A Gatehouse bearer token.** An AppRole JWT, a user JWT, or the root token, verified exactly as on `/v1/*`. JWTs expire after 24 hours, which suits agents that already refresh them.
+
+**A passthrough key.** `gatehouse_pt_` followed by the unpadded base64url encoding of `role_id:secret_id`. It is the AppRole's existing credential in one token, for clients that cannot refresh a JWT. It is not a new credential type: nothing new is stored, rotating the AppRole's `secret_id` revokes it, and suspension and the AppRole's IP allowlist are checked on every request.
+
+The web UI shows **Copy passthrough key** next to the new `secret_id` when you create an AppRole. After a rotation (rotate link or onboarding exchange), build it from the two values:
+
+```sh
+export GATEHOUSE_PT_KEY="gatehouse_pt_$(printf '%s:%s' "$ROLE_ID" "$SECRET_ID" | base64 | tr -d '\n=' | tr '+/' '-_')"
+```
+
+That works with both macOS and GNU `base64` (the `tr -d '\n'` undoes GNU's line wrapping).
+
+Every failed passthrough-key check counts against the same per-IP limiter as the login endpoints: 5 failures in 60 seconds and that IP gets `429 rate_limited` for any passthrough key on `/p/`, and on the logins, valid or not, until the window ends. An SDK that retries a wrong key reaches that quickly. JWTs and the root token are verified without the limiter, as on `/v1`: they are neither counted nor blocked, and a request with no credential at all is not counted either.
+
+An unauthenticated request gets `401` whether or not the alias exists. Only an authenticated caller learns `404 unknown_alias`.
+
+## Recipes
+
+Every recipe below except n8n and Home Assistant was run against a local fake upstream through a locally started Gatehouse before it was written down. Each assumes `GATEHOUSE_PT_KEY` holds a passthrough key (or JWT) for an AppRole with `proxy` on the secret.
+
+### OpenAI Python SDK
+
+Secret metadata: `passthrough_alias: openai`, `upstream_url: https://api.openai.com`. Defaults for `header_name` and `auth_scheme`.
+
+```python
+from openai import OpenAI
+
+client = OpenAI()  # reads OPENAI_BASE_URL and OPENAI_API_KEY
+
+stream = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Say hello"}],
+    stream=True,
+)
+for chunk in stream:
+    if chunk.choices:
+        print(chunk.choices[0].delta.content or "", end="", flush=True)
+print()
+```
+
+```sh
+export OPENAI_BASE_URL=https://gatehouse.example.com/p/openai/v1
+export OPENAI_API_KEY="$GATEHOUSE_PT_KEY"
+python openai_recipe.py
+```
+
+Any OpenAI-compatible client works the same way: base URL `.../p/<alias>/v1`, Gatehouse credential as the key.
+
+### Anthropic Python SDK
+
+Secret metadata: `passthrough_alias: anthropic`, `upstream_url: https://api.anthropic.com`, `header_name: x-api-key`, `auth_scheme: ""` (empty: Anthropic expects the bare key). The SDK sends its key in `x-api-key`, which is where Gatehouse looks first for this secret.
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()  # reads ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY
+
+with client.messages.stream(
+    model="claude-opus-5-5",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Say hello"}],
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
+print()
+```
+
+```sh
+export ANTHROPIC_BASE_URL=https://gatehouse.example.com/p/anthropic
+export ANTHROPIC_API_KEY="$GATEHOUSE_PT_KEY"
+python anthropic_recipe.py
+```
+
+The Anthropic base URL has no `/v1`: the SDK adds it.
+
+### curl
+
+```sh
+curl -fsS "$GATEHOUSE_URL/p/openai/v1/models" \
+  -H "Authorization: Bearer $GATEHOUSE_PT_KEY"
+```
+
+Streaming (`-N` turns off curl's own buffering):
+
+```sh
+curl -sSN "$GATEHOUSE_URL/p/openai/v1/chat/completions" \
+  -H "Authorization: Bearer $GATEHOUSE_PT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o-mini", "stream": true, "messages": [{"role": "user", "content": "Say hello"}]}'
+```
+
+The `x-api-key` slot works too, for an API that reads it:
+
+```sh
+curl -fsS "$GATEHOUSE_URL/p/anthropic/v1/messages" \
+  -H "x-api-key: $GATEHOUSE_PT_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "claude-opus-5-5", "max_tokens": 256, "messages": [{"role": "user", "content": "Say hello"}]}'
+```
+
+### n8n (not tested)
+
+Written from n8n's documented HTTP Request node settings; not run against n8n.
+
+1. Create a credential of type **Header Auth**. Name: `Authorization`. Value: `Bearer gatehouse_pt_...` (your passthrough key).
+2. In an **HTTP Request** node, set **Authentication** to *Generic Credential Type*, **Generic Auth Type** to *Header Auth*, and pick that credential.
+3. Set **URL** to the passthrough URL, for example `https://gatehouse.example.com/p/openai/v1/models`.
+
+Use a passthrough key, not a JWT: n8n will not refresh a JWT for you.
+
+### Home Assistant REST (not tested)
+
+Written from Home Assistant's documented `rest` integration options; not run against Home Assistant. The request shape it produces (a GET with `Authorization: Bearer` on a `/p/` URL) was checked with curl.
+
+Here Home Assistant is the client: a `rest` sensor reads a bearer-token REST API through Gatehouse, and the API key stays in the vault. Secret metadata: `passthrough_alias: weather`, `upstream_url: https://api.example.com`.
+
+`secrets.yaml`:
+
+```yaml
+gatehouse_auth: "Bearer gatehouse_pt_..."
+```
+
+`configuration.yaml`:
+
+```yaml
+rest:
+  - resource: https://gatehouse.example.com/p/weather/v1/current
+    headers:
+      Authorization: !secret gatehouse_auth
+    sensor:
+      - name: "Outside temperature"
+        value_template: "{{ value_json.temperature }}"
+```
+
+The same applies to `rest_command` for POST and PUT calls: the `/p/` URL, and the passthrough key in the `Authorization` header.
+
+## Responses and streaming
+
+The upstream status, headers, and body come back as the upstream sent them, with these exceptions:
+
+- Hop-by-hop headers, `Content-Length`, and `Content-Encoding` are dropped. Every header value, `Set-Cookie` included, is scrubbed.
+- The upstream's own `X-Gatehouse-Error` is dropped, so an upstream cannot make its response look like a vault denial.
+- Gatehouse adds its own headers: `X-Request-Id` (yours if you sent one, which is also forwarded upstream, otherwise a new id; the upstream's value is replaced), the security headers it sets on every response (`X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`, `X-XSS-Protection`, `Referrer-Policy`), and its CORS headers.
+- Every response that carries upstream content gets `Content-Security-Policy: sandbox`, replacing any upstream CSP. The body is served from the vault UI's origin, so an HTML or SVG body must not be able to run script there.
+- The request's `Range`, `If-Range`, `Accept-Encoding`, and `Expect` headers are stripped before forwarding. A ranged request gets the full body, and bodies arrive decoded. The scrubber needs the whole, unencoded body to find the secret. `Expect` has nothing to negotiate: Gatehouse reads the whole request body before it forwards.
+- The body is streamed through a byte-level scrubber that replaces the secret with `[REDACTED]`, including a value split across network chunks. What it matches is narrower than "the secret in any form": see Limits.
+- On a 3xx response, a `Location` on the upstream's origin and inside the `upstream_url` path prefix is rewritten to the matching `/p/<alias>/...` URL. Any other 3xx `Location` (another origin, outside the prefix, or unparseable) is not forwarded (see Limits). A `Location` on a non-3xx response, such as a `201`, is scrubbed but not rewritten, so it shows the upstream URL.
+
+The audit row is `proxy.forward` with `metadata.mode = "passthrough"` and `metadata.alias`, plus host, path, method, status, lease id, and redaction count. Pattern learning records method, URL template, request header names, and status; no bodies.
+
+## Limits
+
+- **Stream lag.** The scrubber always holds back the last (longest redact value in bytes, minus 1) bytes until more bytes arrive or the stream ends. The longest redact value is usually the secret's base64 form, so for a 100-character key that is about 135 bytes. Bytes are held until about that many more bytes follow, so with SSE events shorter than the hold-back several events can wait at once, and the tail of the stream arrives only at the end. The hold-back is fixed on purpose: what is emitted must not depend on whether it resembles the secret, or the timing would leak it a character at a time.
+- **Cut streams end without a clean error.** `max_body_bytes` (Settings, proxy limits; default 10 MiB) caps the total bytes streamed, and `max_timeout_ms` (default 120 s) bounds the time to response headers and then the idle time between chunks. A long-running stream that keeps producing is not cut for its duration, only by the byte cap. When the cap or the idle timeout cuts a stream, the status has already been sent and the body ends normally: the client gets no transport error and cannot tell the cut from a complete response. An upstream read error ends the same way on the wire: in testing on Bun 1.3.14, Bun.serve finished an errored response stream with the normal closing chunk, so Gatehouse has no way to signal a cut to the client. On every cut (cap, idle timeout, client abort, upstream error) the held-back tail is dropped, not sent. The audit row records the cut in `metadata.reason` (`byte_cap`, `idle_timeout`, `client_abort`, or `upstream_error`) and, when it is not zero, the withheld byte count in `metadata.dropped_bytes`, and the row is a failure (`success` false), so audit filters for failures find it.
+- **HEAD responses carry no upstream `Content-Length`.** `Content-Length` is dropped from every response, because the scrubbed body can differ in length, so a HEAD request cannot learn the size of the resource.
+- **A secret stored with its scheme is matched only in that form.** If the stored value includes the scheme (a value that begins with `Bearer `, say), the scrubber redacts that whole string and its base64 form, so an upstream that echoes the bare token passes it through. Store the bare token and set `auth_scheme` instead. Shared with `/v1/proxy`.
+- **Request bodies** are capped at `GATEHOUSE_MAX_BODY_SIZE` (default 1 MiB), checked against both the declared length and the bytes read: `413 body_too_large`. Raise it if you send large prompts.
+- **What the scrubber matches.** Whole occurrences of the secret, and of its base64 form when the value is Latin1. No other encoding is matched (URL-encoded, JSON-escaped, hex, and so on). A redact value shorter than 8 characters is skipped, so a secret under 8 characters is never scrubbed (only its base64 form, if that is 8 or more). A fragment of the secret is not recognised either. All of this is shared with `/v1/proxy`.
+- **No time bound on slow readers.** Passthrough turns off Bun's per-request idle timeout, so on `/p/` a client that stops reading is bounded only by the byte cap. See [Network exposure](/docs/security/#network-exposure) for the reverse-proxy send timeout to put in front.
+- **Redirects off the upstream prefix return `502`** with `upstream_redirect_cross_origin`: another origin, the same origin outside the `upstream_url` path prefix, or an unparseable `Location`. A client that followed one could resend its Gatehouse credential to a third party.
+- **No WebSocket** upgrade.
+- **No query-parameter credentials** and **no request signing** (AWS SigV4 and similar). One alias injects one secret into one header.
+- **Only tools with a base-URL setting.** Tools with a hard-coded host need a forward proxy, which this is not.
+
+## Errors
+
+Errors that Gatehouse itself originates are JSON `{ "error", "code", "request_id" }` with the header `X-Gatehouse-Error: 1`, so SDK output tells a vault denial apart from an upstream error. Anything without that header came from the upstream. Every denial writes an audit row except the login limiter's `429` and the `405`.
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `bad_path` | The remainder would escape the upstream prefix, or the joined URL is invalid. |
+| 401 | `unauthenticated` | No valid Gatehouse credential in any slot. Sent whether or not the alias exists. |
+| 403 | `forbidden` | No `proxy` on the secret, upstream host not in `allowed_domains`, AppRole suspended, source IP not allowed, or the secret cannot be injected (check `header_name` and `auth_scheme`). |
+| 403 | `approval_required` | The secret has `requires_approval`. Carries the same lease fields `/v1/proxy` returns. |
+| 403 | `path_not_allowed` | The path is outside the secret's `allowed_path_prefixes`. |
+| 403 | `private_network_blocked` | The upstream host is a private or loopback address and the private-network policy blocks it (`GATEHOUSE_PROXY_ALLOW_PRIVATE`, `allow_private`). |
+| 404 | `unknown_alias` | Authenticated, but no secret has this alias. |
+| 405 | `method_not_allowed` | Method other than GET, POST, PUT, PATCH, DELETE, HEAD. Carries `Allow`. |
+| 413 | `body_too_large` | Request body over `GATEHOUSE_MAX_BODY_SIZE`. |
+| 429 | `rate_limited` | AppRole or per-secret proxy rate limit, or the failed-authentication limiter (passthrough keys only). Carries `Retry-After`. |
+| 500 | `gates_unavailable` | The rate-limit or approval gates could not be applied, so the request is refused. |
+| 500 | `internal_error` | The response stream could not be set up. |
+| 502 | `upstream_redirect_cross_origin` | A 3xx `Location` on another origin, outside the `upstream_url` path prefix, or unparseable. |
+| 502 | `upstream_unreachable` | The upstream request failed, or the upstream answered with a status outside 200 to 599. |
+| 504 | `upstream_timeout` | No response headers within `max_timeout_ms`. |

@@ -76,6 +76,8 @@ Give each agent its own AppRole with the minimum capabilities it needs. An agent
 
 Gatehouse listens on port 3100 by default. For homelab use, keep it on a private network. If you must expose it to the internet, put it behind a reverse proxy with TLS (Caddy, nginx, Traefik) and consider IP allowlisting on the proxy.
 
+Slow readers: under Bun, a client that connects and then stops reading its response is bounded in bytes but not in time. The server's idle timeout does not fire while unsent response data is waiting, so the connection stays open. This applies to every route. Passthrough also turns Bun's per-request idle timeout off for its responses (so a quiet stream is governed by `max_timeout_ms` instead), which means that on `/p/` the byte cap (`max_body_bytes`) bounds what is buffered and a reverse-proxy send timeout is the only time bound. For an exposed deployment, put a reverse proxy with a send timeout in front (nginx `send_timeout`, for example) so such connections are closed.
+
 ### Trusting the client IP behind a proxy
 
 The client IP drives every network-origin control: AppRole IP allowlists, the rotate-token IP allowlist, and the lease/proxy `auto_approve_from_ip` gate. Because `X-Forwarded-For` is just a request header, Gatehouse honors it only when the request's immediate TCP peer is a trusted reverse proxy. Otherwise the real socket address wins, so a client that sets its own `X-Forwarded-For` cannot impersonate a trusted network.
@@ -95,6 +97,16 @@ The proxy (`POST /v1/proxy` and the MCP `gatehouse_proxy` tool) lets agents call
 **Private-network access** is allowed by default (`GATEHOUSE_PROXY_ALLOW_PRIVATE` is unset or anything other than `"false"`). This matches the homelab posture where your services live on `10.x` or `192.168.x` and blocking them by default would make the proxy useless. For deployments exposed to the public internet, set `GATEHOUSE_PROXY_ALLOW_PRIVATE=false` to fail-closed against `127.x`, `169.254.169.254`, `10.0.0.0/8`, etc., and selectively re-enable per secret with `metadata.allow_private=true`.
 
 The per-secret `allowed_domains` allowlist is the primary host-scoping control. The private-network flag is defense-in-depth for the SSRF class specifically.
+
+`write` on a secret is equivalent to being able to disclose it: whoever can edit a secret's `allowed_domains` or `upstream_url` can point it at a host they control and receive the injected credential. Grant `write` only to principals you would trust with the value.
+
+### Passthrough
+
+[Passthrough](/docs/passthrough/) (`/p/<alias>/...`) runs the same controls as `/v1/proxy` through the same shared code. The caller never chooses the upstream host: it comes only from the secret's `upstream_url`. No Gatehouse credential is forwarded upstream, and an alias grants nothing without a policy that gives the caller `proxy` on the secret.
+
+A passthrough key (`gatehouse_pt_...`) is the AppRole's `role_id` and `secret_id` in one token, so treat it exactly like the `secret_id`: anyone holding it can act as that AppRole until it is revoked. Gatehouse stores nothing new for it. Rotate the AppRole's `secret_id` to revoke every passthrough key built from the old one; a verified key is cached for at most 5 minutes, and the cache entry is bound to the stored secret hash, so a rotation takes effect on the next request. Suspension and the AppRole's IP allowlist are read on every request and never cached. Failed key checks count against the per-IP login limiter. Only passthrough-key checks do: on `/p/`, as on `/v1`, a JWT or the root token is verified without the limiter, so anonymous or junk requests cannot lock a source IP out of passthrough.
+
+The response scrubber replaces whole occurrences of the secret, including across chunk boundaries, and of its base64 form when the value is Latin1. It matches no other encoding (URL-encoded, JSON-escaped, hex). It skips any redact value shorter than 8 characters, so a secret under 8 characters is never scrubbed (only its base64 form, if that is 8 or more). It does not recognise a fragment: an upstream that echoes only part of the key passes that part through. All of this is true of `/v1/proxy` as well.
 
 ### SSO assurance shift
 

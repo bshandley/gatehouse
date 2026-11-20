@@ -10,52 +10,10 @@ import { generateLoginParams, buildAuthUrl, exchangeAndVerify, fetchUserinfo } f
 import { validateAppRoleLimits } from "../rateLimits/rateLimitValidation";
 import type { LeaseManager } from "../lease/manager";
 
-// Simple in-memory rate limiter: 5 failed attempts per IP per 60s window
-const failedAttempts = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 5;
-const RATE_LIMIT_WINDOW_MS = 60_000;
+import { checkRateLimit, recordFailure, retryAfterSeconds, _resetRateLimitForTests } from "../auth/loginLimiter";
 
-/** Test-only: clear all rate-limit state. */
-export function _resetRateLimitForTests() {
-  failedAttempts.clear();
-}
-
-// Periodic cleanup to prevent memory leak from accumulated stale entries
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of failedAttempts) {
-    if (now > entry.resetAt) {
-      failedAttempts.delete(ip);
-    }
-  }
-}, RATE_LIMIT_WINDOW_MS * 2);
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = failedAttempts.get(ip);
-  if (!entry || now > entry.resetAt) {
-    return true; // Not rate limited
-  }
-  return entry.count < RATE_LIMIT_MAX;
-}
-
-/** Seconds remaining until the rate-limit window resets for this IP. */
-function retryAfterSeconds(ip: string): number {
-  const entry = failedAttempts.get(ip);
-  if (!entry) return 0;
-  const remaining = Math.ceil((entry.resetAt - Date.now()) / 1000);
-  return Math.max(1, remaining);
-}
-
-function recordFailure(ip: string) {
-  const now = Date.now();
-  const entry = failedAttempts.get(ip);
-  if (!entry || now > entry.resetAt) {
-    failedAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-  } else {
-    entry.count++;
-  }
-}
+// Re-exported so existing test imports keep working. The state lives in one place.
+export { _resetRateLimitForTests };
 
 export function authRouter(db: Database, config: GatehouseConfig, audit: AuditLog, leases?: LeaseManager) {
   const router = new Hono();

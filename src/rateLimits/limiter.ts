@@ -94,7 +94,7 @@ export class RateLimiter {
   }
 
   checkSecret(path: string, perMinute: number | null): RateLimitDecision {
-    // null or non-positive means "no limit" — skip state entirely so we don't
+    // null or non-positive means "no limit": skip state entirely so we don't
     // allocate a counter for unlimited secrets.
     if (perMinute === null || perMinute <= 0) return { allowed: true };
 
@@ -123,7 +123,7 @@ export class RateLimiter {
     const hourEpoch = Math.floor(now / HOUR_MS);
     const dayEpoch = Math.floor(now / DAY_MS);
 
-    // Empty roleId means root or user token — exempt, no AppRole counter.
+    // Empty roleId means root or user token: exempt, no AppRole counter.
     if (roleId !== "") {
       let counters = this.approles.get(roleId);
       if (!counters) {

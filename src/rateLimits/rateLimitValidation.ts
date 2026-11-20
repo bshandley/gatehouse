@@ -15,7 +15,7 @@ interface RawInput {
   rate_limit_per_day?: unknown;
 }
 
-// Returns null when the caller meant "no limit on this axis" — absent field,
+// Returns null when the caller meant "no limit on this axis": absent field,
 // explicit null/undefined, or empty string. Returns a parsed integer otherwise.
 // Returns the symbol `INVALID` when the value is present but unusable.
 const INVALID = Symbol("invalid");

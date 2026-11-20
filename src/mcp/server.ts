@@ -11,16 +11,23 @@ import type { DynamicSecretsManager } from "../dynamic/manager";
 import { scrubValue } from "../scrub/scrubber";
 import { v4 as uuid } from "uuid";
 import type { PatternEngine } from "../patterns/engine";
-import { isPrivateHost, scrubResponseBody, secretRedactionValues, readCappedText, pathMatchesAnyPrefix } from "../security/ssrf";
-import { checkPrivateNetworkPolicy, resolveAutoInject } from "../api/proxy";
+import { scrubResponseBody, secretRedactionValues, readCappedText } from "../security/ssrf";
+import { resolveAutoInject } from "../api/proxy";
+import {
+  authorizeProxyCall,
+  recordProxyCall,
+  recordProxyOutcome,
+  type ProxyCall,
+  type ProxyDeps,
+} from "../proxy/pipeline";
 import { getProxyLimits } from "../settings/proxyLimits";
 import { VERSION } from "../version";
-import type { RateLimiter } from "../rateLimits/limiter";
-import { enforceProxyGates } from "../api/proxyGates";
+import { getSharedRateLimiter, type RateLimiter } from "../rateLimits/limiter";
 import { LeaseValidationError } from "../lease/manager";
 import { splitList } from "../ui/list-validate.js";
-import { hostAllowed } from "../security/domainAllowlist";
-import { validateListMetadata } from "../secrets/metadataValidation";
+import { validateSecretMetadata } from "../secrets/metadataValidation";
+import { AliasConflictError } from "../secrets/engine";
+import { aliasConflictMessage, aliasConflictFromError } from "../secrets/aliasConflict";
 
 /**
  * Gatehouse MCP Server
@@ -547,11 +554,25 @@ export function createMCPHandler(
               `Access denied: no write permission on "${args.path}"`
             );
           }
-          const checkedMeta = validateListMetadata(args.metadata);
+          const checkedMeta = validateSecretMetadata(args.metadata);
           if (!checkedMeta.ok) {
             return error(checkedMeta.error);
           }
-          const stored = secrets.put(args.path, args.value, checkedMeta.metadata);
+          const conflict = aliasConflictMessage(
+            secrets, policies, auth.policies, checkedMeta.metadata?.passthrough_alias, args.path
+          );
+          if (conflict) return error(conflict);
+          let stored;
+          try {
+            stored = secrets.put(args.path, args.value, checkedMeta.metadata);
+          } catch (err) {
+            if (err instanceof AliasConflictError) {
+              return error(
+                aliasConflictFromError(secrets, policies, auth.policies, err.alias, args.path)
+              );
+            }
+            throw err;
+          }
           audit.log({
             identity: auth.identity,
             action: "secret.write.mcp",
@@ -593,11 +614,6 @@ export function createMCPHandler(
           // Validate required fields
           if (!args.url) return error("url is required");
           if (!args.method) return error("method is required");
-
-          // Extract the URL path from the user-supplied URL for audit metadata.
-          const targetPath = (() => {
-            try { return new URL(args.url).pathname; } catch { return ""; }
-          })();
 
           const method = args.method.toUpperCase();
           if (!["GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS"].includes(method)) {
@@ -642,106 +658,49 @@ export function createMCPHandler(
             return error('No secret references found. Use {{secret:path}} in url/headers/body, "inject", or "auto_inject".');
           }
 
-          // Check policy first across all refs so the rate-limit gate sees
-          // an already-authorized set. We pay the cost of two iterations to
-          // keep the gate evaluation symmetric with the REST proxy.
-          for (const path of refs) {
-            if (!policies.check(auth.policies, path, "proxy")) {
-              audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, metadata: { target_url: args.url, target_path: targetPath, reason: "policy_denied" }, success: false });
-              return error(`Access denied: no proxy permission on "${path}"`);
+          // Policy, rate-limit and approval gates, domain and path allowlists,
+          // private-network policy, protocol. Shared with REST /v1/proxy and
+          // passthrough; denials are already audited, this tool only formats
+          // its own messages. tlsInsecure is deliberately ignored here: the
+          // MCP tool has never honored tls_allow_insecure.
+          const deps: ProxyDeps = { secrets, policies, audit, db, rateLimiter, leases };
+          const call: ProxyCall = {
+            auth,
+            sourceIp: sourceIp || "",
+            secretPaths: [...refs],
+            auditUrl: args.url,
+            resolveUrl: (r) => args.url.replace(refPattern, (_: string, p: string) => r.get(p) ?? `{{secret:${p}}}`),
+            auditAction: "proxy.forward.mcp",
+          };
+          const authz = authorizeProxyCall(deps, call);
+          if (!authz.ok) {
+            const d = authz.denial;
+            switch (d.code) {
+              case "policy_denied":
+                return error(`Access denied: no proxy permission on "${d.path}"`);
+              case "gate_blocked":
+                return { content: [{ type: "text", text: JSON.stringify(d.gate.body) }], isError: true };
+              case "gates_unavailable":
+                return error(`Proxy gates are unavailable for "${d.path}"`);
+              case "secret_not_found":
+                return error(`Secret not found: "${d.path}"`);
+              case "domain_blocked":
+                return error(`Domain ${d.hostname} not in allowed domains for secret "${d.path}"`);
+              case "path_prefix_blocked":
+                return error(`Path '${d.resolvedPath}' is not in allowed_path_prefixes for secret "${d.path}"`);
+              case "ssrf_blocked":
+                return error(d.reason);
+              case "bad_protocol":
+                return error(`Unsupported protocol: ${d.protocol}`);
+              case "invalid_url":
+                return error("Invalid upstream URL");
             }
           }
-
-          // Gates: per-AppRole rate limits, per-secret rate limits, approval.
-          // Capture leaseIds so we can stamp the authorizing approval lease
-          // onto the success audit row below.
-          let mcpGateLeaseIds: Record<string, string> = {};
-          if (rateLimiter && db) {
-            const gate = enforceProxyGates({
-              auth,
-              secretPaths: [...refs],
-              sourceIp: sourceIp || "",
-              db,
-              rateLimiter,
-              leases,
-              secrets,
-              audit,
-            });
-            if (!gate.allowed) {
-              return {
-                content: [{ type: "text", text: JSON.stringify(gate.body) }],
-                isError: true,
-              };
-            }
-            mcpGateLeaseIds = gate.leaseIds;
-          }
-
-          const resolved = new Map<string, string>();
-          for (const path of refs) {
-            const val = secrets.get(path);
-            if (!val) return error(`Secret not found: "${path}"`);
-            resolved.set(path, val);
-
-            // Resolve the URL (it may contain secret refs) for domain/path checks.
-            const resolvedUrl = args.url.replace(refPattern, (_: string, p: string) => resolved.get(p) ?? `{{secret:${p}}}`);
-            let parsedResolvedUrl: URL | null = null;
-            try { parsedResolvedUrl = new URL(resolvedUrl); } catch { /* invalid URL caught later */ }
-
-            // Domain allowlist check
-            const meta = secrets.getMeta(path);
-            if (meta?.metadata?.allowed_domains) {
-              const domains: string[] = splitList(meta.metadata.allowed_domains);
-              if (domains.length > 0) {
-                const hostname = parsedResolvedUrl?.hostname ?? "invalid";
-                if (!parsedResolvedUrl || !hostAllowed(parsedResolvedUrl, domains).allowed) {
-                  audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, metadata: { target_url: args.url, target_path: targetPath, hostname, reason: "domain_blocked", allowed_domains: meta.metadata.allowed_domains }, success: false });
-                  return error(`Domain ${hostname} not in allowed domains for secret "${path}"`);
-                }
-              }
-            }
-
-            // Path-prefix allowlist check
-            if (meta?.metadata?.allowed_path_prefixes) {
-              const prefixes: string[] = splitList(meta.metadata.allowed_path_prefixes);
-              if (prefixes.length > 0) {
-                const resolvedPath = parsedResolvedUrl?.pathname ?? targetPath;
-                if (!pathMatchesAnyPrefix(resolvedPath, prefixes)) {
-                  audit.log({ identity: auth.identity, action: "proxy.forward.mcp", path, source_ip: sourceIp, metadata: { target_url: args.url, target_path: targetPath, reason: "path_prefix_blocked", allowed_path_prefixes: meta.metadata.allowed_path_prefixes }, success: false });
-                  return error(`Path '${resolvedPath}' is not in allowed_path_prefixes for secret "${path}"`);
-                }
-              }
-            }
-          }
-
-          // Inject secrets
+          const { resolved, upstreamUrl } = authz;
+          // Rate-limit counting keys on the caller's role_id, as before.
+          const counting = { roleId: auth.role_id || "" };
           const inject = (s: string) => s.replace(refPattern, (_, p) => resolved.get(p) ?? `{{secret:${p}}}`);
-          const upstreamUrl = inject(args.url);
 
-          // SSRF protection: private-network policy is shared with HTTP proxy.
-          try {
-            const parsedUrl = new URL(upstreamUrl);
-            const ssrf = checkPrivateNetworkPolicy(
-              parsedUrl.hostname,
-              [...refs],
-              (p) => secrets.getMeta(p)
-            );
-            if (!ssrf.allowed) {
-              audit.log({
-                identity: auth.identity,
-                action: "proxy.forward.mcp",
-                path: [...refs].join(","),
-                source_ip: sourceIp,
-                metadata: { target_host: parsedUrl.hostname, target_path: targetPath, reason: "ssrf_blocked" },
-                success: false,
-              });
-              return error(ssrf.reason);
-            }
-            if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-              return error(`Unsupported protocol: ${parsedUrl.protocol}`);
-            }
-          } catch {
-            return error("Invalid upstream URL");
-          }
           const upstreamHeaders: Record<string, string> = {};
           if (args.headers) {
             for (const [k, v] of Object.entries(args.headers as Record<string, string>)) {
@@ -785,6 +744,7 @@ export function createMCPHandler(
           const timeout = Math.min(args.timeout || 30_000, limits.max_timeout_ms);
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), timeout);
+          let counted = false;
 
           try {
             const upstream = await fetch(upstreamUrl, {
@@ -797,36 +757,21 @@ export function createMCPHandler(
             });
             clearTimeout(timer);
 
-            const mcpSuccessMeta: Record<string, string> = {
-              target_host: new URL(upstreamUrl).hostname,
-              target_path: targetPath,
-              target_url: args.url,
-              method,
-              status: String(upstream.status),
-            };
-            const mcpLeaseIdsList = Object.values(mcpGateLeaseIds);
-            if (mcpLeaseIdsList.length > 0) {
-              mcpSuccessMeta.lease_id = mcpLeaseIdsList.join(",");
-            }
-            const mcpTopLeaseId = mcpLeaseIdsList.length === 1 ? mcpLeaseIdsList[0] : undefined;
-
-            if (rateLimiter) {
-              rateLimiter.recordCall(auth.role_id || "", [...refs]);
-            }
+            // Count once, as soon as the fetch was attempted: upstream 4xx/5xx
+            // and an oversized body both count. Pre-forward denials do not.
+            recordProxyCall(deps, call, counting);
+            counted = true;
 
             // Cap upstream body + scrub any injected secret values echoed back
             // (raw values plus their on-the-wire encodings, e.g. base64).
             const rawBody = await readCappedText(upstream, limits.max_body_bytes);
             const mcpScrub = scrubResponseBody(rawBody, secretRedactionValues(resolved.values()));
             const responseBody = mcpScrub.body;
-            mcpSuccessMeta.redaction_count = String(mcpScrub.count);
-            audit.log({
-              identity: auth.identity,
-              action: "proxy.forward.mcp",
-              path: [...refs].join(","),
-              source_ip: sourceIp,
-              ...(mcpTopLeaseId ? { lease_id: mcpTopLeaseId } : {}),
-              metadata: mcpSuccessMeta,
+            // No pattern: the MCP tool has never recorded learned patterns.
+            recordProxyOutcome(deps, call, authz, {
+              method,
+              status: upstream.status,
+              redactionCount: mcpScrub.count,
             });
             let parsed: any;
             try { parsed = JSON.parse(responseBody); } catch { parsed = responseBody; }
@@ -837,17 +782,10 @@ export function createMCPHandler(
             }, null, 2));
           } catch (e: any) {
             clearTimeout(timer);
-            audit.log({
-              identity: auth.identity,
-              action: "proxy.forward.mcp",
-              path: [...refs].join(","),
-              source_ip: sourceIp,
-              metadata: { target_url: args.url, target_path: targetPath },
-              success: false,
-            });
-            if (rateLimiter) {
-              rateLimiter.recordCall(auth.role_id || "", [...refs]);
-            }
+            // The MCP failure row has never carried method or reason.
+            recordProxyOutcome(deps, call, authz, { method, bareFailureRow: true });
+            // Counted once: a body-cap overrun after the fetch was already counted.
+            if (!counted) recordProxyCall(deps, call, counting);
             if (e.name === "AbortError") return error(`Request timed out after ${timeout}ms`);
             if (e.code === "BODY_TOO_LARGE") return error(`Upstream response exceeds ${limits.max_body_bytes} bytes`);
             return error(`Upstream request failed: ${e.message}`);
@@ -1088,7 +1026,12 @@ export async function runStdioTransport(
   dynamic?: DynamicSecretsManager,
   db?: Database
 ) {
-  const mcp = createMCPHandler(secrets, leases, policies, audit, undefined, dynamic, db);
+  // The shared limiter and the lease manager are the gate dependencies the
+  // HTTP transport passes. Without them every secret with requires_approval or
+  // rate_limit_per_minute would be refused as gates_unavailable (fail closed).
+  // Counters live in this process: a stdio server does not share them with
+  // the HTTP server.
+  const mcp = createMCPHandler(secrets, leases, policies, audit, undefined, dynamic, db, getSharedRateLimiter());
 
   const decoder = new TextDecoder();
   let buffer = "";

@@ -184,7 +184,7 @@ Response:
       "pattern_count": 4,
       "top_pattern": "POST http://10.0.0.50:5230/api/v1/memos"
     },
-    {"path": "api-keys/anthropic", "kind": "static", "caps": ["read", "proxy"], "version": 1, "created_at": "...", "pattern_count": 0},
+    {"path": "api-keys/example2", "kind": "static", "caps": ["read", "proxy"], "version": 1, "created_at": "...", "pattern_count": 0},
     {
       "path": "ssh/lab",
       "kind": "dynamic",
@@ -383,6 +383,22 @@ By default, Gatehouse allows proxy requests to private IP ranges (10.x, 192.168.
 - `allow_private: "false"` in a secret's metadata blocks private ranges for that secret only.
 
 If you see an error about "private/internal networks are blocked", one of these is set. Ask your operator.
+
+## Passthrough (no envelope)
+
+If a secret's metadata has `passthrough_alias` (visible in `GET /v1/secrets` and `gatehouse_list`), you can skip the proxy envelope. Call the upstream API through `$GATEHOUSE_URL/p/ALIAS/...` with your JWT as the key. Method, path, query, and body are forwarded as is, and Gatehouse injects the real credential:
+
+```bash
+curl -fsS "$GATEHOUSE_URL/p/openai/v1/models" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Here `openai` is the alias. The path after it is appended to the secret's `upstream_url`. SDKs take `$GATEHOUSE_URL/p/ALIAS` (plus whatever path prefix the SDK expects, such as `/v1` for OpenAI) as their base URL and the JWT as their API key. Gatehouse also reads your credential from `x-api-key`, for SDKs that send it there.
+
+- You still need `proxy` on the secret. Approval-gated secrets still need an approved lease, and `allowed_path_prefixes` and rate limits still apply.
+- The response is the upstream's own status, headers, and body, streamed, with the secret scrubbed. Errors Gatehouse itself produces carry the header `X-Gatehouse-Error: 1` and a JSON body `{error, code, request_id}`. Codes: `unauthenticated` (401), `forbidden` (403), `approval_required` (403), `path_not_allowed` (403), `private_network_blocked` (403), `unknown_alias` (404), `bad_path` (400), `body_too_large` (413), `rate_limited` (429, honor `Retry-After`), `upstream_redirect_cross_origin` (502), `upstream_unreachable` (502), `upstream_timeout` (504).
+- Five failed passthrough-key checks in 60 seconds from one IP lock every passthrough key from that IP out of `/p/`, and the login endpoints, for the rest of the window. JWTs are not counted and not blocked. Do not retry a 401 in a loop: fix the key, or get a fresh JWT (refresh it, or log in again if it has expired), first.
+- Streams lag slightly: the last few dozen to few hundred bytes (the length of the secret's base64 form) are held until more data arrives or the stream ends.
 
 ## Dynamic secrets
 

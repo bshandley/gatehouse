@@ -1,7 +1,8 @@
 # Passthrough proxy: use the vault from any SDK by changing a base URL
 
 Date: 2026-11-19
-Status: design, awaiting approval
+Status: shipped in 0.24.0 (amended 2026-11-20 to match what shipped: see
+"As shipped in 0.24.0")
 Target release: 0.24.0 (after recoverability 0.22.0 and distribution 0.23.0)
 
 ## Intent
@@ -158,11 +159,14 @@ slow per request. Cache successful verifications in memory for 5 minutes, keyed
 by `sha256(key)` and bound to the stored `secret_hash`, so a rotation
 invalidates the entry on the next request. `suspended`, `ip_allowlist`, and
 `policies` are read from `app_roles` on every request and never cached. Failed
-verifications count against the existing login rate limiter for the source IP.
+passthrough-key verifications count against the existing login rate limiter
+for the source IP. JWT and root-token candidates are verified without it, as on
+`/v1/*` (see "As shipped in 0.24.0").
 
-The web UI offers "Copy passthrough key" wherever it already reveals a new
-`secret_id` (AppRole create and rotate). It is assembled client-side from
-values already on screen.
+The web UI offers "Copy passthrough key" next to the new `secret_id` on
+AppRole create. It is assembled client-side from values already on screen.
+Rotate is not covered: it hands out a single-use link and never shows a
+`secret_id`, so there is nothing on screen to build a key from.
 
 ### D4. Shared proxy pipeline
 
@@ -184,10 +188,12 @@ its own commits before any passthrough code.
 
 ### D5. Request forwarding
 
-- Body: forwarded as raw bytes, not parsed. The global request size limit
-  (`GATEHOUSE_MAX_BODY_SIZE`) applies.
+- Body: forwarded as raw bytes, not parsed. The route enforces
+  `GATEHOUSE_MAX_BODY_SIZE` itself, on the declared length and on the bytes
+  read (`413 body_too_large`).
 - Headers: forward everything except hop-by-hop headers, `Host`,
-  `Content-Length` (recomputed), `X-Forwarded-*`, `X-Real-IP`, and every header
+  `Content-Length` (recomputed), `X-Forwarded-*`, `X-Real-IP`, `Forwarded`,
+  `Via`, `Range`, `If-Range`, `Accept-Encoding`, `Expect`, and every header
   that D3 reads a credential from. No Gatehouse credential may ever reach the
   upstream.
 - Injection: `resolveAutoInject(secretValue, meta)` as today. A secret whose
@@ -197,16 +203,18 @@ its own commits before any passthrough code.
 
 ### D6. Response streaming and scrubbing
 
-- Status passes through. Response headers pass through except hop-by-hop,
+- Status passes through, unless it is outside 200 to 599 (see "As shipped in
+  0.24.0"). Response headers pass through except hop-by-hop,
   `Content-Length`, and `Content-Encoding` (Bun's fetch has already decoded the
   body). `Set-Cookie` passes through. Every header value is scrubbed.
 - The body is streamed through a byte-level scrubber that redacts the same
-  values `secretRedactionValues` produces. It holds back the last
-  `maxSecretLength - 1` bytes of each chunk so a secret split across two chunks
-  is still caught, and flushes the tail at end of stream.
+  values `secretRedactionValues` produces. It holds back a fixed tail of the
+  longest value's length minus 1 bytes so a secret split across two chunks is
+  still caught. It flushes the tail only at a normal end of stream; on every
+  abnormal end the tail is dropped (see "As shipped in 0.24.0").
 - `max_body_bytes` is a cap on total bytes streamed. On overrun the stream is
   cut and the audit row says so. The status has already been sent, so there is
-  no clean error. Documented.
+  no clean error: the body ends normally on the wire. Documented.
 - `max_timeout_ms` bounds time to response headers, then acts as an idle
   timeout between chunks. A stream that keeps producing is not cut for being
   long.
@@ -225,13 +233,15 @@ Codes: `unauthenticated` (401), `forbidden` (403), `unknown_alias` (404),
 the same lease fields `/v1/proxy` returns), `path_not_allowed` (403),
 `private_network_blocked` (403), `bad_path` (400),
 `upstream_redirect_cross_origin` (502), `upstream_unreachable` (502),
-`upstream_timeout` (504).
+`upstream_timeout` (504). The code has four more, listed in "As shipped in
+0.24.0".
 
 ### D8. Audit, patterns, posture
 
 - Audit action stays `proxy.forward`, with `metadata.mode = "passthrough"` and
   `metadata.alias`. Target host, path, method, status, lease id, and redaction
-  count as today. The query string is not logged.
+  count as today. The query string is not logged, in the audit row or in the
+  request log line.
 - Pattern learning records method, URL template, request header names, and
   status. No request or response bodies from passthrough.
 - The redaction count feeds the same posture counter as `/v1/proxy`.
@@ -240,7 +250,7 @@ the same lease fields `/v1/proxy` returns), `path_not_allowed` (403),
 
 - Web UI, secret form: a "Passthrough" group with alias and upstream URL, and
   on the detail view the resulting base URL with a copy button.
-- Web UI, AppRoles: "Copy passthrough key" (D3).
+- Web UI, AppRoles: "Copy passthrough key" on create (D3).
 - `src/templates/skill.md` and the For Agents doc: one short section. An agent
   holding a JWT can call `/p/<alias>/...` with plain `curl` instead of building
   a `/v1/proxy` envelope.
@@ -250,6 +260,60 @@ the same lease fields `/v1/proxy` returns), `path_not_allowed` (403),
   Anthropic SDK (`header_name: x-api-key`, `auth_scheme: ""`), `curl`, n8n, and
   Home Assistant's REST integration. README: passthrough becomes the lead
   example, the JSON envelope moves below it.
+
+## As shipped in 0.24.0
+
+Recorded 2026-11-20, after the final review. Where this section and the body
+above differ, this section is what the code does.
+
+- **Copy passthrough key** is on AppRole create only. Rotate shows no
+  `secret_id`, so the docs give a one-line shell command for building the key
+  by hand.
+- **Error codes beyond D7**: `405 method_not_allowed` (any method outside
+  GET, POST, PUT, PATCH, DELETE, HEAD; carries `Allow`), `413 body_too_large`,
+  `500 gates_unavailable` (the rate-limit or approval gates cannot be applied,
+  so the request fails closed), and `500 internal_error` (the response stream
+  could not be set up). An upstream status outside 200 to 599 cannot be passed
+  on (the Response constructor rejects it): it is answered `502
+  upstream_unreachable`, the audit row has reason `invalid_status`, and the
+  upstream body is cancelled. No new code for it.
+- **Fixed hold-back, dropped on every abnormal end.** The scrubber always
+  holds back the last (longest redact value in bytes, minus 1) bytes, whatever
+  they contain, and drops them on `byte_cap`, `idle_timeout`,
+  `upstream_error`, and `client_abort`. Only a normal end flushes them. Reason:
+  a hold that depended on content (holding only a tail that looks like the
+  start of the secret) would make emission timing a prefix oracle. Against an
+  upstream that echoes caller input, a caller could send a guess and watch
+  whether it is delayed, or dropped at a cut it arranged, and recover the
+  secret one character at a time.
+- **Cut streams end normally on the wire.** On `byte_cap` and `idle_timeout`
+  the scrubbed stream is closed, not errored. The final review ruled that it
+  should error instead, so a client sees a failed transfer, provided Bun
+  delivers an unclean end. It does not: on Bun 1.3.14, through the real `/p`
+  route, an errored response stream still ends with the normal `0\r\n\r\n`
+  chunk (curl exits 0, a `fetch` body read resolves), and Bun prints the error
+  to stderr. So the close stays, and a client cannot tell a cut from
+  completion. The audit row is a failure (`success` false) with the reason.
+- **Request headers stripped** in addition to D5's list: `Range` and
+  `If-Range` (the scrubber needs the whole body), `Accept-Encoding` (the fetch
+  decodes only encodings it asked for), and `Expect` (the body is read in full
+  before forwarding).
+- **Private-network check is hostname-based.** It classifies the literal host
+  in the joined URL and does no DNS lookup, so it offers no defence against a
+  public name that resolves to a private address (shared with `/v1/proxy`).
+- **Login limiter scope.** On `/p`, the per-IP login limiter is consulted and
+  charged only around a passthrough-key verification. A request with no
+  credential gets its `401` without touching it. JWT and root-token candidates
+  are verified without it, as on `/v1/*`. Before a `gatehouse_pt_` candidate is
+  verified the limiter is checked (`429 rate_limited` with `Retry-After` when
+  exhausted, after any JWT or root candidate ahead of it has failed), and a
+  failed key charges it once per request. A valid JWT therefore works while the
+  IP is locked out for bad keys. Reason: bearer tokens are not brute-forceable,
+  and gating them let anonymous junk requests shut passthrough off for every
+  client behind a source IP.
+- **Upstream content is sandboxed.** Every response that carries upstream
+  content gets `Content-Security-Policy: sandbox`, replacing any upstream CSP,
+  because it is served from the vault UI's origin.
 
 ## Constraints
 

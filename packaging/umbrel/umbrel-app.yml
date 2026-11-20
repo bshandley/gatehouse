@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: developer
 name: Gatehouse
-version: "0.23.0"
+version: "0.24.0"
 tagline: The agent secrets vault. Credentials never leave the vault.
 description: >-
   Gatehouse is a self-hosted secrets manager built for AI agent harnesses. Agents get scoped access and the vault injects the credential into the upstream call, so raw secrets never enter the agent context.

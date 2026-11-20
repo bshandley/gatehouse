@@ -35,6 +35,8 @@ export interface GatesContext {
   secrets: SecretsEngine;
   audit: AuditLog;
   requestId?: string;
+  /** Merged into the metadata of every audit row the gates write. The gate's own keys win. */
+  auditExtra?: Record<string, string>;
 }
 
 export interface GatesAllowed {
@@ -87,6 +89,7 @@ export function enforceProxyGates(ctx: GatesContext): GatesAllowed | GatesBlocke
         path: ctx.secretPaths.join(",") || undefined,
         source_ip: ctx.sourceIp || null,
         metadata: {
+          ...ctx.auditExtra,
           limit_kind: d.limitKind || "approle_minute",
           limit: String(d.limit ?? 0),
           current: String(d.current ?? 0),
@@ -122,6 +125,7 @@ export function enforceProxyGates(ctx: GatesContext): GatesAllowed | GatesBlocke
           path: p,
           source_ip: ctx.sourceIp || null,
           metadata: {
+            ...ctx.auditExtra,
             limit_kind: "secret_minute",
             limit: String(d.limit ?? perMinute),
             current: String(d.current ?? 0),
@@ -183,6 +187,7 @@ export function enforceProxyGates(ctx: GatesContext): GatesAllowed | GatesBlocke
       path: blockedByApproval.join(","),
       source_ip: ctx.sourceIp || null,
       metadata: {
+        ...ctx.auditExtra,
         requires_approval: blockedByApproval.join(","),
       },
       success: false,

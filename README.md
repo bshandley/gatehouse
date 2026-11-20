@@ -32,6 +32,7 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 
 ## What it does
 
+- **Passthrough.** Point any SDK or tool at `/p/<alias>` instead of the real API. Gatehouse injects the key and streams the response back. No code changes.
 - **Proxy mode.** Agents send HTTP requests with secret references; Gatehouse injects credentials and forwards upstream. Domain allowlisting prevents exfiltration.
 - **Pattern learning.** Successful proxy calls become normalized templates. Agents query them before making a first call, so they stop guessing.
 - **Dynamic secrets.** Short-lived credentials for PostgreSQL, MySQL/MariaDB, MongoDB, Redis, and SSH certificates. Configs encrypted at rest.
@@ -70,7 +71,28 @@ docker logs gatehouse   # your master key and one-time bootstrap token
 
 Save the master key somewhere off this host. Then open `http://localhost:3100` and sign in with the bootstrap token to create your first admin user. Full walkthrough at [gatehouse.to/docs/getting-started](https://gatehouse.to/docs/getting-started/).
 
-## Proxy mode in 10 seconds
+## Passthrough: change a base URL, keep your code
+
+Give a secret an alias and an upstream URL. Any client with a base-URL setting then talks to Gatehouse as if it were the real API, holding a Gatehouse credential instead of the real key:
+
+```bash
+# once, as an admin: bind the secret to an alias
+curl -fsS -X POST http://localhost:3100/v1/secrets/api-keys/example \
+  -H "Authorization: Bearer $GATEHOUSE_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"value\": \"$OPENAI_REAL_KEY\", \"metadata\": {\"passthrough_alias\": \"openai\", \"upstream_url\": \"https://api.openai.com\"}}"
+
+# then, anywhere: point the SDK at Gatehouse
+export OPENAI_BASE_URL=http://localhost:3100/p/openai/v1
+export OPENAI_API_KEY="$GATEHOUSE_PT_KEY"   # gatehouse_pt_..., not the real key
+python my_script.py                         # unmodified, streaming included
+```
+
+Gatehouse checks the caller's policy, applies rate limits, approvals, and allowlists, injects the real key, and streams the response back with the key scrubbed. Tested with the OpenAI and Anthropic Python SDKs and `curl`; should work with anything else that has a base URL and one API-key slot (the docs include untested n8n and Home Assistant recipes). The alias grants nothing: the caller still needs a policy with `proxy` on the secret. Recipes and limits: [gatehouse.to/docs/passthrough](https://gatehouse.to/docs/passthrough/).
+
+## Proxy mode: the JSON envelope
+
+Agents that speak Gatehouse's protocol (REST or the `gatehouse_proxy` MCP tool) send one envelope naming the secret to inject:
 
 ```bash
 curl -X POST http://localhost:3100/v1/proxy \
@@ -107,6 +129,7 @@ Full documentation lives at **[gatehouse.to](https://gatehouse.to)**.
 | [Core Concepts](https://gatehouse.to/docs/concepts/) | Secrets, policies, leases, proxy, patterns. |
 | [Authentication](https://gatehouse.to/docs/authentication/) | AppRoles, user accounts, onboarding links, TOTP. |
 | [Web UI Tour](https://gatehouse.to/docs/web-ui/) | Every tab, every button. |
+| [Passthrough](https://gatehouse.to/docs/passthrough/) | Base-URL passthrough: recipes for the OpenAI and Anthropic SDKs, curl, n8n, Home Assistant. |
 | [Dynamic Secret Providers](https://gatehouse.to/docs/providers/) | PostgreSQL, MySQL, MongoDB, Redis, SSH certificates. |
 | [Backup & Recovery](https://gatehouse.to/docs/backup/) | Master key, backup, export, import, verify, restore. |
 | [Security & Threat Model](https://gatehouse.to/docs/security/) | What Gatehouse protects, what it doesn't. |

@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync } from "node:fs";
+import { CREATE_ALIAS_INDEX_SQL, DUPLICATE_ALIASES_SQL } from "../secrets/aliasSql";
 import { join } from "node:path";
 
 export function initDB(dataDir: string): Database {
@@ -293,6 +294,20 @@ export function initDB(dataDir: string): Database {
   if (secretColNames.length > 0 && !secretColNames.includes("last_accessed_at")) {
     db.run("ALTER TABLE secrets ADD COLUMN last_accessed_at TEXT");
     db.run("UPDATE secrets SET last_accessed_at = updated_at WHERE last_accessed_at IS NULL");
+  }
+
+  // Passthrough alias: unique across secrets. Metadata was free-form before
+  // this key existed, so refuse to build the index (and keep booting) if two
+  // rows already share an alias. findByAlias fails closed on such rows.
+  const dupes = db.query(DUPLICATE_ALIASES_SQL).all() as { alias: string }[];
+  if (dupes.length > 0) {
+    for (const d of dupes) {
+      console.error(
+        `[gatehouse:db] passthrough_alias "${d.alias}" is held by more than one secret; passthrough is disabled for it until the duplicate is removed`
+      );
+    }
+  } else {
+    db.run(CREATE_ALIAS_INDEX_SQL);
   }
 
   // Indexes

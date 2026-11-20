@@ -2823,7 +2823,9 @@
       const msg = data?.error
         || (Array.isArray(data?.errors) ? data.errors.join('; ') : null)
         || `HTTP ${res.status}`;
-      throw new Error(msg);
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
     }
     return data;
   }
@@ -3520,7 +3522,8 @@
       </div>
     `;
 
-    const postureHtml = window.SecretDetail.postureChipsHtml(meta.metadata || {});
+    const postureHtml = window.SecretDetail.postureChipsHtml(meta.metadata || {})
+      + window.SecretDetail.passthroughSectionHtml(window.location.origin, meta.metadata || {});
 
     const activityHtml = `
       <div class="detail-section" id="detail-activity">
@@ -3556,6 +3559,8 @@
       'rate_limit_per_minute',
       'auto_approve_from_ip',
       'auto_approve_ttl_seconds',
+      'passthrough_alias',
+      'upstream_url',
     ]);
     const unknownEntries = Object.entries(meta.metadata || {}).filter(([k]) => !KNOWN_STRUCTURED_KEYS.has(k));
     const unknownHtml = unknownEntries.length
@@ -3648,6 +3653,34 @@
     if (inp) {
       inp.value = path;
       if (typeof loadAuditLog === 'function') loadAuditLog();
+    }
+  };
+
+  // Shows an alias collision (409 whose message names passthrough_alias) under
+  // the Alias field of the open form. Returns false for anything else so the
+  // caller falls through to the ordinary error toast. Module level on purpose:
+  // both the create and edit modals call it, in any order.
+  window._showAliasConflict = function(prefix, e) {
+    if (!window.SecretForm.isAliasConflict(e)) return false;
+    const box = document.getElementById(prefix + '-secret-passthrough-alias-error');
+    const input = document.getElementById(prefix + '-secret-passthrough-alias');
+    if (!box || !input) return false;
+    box.textContent = e.message;
+    box.classList.remove('hidden');
+    const details = input.closest('details');
+    if (details) details.open = true;
+    input.focus();
+    return true;
+  };
+
+  window._copyPassthroughBaseUrl = async function() {
+    const el = document.getElementById('detail-passthrough-url');
+    if (!el) return;
+    try {
+      await navigator.clipboard.writeText(el.textContent);
+      toast('Base URL copied', 'success');
+    } catch {
+      toast('Copy failed', 'error');
     }
   };
 
@@ -3871,6 +3904,19 @@
               <input type="number" id="new-secret-auto-ttl" min="1" placeholder="3600" disabled>
             </div>
 
+            <div class="form-subheading">Passthrough</div>
+            <div class="form-group">
+              <label class="form-label">Alias</label>
+              <input type="text" id="new-secret-passthrough-alias" placeholder="openai" spellcheck="false" autocomplete="off" oninput="document.getElementById('new-secret-passthrough-alias-error').classList.add('hidden')">
+              <p id="new-secret-passthrough-alias-error" class="form-error hidden" role="alert"></p>
+              <p class="form-help">Lowercase letters, digits, and hyphens. Callers use <code>/p/&lt;alias&gt;/...</code> on this server. Setting an alias grants nothing: attach a policy to the agent as usual.</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Upstream URL</label>
+              <input type="text" id="new-secret-upstream-url" placeholder="https://api.example.com/v1" spellcheck="false" autocomplete="off">
+              <p class="form-help">Where passthrough requests are forwarded. Set both fields or neither. No query string or credentials.</p>
+            </div>
+
             <div class="form-subheading">Other metadata</div>
             <div class="form-group">
               <div id="kv-editor"></div>
@@ -3919,6 +3965,8 @@
       state.rate_limit_per_minute = document.getElementById('new-secret-rate-limit').value;
       state.auto_approve_from_ip = document.getElementById('new-secret-auto-ip').value;
       state.auto_approve_ttl_seconds = document.getElementById('new-secret-auto-ttl').value;
+      state.passthrough_alias = document.getElementById('new-secret-passthrough-alias').value;
+      state.upstream_url = document.getElementById('new-secret-upstream-url').value;
       state.custom = [];
       document.querySelectorAll('#kv-editor .kv-row').forEach(row => {
         const inputs = row.querySelectorAll('input');
@@ -3939,7 +3987,7 @@
         document.querySelector('.modal-overlay')?.remove();
         loadSecrets();
       } catch (e) {
-        toast('Failed: ' + e.message, 'error');
+        if (!window._showAliasConflict('new', e)) toast('Failed: ' + e.message, 'error');
       }
     };
   }
@@ -3957,7 +4005,7 @@
         ).join('')
       : '';
 
-    const advancedOpen = state.auth_scheme !== 'none' || state.allowed_domains || state.allowed_path_prefixes || state.allow_private || state.tls_allow_insecure || state.rate_limit_per_minute || state.auto_approve_from_ip || state.custom.length;
+    const advancedOpen = state.auth_scheme !== 'none' || state.allowed_domains || state.allowed_path_prefixes || state.allow_private || state.tls_allow_insecure || state.rate_limit_per_minute || state.auto_approve_from_ip || state.passthrough_alias || state.upstream_url || state.custom.length;
 
     const html = `
       <div class="modal-overlay" onclick="if(event.target===this)this.remove()">
@@ -4043,6 +4091,19 @@
               <input type="number" id="edit-secret-auto-ttl" min="1" value="${esc(state.auto_approve_ttl_seconds)}" placeholder="3600" ${state.auto_approve_from_ip ? '' : 'disabled'}>
             </div>
 
+            <div class="form-subheading">Passthrough</div>
+            <div class="form-group">
+              <label class="form-label">Alias</label>
+              <input type="text" id="edit-secret-passthrough-alias" value="${esc(state.passthrough_alias)}" placeholder="openai" spellcheck="false" autocomplete="off" oninput="document.getElementById('edit-secret-passthrough-alias-error').classList.add('hidden')">
+              <p id="edit-secret-passthrough-alias-error" class="form-error hidden" role="alert"></p>
+              <p class="form-help">Lowercase letters, digits, and hyphens. Callers use <code>/p/&lt;alias&gt;/...</code> on this server. Setting an alias grants nothing: attach a policy to the agent as usual.</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Upstream URL</label>
+              <input type="text" id="edit-secret-upstream-url" value="${esc(state.upstream_url)}" placeholder="https://api.example.com/v1" spellcheck="false" autocomplete="off">
+              <p class="form-help">Where passthrough requests are forwarded. Set both fields or neither. No query string or credentials.</p>
+            </div>
+
             <div class="form-subheading">Other metadata</div>
             <div class="form-group">
               <div id="kv-editor-edit">${customRowsHtml}</div>
@@ -4089,6 +4150,8 @@
       editState.rate_limit_per_minute = document.getElementById('edit-secret-rate-limit').value;
       editState.auto_approve_from_ip = document.getElementById('edit-secret-auto-ip').value;
       editState.auto_approve_ttl_seconds = document.getElementById('edit-secret-auto-ttl').value;
+      editState.passthrough_alias = document.getElementById('edit-secret-passthrough-alias').value;
+      editState.upstream_url = document.getElementById('edit-secret-upstream-url').value;
       editState.custom = [];
       document.querySelectorAll('#kv-editor-edit .kv-row').forEach(row => {
         const inputs = row.querySelectorAll('input');
@@ -4115,7 +4178,7 @@
         await loadSecrets();
         window._selectSecret(targetPath);
       } catch (e) {
-        toast('Failed: ' + e.message, 'error');
+        if (!window._showAliasConflict('edit', e)) toast('Failed: ' + e.message, 'error');
       }
     };
   };
@@ -5531,6 +5594,10 @@
               <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="copyCredField('cred-secret-id');window._credCopied.secret=true">Copy</button>
             </div>
           </div>
+          <div class="form-group">
+            <button class="btn btn-ghost btn-sm" type="button" onclick="window._copyPassthroughKey()">Copy passthrough key</button>
+            <p class="form-help">A single value for SDKs that talk to a secret's <code>/p/&lt;alias&gt;</code> base URL. Built here from the two values above. It carries the secret ID, so treat it like one.</p>
+          </div>
           <div class="modal-actions">
             <button class="btn btn-ghost" onclick="window._openOnboardModal('${esc(roleId)}', '${esc(displayName)}')">Generate onboarding prompt</button>
             <button class="btn btn-primary" onclick="window._dismissCredentialsModal()">Close</button>
@@ -5540,6 +5607,22 @@
     `;
     window._credCopied = { role: false, secret: false };
     document.getElementById('modal-container').innerHTML = html;
+  };
+
+  // Built from the two readonly fields on screen. Never sent anywhere, never
+  // logged, never written into the DOM.
+  window._copyPassthroughKey = async function() {
+    const r = document.getElementById('cred-role-id');
+    const sec = document.getElementById('cred-secret-id');
+    if (!r || !sec) return;
+    const key = window.SecretDetail.encodePassthroughKey(r.value, sec.value);
+    try {
+      await navigator.clipboard.writeText(key);
+      window._credCopied.secret = true;
+      toast('Passthrough key copied', 'success');
+    } catch {
+      toast('Copy failed', 'error');
+    }
   };
 
   window._dismissCredentialsModal = async function() {

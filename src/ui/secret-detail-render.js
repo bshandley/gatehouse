@@ -197,6 +197,9 @@ export function formatHygieneSummary(hygiene) {
 if (typeof window !== "undefined") {
   window.SecretDetail = {
     referenceChipHtml,
+    passthroughBaseUrl,
+    passthroughSectionHtml,
+    encodePassthroughKey,
     postureChips,
     postureChipsHtml,
     relativeTime,
@@ -209,4 +212,35 @@ if (typeof window !== "undefined") {
     hygieneBadgeHtml,
     formatHygieneSummary,
   };
+}
+
+/** `<origin>/p/<alias>` when both passthrough keys are set, else null. */
+export function passthroughBaseUrl(origin, metadata) {
+  const m = metadata || {};
+  if (!m.passthrough_alias || !m.upstream_url) return null;
+  return `${origin}/p/${m.passthrough_alias}`;
+}
+
+/** Detail-view section: the base URL with a copy button and a one-line hint. */
+export function passthroughSectionHtml(origin, metadata) {
+  const base = passthroughBaseUrl(origin, metadata);
+  if (!base) return "";
+  return `<div class="detail-section"><div class="detail-section-heading">PASSTHROUGH</div>`
+    + `<div style="display:flex;gap:8px;align-items:center">`
+    + `<span class="mono" id="detail-passthrough-url" style="font-size:12px;word-break:break-all">${esc(base)}</span>`
+    + `<button class="btn btn-ghost btn-sm" style="flex-shrink:0" type="button" onclick="window._copyPassthroughBaseUrl()">Copy</button>`
+    + `</div>`
+    + `<div class="form-help" style="margin-top:6px">${esc("Point an SDK's base URL here and use a Gatehouse credential as its API key.")}</div></div>`;
+}
+
+/**
+ * `gatehouse_pt_` + base64url (no padding) of the UTF-8 bytes of
+ * `role_id:secret_id`. Byte-identical to encodePassthroughKey on the server.
+ * btoa alone is not UTF-8 safe, so encode to bytes first.
+ */
+export function encodePassthroughKey(roleId, secretId) {
+  const bytes = new TextEncoder().encode(`${roleId}:${secretId}`);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return "gatehouse_pt_" + btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }

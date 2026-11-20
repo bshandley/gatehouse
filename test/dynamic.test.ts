@@ -463,7 +463,7 @@ describe("DynamicSecretsManager", () => {
     expect(manager.rotateConfigKey(newKey)).toBe(0);
   });
 
-  // Public metadata surfaced in listConfigs — advisory routing info agents
+  // Public metadata surfaced in listConfigs: advisory routing info agents
   // need at discovery time to pick the right host, without exposing secrets.
 
   test("listConfigs metadata is empty for unknown provider types", () => {

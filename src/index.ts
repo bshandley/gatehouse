@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { logger } from "hono/logger";
 import { cors } from "hono/cors";
 import { secretsRouter, bulkSecretsRouter } from "./api/secrets";
 import { leaseRouter } from "./api/lease";
@@ -17,6 +16,7 @@ import { authMiddleware } from "./auth/middleware";
 import { validateOidcIssuerForSettings, reapExpiredSsoState, seedSsoFromEnv } from "./auth/sso";
 import { mcpHttpRouter } from "./mcp/server";
 import { proxyRouter } from "./api/proxy";
+import { passthroughRouter } from "./api/passthrough";
 import { handleGetProxyLimits, handlePostProxyLimits } from "./api/settings.proxyLimits";
 import { dynamicRouter } from "./api/dynamic";
 import { scrubRouter } from "./api/scrub";
@@ -40,6 +40,7 @@ import { VERSION } from "./version";
 import { EventBus } from "./events/bus";
 import { RateLimiter } from "./rateLimits/limiter";
 import { warnIfWebhookPrivate } from "./lease/webhook";
+import { bodySizeLimit, maxBodySizeFromEnv, requestLogger } from "./http/middleware";
 
 const config = loadConfig();
 const db = initDB(config.dataDir);
@@ -144,10 +145,11 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-// Conditional logging based on log level
+// Conditional logging based on log level. /p requests are logged without
+// their query string (src/http/middleware.ts).
 const logLevel = (process.env.GATEHOUSE_LOG_LEVEL || "info").toLowerCase();
 if (logLevel !== "error") {
-  app.use("*", logger());
+  app.use("*", requestLogger());
 }
 
 // CORS - restrict to configured origins
@@ -166,18 +168,11 @@ app.use(
   })
 );
 
-// Body size limit (1MB default, protects against memory exhaustion)
-const MAX_BODY_SIZE = parseInt(process.env.GATEHOUSE_MAX_BODY_SIZE || "1048576", 10);
-app.use("*", async (c, next) => {
-  const contentLength = c.req.header("content-length");
-  if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE) {
-    return c.json(
-      { error: "Request body too large", request_id: c.get("requestId") },
-      413
-    );
-  }
-  await next();
-});
+// Body size limit (1MB default, protects against memory exhaustion).
+// Passthrough enforces the same limit itself, on the declared length and on
+// the bytes actually read, and answers in its own error shape.
+// A malformed GATEHOUSE_MAX_BODY_SIZE logs one warning and keeps the default.
+app.use("*", bodySizeLimit(maxBodySizeFromEnv(process.env.GATEHOUSE_MAX_BODY_SIZE)));
 
 // Security headers on all responses
 app.use("*", async (c, next) => {
@@ -228,6 +223,11 @@ app.get("/", async (c) => {
 
 // UI helper modules and bundled fonts (see src/api/uiAssets.ts).
 app.route("/ui", uiAssetsRouter());
+
+// Passthrough: /p/<alias>/... forwards to the alias's upstream with its
+// secret injected. Outside /v1/*, so the auth middleware does not apply: the
+// route authenticates the caller's credential itself (src/api/passthrough.ts).
+app.route("/p", passthroughRouter({ secrets, policies, audit, db, rateLimiter, leases, patterns: patternEngine, config }));
 
 // Auth routes (login, token exchange - no auth middleware)
 app.route("/v1/auth", authRouter(db, config, audit, leases));

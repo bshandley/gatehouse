@@ -174,6 +174,51 @@ export function normalizeList(kind, text, separator = ", ") {
   return { ok: true, value: entries.join(separator) };
 }
 
+/** Passthrough alias: the path segment after /p/. Shared with the server. */
+export const PASSTHROUGH_ALIAS_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+/**
+ * Canonical form of a passthrough upstream_url: lowercased scheme and host,
+ * default port dropped, path as given with one trailing slash removed.
+ * Returns { ok: true, value } or { ok: false, reason }. Shared with the server
+ * (metadataValidation.ts) so the form and the API agree.
+ */
+export function canonicalizeUpstreamUrl(raw) {
+  const bad = (reason) => ({ ok: false, reason });
+  if (typeof raw !== "string") return bad("must be a string");
+  if (/[\s\\\u0000-\u001f]/.test(raw)) return bad("must not contain whitespace, control characters, or backslashes");
+  if (raw.includes("?") || raw.includes("#")) return bad("must not carry a query or fragment");
+  if (!/^https?:\/\/[^/\s]/i.test(raw)) return bad("must be an absolute http or https URL");
+  const parts = /^https?:\/\/([^/]*)(\/.*)?$/i.exec(raw);
+  if (!parts) return bad("must be an absolute http or https URL");
+  const authority = parts[1];
+  const rawPath = parts[2] ?? "";
+  if (authority.includes("@")) return bad("must not carry credentials");
+  let url;
+  try {
+    url = new URL(`${raw.slice(0, raw.indexOf("//") + 2)}${authority}`);
+  } catch {
+    return bad("must be an absolute http or https URL");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return bad("must be an absolute http or https URL");
+  if (url.username || url.password) return bad("must not carry credentials");
+  if (!url.hostname) return bad("must have a host");
+  if (url.hostname.endsWith(".")) return bad("host must not end in a dot");
+  if (url.port === "0") return bad("port must not be 0");
+  if (/%2f|%5c/i.test(rawPath)) return bad("path must not contain encoded slashes or backslashes");
+  for (const seg of rawPath.split("/")) {
+    let decoded;
+    try {
+      decoded = decodeURIComponent(seg);
+    } catch {
+      return bad("path is not valid percent-encoding");
+    }
+    if (decoded === "." || decoded === "..") return bad("path must not contain . or .. segments");
+  }
+  const path = rawPath.endsWith("/") ? rawPath.slice(0, -1) : rawPath;
+  return { ok: true, value: `${url.protocol}//${url.host}${path}` };
+}
+
 if (typeof window !== "undefined") {
-  window.ListValidate = { splitList, splitModeFor, validateEntry, parseList, normalizeList, KINDS };
+  window.ListValidate = { splitList, splitModeFor, validateEntry, parseList, normalizeList, KINDS, PASSTHROUGH_ALIAS_PATTERN, canonicalizeUpstreamUrl };
 }

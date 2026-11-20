@@ -62,3 +62,33 @@ describe("UI assets", () => {
     expect(UI_CSP).toContain("font-src 'self'");
   });
 });
+
+describe("index.html passthrough surfaces", () => {
+  const html = readFileSync(join(import.meta.dir, "../src/ui/index.html"), "utf8");
+
+  test("secret create and edit forms carry the Passthrough group", () => {
+    for (const id of ["new-secret-passthrough-alias", "new-secret-upstream-url", "edit-secret-passthrough-alias", "edit-secret-upstream-url"]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+    expect(html).toContain("Passthrough");
+  });
+
+  test("AppRole credentials dialog offers Copy passthrough key", () => {
+    expect(html).toContain("Copy passthrough key");
+  });
+
+  test("alias conflict handler is defined at module level, not inside a modal opener", () => {
+    const defs = [...html.matchAll(/^( *)window\._showAliasConflict = /gm)];
+    expect(defs.length).toBe(1);
+    // Same indentation as other module-level window handlers (two spaces).
+    expect(defs[0][1].length).toBe(2);
+    expect(html.indexOf("window._showAliasConflict = ")).toBeLessThan(html.indexOf("window._saveNewSecret = "));
+  });
+
+  test("passthrough keys are not logged", () => {
+    const i = html.indexOf("_copyPassthroughKey = ");
+    expect(i).toBeGreaterThan(-1);
+    const body = html.slice(i, html.indexOf("\n  };", i));
+    expect(body).not.toMatch(/console\./);
+  });
+});

@@ -6,9 +6,17 @@ import type { AuditLog } from "../audit/logger";
 import type { AuthContext } from "../auth/middleware";
 import type { PatternEngine } from "../patterns/engine";
 import type { DynamicSecretsManager } from "../dynamic/manager";
-import { validateListMetadata } from "../secrets/metadataValidation";
+import { validateSecretMetadata } from "../secrets/metadataValidation";
+import { AliasConflictError } from "../secrets/engine";
+import { aliasConflictMessage, aliasConflictFromError } from "../secrets/aliasConflict";
 
 const PATH_REGEX = /^[a-zA-Z0-9/_-]+$/;
+class BulkConflict extends Error {
+  constructor(public readonly path: string) {
+    super("alias conflict");
+  }
+}
+
 const MAX_METADATA_VALUE_SIZE = 1024; // 1KB per value
 
 function validatePath(path: string): string | null {
@@ -116,11 +124,30 @@ export function bulkSecretsRouter(
       if (!policies.check(auth.policies, it.path, "write")) {
         return c.json({ error: `${it.path}: write forbidden`, request_id: c.get("requestId") }, 403);
       }
-      const checked = validateListMetadata(it.metadata);
+      const checked = validateSecretMetadata(it.metadata);
       if (!checked.ok) {
         return c.json({ error: `${it.path}: ${checked.error}`, request_id: c.get("requestId") }, 400);
       }
       it.metadata = checked.metadata;
+    }
+
+    // Aliases must be unique inside the batch and against stored secrets.
+    // Nothing is imported on conflict.
+    const batchAliases = new Map<string, string>();
+    for (const it of items) {
+      const alias = it.metadata?.passthrough_alias;
+      if (!alias) continue;
+      const earlier = batchAliases.get(alias);
+      if (earlier !== undefined && earlier !== it.path) {
+        const named = policies.check(auth.policies, earlier, "list") ? ` by "${earlier}"` : "";
+        return c.json(
+          { error: `${it.path}: passthrough_alias is already in use${named}`, request_id: c.get("requestId") },
+          409
+        );
+      }
+      batchAliases.set(alias, it.path);
+      const msg = aliasConflictMessage(secrets, policies, auth.policies, alias, it.path);
+      if (msg) return c.json({ error: `${it.path}: ${msg}`, request_id: c.get("requestId") }, 409);
     }
 
     if (body.dry_run) {
@@ -128,9 +155,26 @@ export function bulkSecretsRouter(
     }
 
     const imported: string[] = [];
-    for (const it of items) {
-      secrets.put(it.path, it.value, it.metadata || {});
-      imported.push(it.path);
+    try {
+      // One transaction: a failure on the Nth item leaves nothing written.
+      secrets.transaction(() => {
+        for (const it of items) {
+          try {
+            secrets.put(it.path, it.value, it.metadata || {});
+          } catch (err) {
+            if (err instanceof AliasConflictError) {
+              throw new BulkConflict(it.path);
+            }
+            throw err;
+          }
+          imported.push(it.path);
+        }
+      });
+    } catch (err) {
+      if (err instanceof BulkConflict) {
+        return c.json({ error: `${err.path}: passthrough_alias is already in use`, request_id: c.get("requestId") }, 409);
+      }
+      throw err;
     }
 
     audit.log({
@@ -353,7 +397,24 @@ export function secretsRouter(
       if (typeof v !== "number" || v < 1) {
         return c.json({ error: "version (positive integer) is required", request_id: c.get("requestId") }, 400);
       }
-      const result = secrets.rollback(path, v);
+      // Archived metadata may predate passthrough validation; never restore it unchecked.
+      const archivedMeta = secrets.getVersionMetadata(path, v);
+      if (archivedMeta) {
+        const vm = validateSecretMetadata(archivedMeta);
+        if (!vm.ok) {
+          return c.json({ error: `version ${v}: ${vm.error}`, request_id: c.get("requestId") }, 400);
+        }
+      }
+      let result;
+      try {
+        result = secrets.rollback(path, v);
+      } catch (err) {
+        if (err instanceof AliasConflictError) {
+          const msg = aliasConflictFromError(secrets, policies, auth.policies, err.alias, path);
+          return c.json({ error: msg, request_id: c.get("requestId") }, 409);
+        }
+        throw err;
+      }
       if (!result) {
         return c.json({ error: "Version not found", request_id: c.get("requestId") }, 404);
       }
@@ -393,12 +454,24 @@ export function secretsRouter(
       }
     }
 
-    const checked = validateListMetadata(body.metadata);
+    const checked = validateSecretMetadata(body.metadata);
     if (!checked.ok) {
       return c.json({ error: checked.error, request_id: c.get("requestId") }, 400);
     }
 
-    const result = secrets.put(path, body.value, checked.metadata);
+    const conflict = aliasConflictMessage(secrets, policies, auth.policies, checked.metadata?.passthrough_alias, path);
+    if (conflict) return c.json({ error: conflict, request_id: c.get("requestId") }, 409);
+
+    let result;
+    try {
+      result = secrets.put(path, body.value, checked.metadata);
+    } catch (err) {
+      if (err instanceof AliasConflictError) {
+        const msg = aliasConflictFromError(secrets, policies, auth.policies, err.alias, path);
+        return c.json({ error: msg, request_id: c.get("requestId") }, 409);
+      }
+      throw err;
+    }
 
     audit.log({
       identity: auth.identity,
@@ -445,12 +518,24 @@ export function secretsRouter(
       }
     }
 
-    const checked = validateListMetadata(metadata);
+    const checked = validateSecretMetadata(metadata);
     if (!checked.ok) {
       return c.json({ error: checked.error, request_id: c.get("requestId") }, 400);
     }
 
-    const result = secrets.setMetadata(path, checked.metadata);
+    const conflict = aliasConflictMessage(secrets, policies, auth.policies, checked.metadata.passthrough_alias, path);
+    if (conflict) return c.json({ error: conflict, request_id: c.get("requestId") }, 409);
+
+    let result;
+    try {
+      result = secrets.setMetadata(path, checked.metadata);
+    } catch (err) {
+      if (err instanceof AliasConflictError) {
+        const msg = aliasConflictFromError(secrets, policies, auth.policies, err.alias, path);
+        return c.json({ error: msg, request_id: c.get("requestId") }, 409);
+      }
+      throw err;
+    }
     if (!result) {
       return c.json({ error: "Not found", request_id: c.get("requestId") }, 404);
     }

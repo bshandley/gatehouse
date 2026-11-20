@@ -75,7 +75,7 @@ function originFromRequest(c: any, config: GatehouseConfig): string {
       const reqHost = c.req.header("x-forwarded-host") || c.req.header("host");
       if (reqHost && reqHost === internalHost) return config.internalUrl;
     } catch {
-      // Malformed internalUrl — fall through to publicUrl logic.
+      // Malformed internalUrl: fall through to publicUrl logic.
     }
   }
   if (config.publicUrl) return config.publicUrl;

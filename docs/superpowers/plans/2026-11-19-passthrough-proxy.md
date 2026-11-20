@@ -22,8 +22,8 @@
 - Tasks 1 and 2 are behavior-preserving: `test/proxy.test.ts`, `test/proxyApprovalAudit.test.ts`, `test/rateLimits.test.ts`, and `test/mcp.test.ts` pass with zero edits to those files.
 - Audit action for passthrough is `proxy.forward` with `metadata.mode = "passthrough"` and `metadata.alias`. The query string is never logged.
 - After every `bun test` run, report the count as `✓ N pass`.
-- Commit per task, style `feat(passthrough): summary`. Push the feature branch to `origin` only. A push to `origin` restarts the maintainer's live instance: say so before pushing and check `/health` after.
-- Release is 0.24.0 (0.23.0 is reserved for distribution). If distribution has not shipped when Task 9 runs, stop at the local commit and ask the maintainer which number to use.
+- Commit per task, style `feat(passthrough): summary`. Push the feature branch to `origin` only. Only a push of `main` redeploys the maintainer's live instance; feature-branch pushes do not.
+- Release is 0.24.0 (0.23.0 shipped distribution).
 
 ## Review Focus
 
@@ -173,6 +173,8 @@ Duplicate handling: each write path calls `findByAlias` before writing. A hit on
 - [ ] **Step 5: Commit** `feat(passthrough): alias and upstream_url metadata with a unique index`.
 
 ### Task 4: Caller authentication
+
+> Note (2026-11-19): `src/auth/verifyBearer.ts` already exists. It shipped in 0.23.0 with the interface below (`createBearerVerifier(config, db)`), and `authMiddleware` and the stdio MCP entry already use it. Do not recreate it. This task is now the login limiter extraction and the passthrough key.
 
 **Files:**
 - Create: `src/auth/verifyBearer.ts`

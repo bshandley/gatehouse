@@ -289,7 +289,7 @@ In `openclaw.json`:
         "apiKey": {
           "source": "exec",
           "provider": "gatehouse",
-          "id": "api-keys/anthropic"
+          "id": "api-keys/example2"
         }
       },
       "openai": {
@@ -324,7 +324,7 @@ export OPENAI_API_KEY=$(curl -s \
 export ANTHROPIC_API_KEY=$(curl -s \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Accept: text/plain" \
-  http://gatehouse.local:3100/v1/secrets/api-keys/anthropic/value)
+  http://gatehouse.local:3100/v1/secrets/api-keys/example2/value)
 ```
 
 Or register Gatehouse as an MCP server in Hermes's config.

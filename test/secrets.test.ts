@@ -2,7 +2,8 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { Hono } from "hono";
 import { initDB } from "../src/db/init";
-import { SecretsEngine } from "../src/secrets/engine";
+import { FIND_BY_ALIAS_SQL } from "../src/secrets/aliasSql";
+import { SecretsEngine, AliasConflictError } from "../src/secrets/engine";
 import { AuditLog } from "../src/audit/logger";
 import { PolicyEngine } from "../src/policy/engine";
 import { secretsRouter } from "../src/api/secrets";
@@ -30,6 +31,110 @@ describe("SecretsEngine", () => {
     engine.put("test/secret", "my-secret-value");
     const value = engine.get("test/secret");
     expect(value).toBe("my-secret-value");
+  });
+
+  describe("passthrough alias", () => {
+    const A = { passthrough_alias: "example", upstream_url: "https://api.example.com" };
+
+    test("findByAlias hit and miss", () => {
+      engine.put("svc/one", "v", A);
+      engine.put("svc/plain", "v", {});
+      expect(engine.findByAlias("example")!.path).toBe("svc/one");
+      expect(engine.findByAlias("other")).toBeNull();
+      expect(engine.findByAlias("")).toBeNull();
+    });
+
+    test("findByAlias is answered from the unique index", () => {
+      const plan = db.query(`EXPLAIN QUERY PLAN ${FIND_BY_ALIAS_SQL}`).all("example") as { detail: string }[];
+      expect(plan.map((p) => p.detail).join(" ")).toContain("idx_secrets_passthrough_alias");
+    });
+
+    test("a pre-existing duplicate does not stop boot; findByAlias fails closed", () => {
+      db.run("DROP INDEX idx_secrets_passthrough_alias");
+      engine.put("svc/one", "v", A);
+      engine.put("svc/two", "v", {});
+      db.run(
+        `UPDATE secrets SET metadata = '{"passthrough_alias":"example","upstream_url":"https://api.example.com"}' WHERE path = 'svc/two'`
+      );
+      db.close();
+      const errs: string[] = [];
+      const orig = console.error;
+      console.error = (...a: unknown[]) => void errs.push(a.join(" "));
+      try {
+        db = initDB(dir);
+      } finally {
+        console.error = orig;
+      }
+      expect(errs).toHaveLength(1);
+      expect(errs[0]).toContain('"example"');
+      expect(errs[0]).toContain("passthrough is disabled");
+      engine = new SecretsEngine(db, Buffer.from("a".repeat(64), "hex"));
+      expect(engine.findByAlias("example")).toBeNull();
+
+      engine.delete("svc/two");
+      db.close();
+      db = initDB(dir);
+      engine = new SecretsEngine(db, Buffer.from("a".repeat(64), "hex"));
+      expect(engine.findByAlias("example")!.path).toBe("svc/one");
+      engine.put("svc/three", "v", {});
+      expect(() => engine.put("svc/four", "v", A)).toThrow(AliasConflictError);
+    });
+
+    test("rows with invalid JSON metadata break neither the index nor the lookup", () => {
+      engine.put("svc/one", "v", A);
+      db.run("DROP INDEX idx_secrets_passthrough_alias");
+      db.run("UPDATE secrets SET metadata = 'not json' WHERE path = 'svc/one'");
+      db.close();
+      db = initDB(dir);
+      engine = new SecretsEngine(db, Buffer.from("a".repeat(64), "hex"));
+      expect(engine.findByAlias("example")).toBeNull();
+    });
+
+    test("transaction() rolls back every write when a later one throws", () => {
+      engine.put("svc/one", "v", A);
+      expect(() =>
+        engine.transaction(() => {
+          engine.put("svc/a", "v", {});
+          engine.put("svc/b", "v", A);
+        })
+      ).toThrow(AliasConflictError);
+      expect(engine.getMeta("svc/a")).toBeNull();
+    });
+
+    test("the index backstop: put and setMetadata raise AliasConflictError on a duplicate", () => {
+      engine.put("svc/one", "v", A);
+      expect(() => engine.put("svc/two", "v", A)).toThrow(AliasConflictError);
+      engine.put("svc/three", "v", {});
+      expect(() => engine.setMetadata("svc/three", A)).toThrow(AliasConflictError);
+      expect(engine.getMeta("svc/three")!.version).toBe(1);
+    });
+
+    test("secrets without the key, or with an empty one, do not collide", () => {
+      engine.put("svc/a", "v", {});
+      engine.put("svc/b", "v", {});
+      engine.put("svc/c", "v", { passthrough_alias: "" });
+      engine.put("svc/d", "v", { passthrough_alias: "" });
+    });
+
+    test("initDB twice is clean and keeps the index", () => {
+      engine.put("svc/one", "v", A);
+      db.close();
+      db = initDB(dir);
+      db = initDB(dir);
+      engine = new SecretsEngine(db, Buffer.from("a".repeat(64), "hex"));
+      expect(engine.findByAlias("example")!.path).toBe("svc/one");
+    });
+
+    test("initDB on a database created before the index adds it and keeps existing secrets", () => {
+      engine.put("svc/legacy", "v", { env: "dev" });
+      db.run("DROP INDEX idx_secrets_passthrough_alias");
+      db.close();
+      db = initDB(dir);
+      engine = new SecretsEngine(db, Buffer.from("a".repeat(64), "hex"));
+      expect(engine.get("svc/legacy")).toBe("v");
+      engine.put("svc/one", "v", A);
+      expect(() => engine.put("svc/two", "v", A)).toThrow(AliasConflictError);
+    });
   });
 
   test("get returns null for missing secret", () => {

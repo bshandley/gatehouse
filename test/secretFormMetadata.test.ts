@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { buildMetadata, hydrateMetadata, DEFAULT_STATE } from "../src/ui/secret-form-metadata.js";
+import { buildMetadata, hydrateMetadata, DEFAULT_STATE, isAliasConflict } from "../src/ui/secret-form-metadata.js";
 
 describe("buildMetadata", () => {
   test("default state produces empty metadata", () => {
@@ -185,5 +185,91 @@ describe("hydrateMetadata", () => {
   test("round-trip preserves header_name paired with unknown auth_scheme", () => {
     const original = { auth_scheme: "weird", header_name: "X-Foo" };
     expect(buildMetadata(hydrateMetadata(original))).toEqual(original);
+  });
+});
+
+describe("passthrough fields", () => {
+  test("default state has empty alias and upstream URL", () => {
+    const s = DEFAULT_STATE();
+    expect(s.passthrough_alias).toBe("");
+    expect(s.upstream_url).toBe("");
+  });
+
+  test("both set writes both, trimmed", () => {
+    const s = DEFAULT_STATE();
+    s.passthrough_alias = " openai ";
+    s.upstream_url = " https://api.example.com/v1 ";
+    expect(buildMetadata(s)).toEqual({ passthrough_alias: "openai", upstream_url: "https://api.example.com/v1" });
+  });
+
+  test("neither set writes neither", () => {
+    expect(buildMetadata(DEFAULT_STATE())).toEqual({});
+  });
+
+  test("alias without URL throws", () => {
+    const s = DEFAULT_STATE();
+    s.passthrough_alias = "openai";
+    expect(() => buildMetadata(s)).toThrow(/^upstream_url required when passthrough_alias is set$/);
+  });
+
+  test("URL without alias throws", () => {
+    const s = DEFAULT_STATE();
+    s.upstream_url = "https://api.example.com";
+    expect(() => buildMetadata(s)).toThrow(/^passthrough_alias required when upstream_url is set$/);
+  });
+
+  test("alias that breaks the pattern throws", () => {
+    const s = DEFAULT_STATE();
+    s.upstream_url = "https://api.example.com";
+    for (const bad of ["Open AI", "-lead", "UPPER", "a/b", "a".repeat(64)]) {
+      s.passthrough_alias = bad;
+      expect(() => buildMetadata(s)).toThrow(/passthrough_alias/);
+    }
+  });
+
+  test("URL the server would reject throws with the server's reason", () => {
+    const s = DEFAULT_STATE();
+    s.passthrough_alias = "openai";
+    for (const [bad, why] of [
+      ["ftp://api.example.com", /absolute http or https/],
+      ["https://api.example.com?x=1", /query or fragment/],
+      ["https://user:pw@api.example.com", /credentials/],
+      ["https://api.example.com/a/../b", /\. or \.\./],
+      ["api.example.com", /absolute http or https/],
+    ] as const) {
+      s.upstream_url = bad;
+      expect(() => buildMetadata(s)).toThrow(why);
+    }
+  });
+
+  test("hydrate lifts both keys out of the custom rows", () => {
+    const s = hydrateMetadata({ passthrough_alias: "openai", upstream_url: "https://api.example.com", "x-team": "a" });
+    expect(s.passthrough_alias).toBe("openai");
+    expect(s.upstream_url).toBe("https://api.example.com");
+    expect(s.custom).toEqual([["x-team", "a"]]);
+  });
+
+  test("round-trip preserves both keys", () => {
+    const original = { passthrough_alias: "openai", upstream_url: "https://api.example.com/v1" };
+    expect(buildMetadata(hydrateMetadata(original))).toEqual(original);
+  });
+});
+
+describe("isAliasConflict", () => {
+  const err = (status: number, message: string) => Object.assign(new Error(message), { status });
+
+  test("true for a 409 that names passthrough_alias", () => {
+    expect(isAliasConflict(err(409, 'passthrough_alias is already in use by "api-keys/example"'))).toBe(true);
+    expect(isAliasConflict(err(409, "api-keys/example2: passthrough_alias is already in use"))).toBe(true);
+  });
+
+  test("false for a 409 about something else", () => {
+    expect(isAliasConflict(err(409, "version conflict on api-keys/example"))).toBe(false);
+  });
+
+  test("false for other statuses and non-errors", () => {
+    expect(isAliasConflict(err(400, "passthrough_alias is already in use"))).toBe(false);
+    expect(isAliasConflict(new Error("passthrough_alias is already in use"))).toBe(false);
+    expect(isAliasConflict(null)).toBe(false);
   });
 });

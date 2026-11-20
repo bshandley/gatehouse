@@ -1,7 +1,7 @@
 name: gatehouse
 services:
   gatehouse:
-    image: ghcr.io/bshandley/gatehouse:0.23.0
+    image: ghcr.io/bshandley/gatehouse:0.24.0
     container_name: gatehouse
     user: "1000:1000"
     restart: unless-stopped
@@ -53,7 +53,7 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  version: "0.23.0"
+  version: "0.24.0"
   website: https://gatehouse.to
   repo: https://github.com/bshandley/gatehouse
   support: https://github.com/bshandley/gatehouse/issues

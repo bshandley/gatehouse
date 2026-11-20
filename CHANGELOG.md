@@ -5,6 +5,39 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.24.0] - 2026-11-19
+
+Passthrough. Any SDK, CLI, or tool with a base-URL setting can use the vault by changing that URL. No envelope, no code changes. See the new Passthrough docs page.
+
+### Added
+
+- **`/p/<alias>/...` passthrough route.** Two new secret metadata keys, `passthrough_alias` and `upstream_url` (both or neither), bind a secret to an alias. A request to `/p/<alias>/<rest>` is forwarded to `upstream_url` plus `<rest>` and the query string, with the secret injected per `header_name` and `auth_scheme`, and the upstream's own status, headers, and body come back streamed (SSE and chunked) with the secret scrubbed. Every `/v1/proxy` control applies: the `proxy` capability, AppRole and per-secret rate limits, approval-gated leases, `allowed_domains`, `allowed_path_prefixes`, the private-network policy, `tls_allow_insecure`, audit (`proxy.forward` with `mode: passthrough` and `alias`; the query string is never logged, in the audit log or the request log), and pattern learning. The caller cannot leave the configured origin or path prefix (`400 bad_path`). Setting an alias grants nothing: the caller still needs a policy with `proxy` on the secret.
+- **Caller credential in the API-key slot.** Gatehouse reads the caller's credential from the secret's injection header, then `Authorization: Bearer`, then `x-api-key`, and forwards none of them. It accepts a Gatehouse JWT, the root token, or a **passthrough key**: `gatehouse_pt_` plus unpadded base64url of `role_id:secret_id`. A passthrough key is the AppRole's existing credential in one token: rotating the `secret_id` revokes it, and suspension and the IP allowlist apply on every request. Failed passthrough-key checks count against the per-IP login limiter; JWT and root-token checks do not, as on `/v1`, so junk requests cannot lock an IP out. An unauthenticated request gets `401` whether or not the alias exists.
+- **Gatehouse-originated errors are marked.** JSON `{error, code, request_id}` with `X-Gatehouse-Error: 1`, so SDK output tells a vault denial from an upstream error. An upstream status outside 200 to 599 is answered `502 upstream_unreachable`.
+- **Upstream content is sandboxed.** Every passthrough response that carries upstream content gets `Content-Security-Policy: sandbox`, since it is served from the vault UI's origin.
+- **Alias metadata is validated on every write path** (REST POST and PATCH, rollback, bulk import, MCP `gatehouse_put`). Aliases are unique (409 on a duplicate, naming the other secret only if you can list it), and `upstream_url` must satisfy the secret's `allowed_domains`.
+- **Web UI.** A Passthrough group on the secret form, the resulting base URL with a copy button on the secret detail view, and **Copy passthrough key** next to the new `secret_id` when an AppRole is created.
+- The installed `gatehouse` skill and the For Agents page describe calling `/p/<alias>/...` with a JWT instead of building an envelope.
+
+### Changed
+
+- **The proxy controls live in one shared pipeline** (`src/proxy/pipeline.ts`) used by `POST /v1/proxy`, the `gatehouse_proxy` MCP tool, and passthrough. REST and HTTP MCP behavior is unchanged, with one deliberate fix: an upstream body over `max_body_bytes` used to be counted twice against rate limits, and is now counted once. Over stdio MCP, gated secrets used to be forwarded ungated (the stdio server had no rate limiter, so `requires_approval` and `rate_limit_per_minute` were skipped). They are now gated as over HTTP. Rate-limit counters live in the stdio process and are not shared with the server.
+- **A malformed `GATEHOUSE_MAX_BODY_SIZE` no longer turns off the request body cap on `/v1`.** It used to be parsed with a bare `parseInt`, so a value such as `lots` disabled the check. A value that is not a positive integer now logs one startup warning and the 1 MiB default applies.
+
+### Upgrade notes
+
+- A secret that already has a free-form `upstream_url` metadata key and no `passthrough_alias` cannot have its metadata saved (or be rolled back to such a version) until `upstream_url` is removed or an alias is added: the two keys are now validated together.
+
+### Known limits
+
+- **Stream lag.** The response scrubber always holds back the last (longest redact value in bytes, minus 1) bytes until about that many more follow or the stream ends, so short SSE events can be held several at a time and the tail arrives at the end. The hold-back is fixed so that what is emitted never depends on whether it resembles the secret.
+- **Cut streams end without a clean error.** When `max_body_bytes` or the idle timeout (`max_timeout_ms` between chunks) cuts a stream, or the client aborts, the status has already been sent, and the body ends normally on the wire: under Bun.serve even an errored response stream ends with the normal closing chunk, so a client cannot tell a cut from completion. The held-back tail is dropped, and the audit row is a failure that records the reason and the dropped byte count.
+- `Range`, `If-Range`, `Accept-Encoding`, and `Expect` are stripped from passthrough requests: a ranged request gets the full body, and bodies arrive decoded. A HEAD response carries no upstream `Content-Length`.
+- The scrubber matches whole occurrences of the secret and, for Latin1 values, its base64 form. It skips values under 8 characters and matches no other encoding or a fragment. A secret stored with its scheme (a value that begins with `Bearer `) is matched only in that stored form, so an echo of the bare token passes (all shared with `/v1/proxy`).
+- A 3xx `Location` on another origin, outside the `upstream_url` path prefix, or unparseable returns `502 upstream_redirect_cross_origin`. No WebSocket, no query-parameter credentials, no request signing.
+- The UI's passthrough key button is on AppRole create only. After a rotation, build the key by hand (the docs give a one-line shell command).
+- Under Bun, a client that stops reading its response is bounded in bytes but not in time, on every route. Put a reverse proxy with a send timeout in front of an exposed deployment.
+
 ## [0.23.0] - 2026-11-19
 
 Distribution. A bare container now boots with nothing configured, and there are install templates for four self-hosting catalogs.

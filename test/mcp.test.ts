@@ -130,6 +130,27 @@ rules:
     expect(read.isError).toBe(true);
   });
 
+  test("gatehouse_put validates passthrough metadata and rejects duplicate aliases", async () => {
+    const meta = { passthrough_alias: "example", upstream_url: "https://api.example.com" };
+    const half = await mcp.handleToolCall(
+      "gatehouse_put",
+      { path: "api-keys/half", value: "s", metadata: { passthrough_alias: "example" } },
+      adminAuth
+    );
+    expect(half.isError).toBe(true);
+    expect(half.content[0].text).toContain("upstream_url");
+
+    const first = await mcp.handleToolCall("gatehouse_put", { path: "api-keys/one", value: "s", metadata: meta }, adminAuth);
+    expect(first.isError).toBeUndefined();
+    const again = await mcp.handleToolCall("gatehouse_put", { path: "api-keys/one", value: "s2", metadata: meta }, adminAuth);
+    expect(again.isError).toBeUndefined();
+    const dup = await mcp.handleToolCall("gatehouse_put", { path: "api-keys/two", value: "s", metadata: meta }, adminAuth);
+    expect(dup.isError).toBe(true);
+    expect(dup.content[0].text).toContain("passthrough_alias is already in use");
+    const read = await mcp.handleToolCall("gatehouse_get", { path: "api-keys/two" }, adminAuth);
+    expect(read.isError).toBe(true);
+  });
+
   test("gatehouse_get retrieves a secret", async () => {
     await mcp.handleToolCall(
       "gatehouse_put",

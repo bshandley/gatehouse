@@ -7,11 +7,18 @@ import type { PatternEngine } from "../patterns/engine";
 import type { RateLimiter } from "../rateLimits/limiter";
 import type { LeaseManager } from "../lease/manager";
 import type { AuthContext } from "../auth/middleware";
-import { enforceProxyGates } from "./proxyGates";
-import { isPrivateHost, scrubResponseBody, secretRedactionValues, readCappedText, pathMatchesAnyPrefix } from "../security/ssrf";
+import { scrubResponseBody, secretRedactionValues, readCappedText } from "../security/ssrf";
 import { getProxyLimits } from "../settings/proxyLimits";
-import { splitList } from "../ui/list-validate.js";
-import { hostAllowed } from "../security/domainAllowlist";
+import {
+  authorizeProxyCall,
+  recordProxyCall,
+  recordProxyOutcome,
+  type ProxyCall,
+  type ProxyDeps,
+} from "../proxy/pipeline";
+
+// Re-exported: src/mcp/server.ts and others import these from here.
+export { allowPrivateGlobally, checkPrivateNetworkPolicy } from "../proxy/pipeline";
 
 /**
  * Proxy request format - three injection styles supported:
@@ -46,25 +53,6 @@ interface ProxyRequest {
 }
 
 /**
- * Whether private network proxying is globally allowed. Default true:
- * Gatehouse's primary audience is homelabbers whose services live on
- * private IPs, so the proxy is useless out of the box if these are
- * blocked. Set GATEHOUSE_PROXY_ALLOW_PRIVATE=false to re-enable SSRF
- * blocking (e.g. when exposing Gatehouse on the public internet).
- */
-export function allowPrivateGlobally(): boolean {
-  const v = (process.env.GATEHOUSE_PROXY_ALLOW_PRIVATE ?? "").toLowerCase();
-  return v !== "false";
-}
-
-/**
- * Shared SSRF decision for both the HTTP proxy and the MCP gatehouse_proxy
- * tool. Returns { allowed: true } when the call may proceed, or
- * { allowed: false, reason } when it must be blocked. Both the per-secret
- * override (metadata.allow_private=true) and per-secret force-block
- * (metadata.allow_private=false) are honored.
- */
-/**
  * Resolve an auto_inject request to a concrete (header, value) pair.
  *
  * Secret metadata can specify:
@@ -96,31 +84,6 @@ export function resolveAutoInject(
   const hasScheme = /^(Bearer|Basic|Token|Digest|ApiKey)\s/i.test(secretValue);
   const headerValue = scheme && !hasScheme ? `${scheme} ${secretValue}` : secretValue;
   return { headerName, headerValue };
-}
-
-export function checkPrivateNetworkPolicy(
-  hostname: string,
-  secretPaths: string[],
-  getMeta: (path: string) => { metadata?: Record<string, string> } | null
-): { allowed: true } | { allowed: false; reason: string } {
-  if (!isPrivateHost(hostname)) return { allowed: true };
-  const blocks = secretPaths.some(
-    (p) => getMeta(p)?.metadata?.allow_private === "false"
-  );
-  if (blocks) {
-    return {
-      allowed: false,
-      reason: "This secret has metadata allow_private=false and cannot proxy to private networks. Remove that key or set allow_private=true to allow.",
-    };
-  }
-  const allows = secretPaths.some(
-    (p) => getMeta(p)?.metadata?.allow_private === "true"
-  );
-  if (allowPrivateGlobally() || allows) return { allowed: true };
-  return {
-    allowed: false,
-    reason: "Private network proxying is disabled on this Gatehouse (GATEHOUSE_PROXY_ALLOW_PRIVATE=false). Set metadata allow_private=true on the secret to override, or enable globally.",
-  };
 }
 
 // Match {{secret:path/to/secret}} in strings
@@ -287,13 +250,6 @@ export function proxyRouter(
       );
     }
 
-    // Extract the URL path from the user-supplied URL for audit metadata.
-    // Computed once here; the resolved (post-substitution) pathname is used
-    // separately during per-secret checks below.
-    const targetPath = (() => {
-      try { return new URL(req.url).pathname; } catch { return ""; }
-    })();
-
     // Validate timeout
     const timeout = Math.min(req.timeout || 30_000, limits.max_timeout_ms);
 
@@ -323,177 +279,55 @@ export function proxyRouter(
       );
     }
 
-    // Check policy for each referenced secret
-    for (const path of secretPaths) {
-      if (!policies.check(auth.policies, path, "proxy")) {
-        audit.log({
-          identity: auth.identity,
-          action: "proxy.forward",
-          path,
-          source_ip: sourceIp,
-          metadata: { target_url: req.url, target_path: targetPath, reason: "policy_denied" },
-          success: false,
-        });
-        return c.json(
-          {
-            error: `Forbidden: no proxy capability on ${path}`,
-            request_id: c.get("requestId"),
-          },
-          403
-        );
-      }
-    }
-
-    // Gates: per-AppRole rate limits, per-secret rate limits, approval check.
-    // Failures here return their own structured response and do NOT count
-    // toward rate limits (only successful gate passes increment counters via
-    // recordCall below, post-forward). Tests may omit rateLimiter/leases; the
-    // gates short-circuit to "allowed" in that case.
-    let gateRoleId = "";
-    let gateLeaseIds: Record<string, string> = {};
-    if (rateLimiter && leases) {
-      const gate = enforceProxyGates({
-        auth,
-        secretPaths,
-        sourceIp,
-        db,
-        rateLimiter,
-        leases,
-        secrets,
-        audit,
-        requestId: c.get("requestId"),
-      });
-      if (!gate.allowed) {
-        if (gate.headers) {
-          for (const [k, v] of Object.entries(gate.headers)) c.header(k, v);
-        }
-        return c.json(gate.body, gate.status);
-      }
-      gateRoleId = gate.roleId;
-      gateLeaseIds = gate.leaseIds;
-    }
-
-    // Resolve secrets and check domain allowlists
-    const resolved = new Map<string, string>();
-    for (const path of secretPaths) {
-      const value = secrets.get(path);
-      if (!value) {
-        // Should not happen: liveTemplate filtered out non-existent paths,
-        // and explicit paths already passed policy. Defensive 404.
-        return c.json(
-          {
-            error: `Secret not found: ${path}`,
-            request_id: c.get("requestId"),
-          },
-          404
-        );
-      }
-      resolved.set(path, value);
-
-      // Resolve URL once per secret iteration (it may contain secret refs).
-      // Both domain and path-prefix checks need the resolved URL.
-      const resolvedUrl = injectSecrets(req.url, resolved);
-      let parsedResolvedUrl: URL | null = null;
-      try { parsedResolvedUrl = new URL(resolvedUrl); } catch { /* invalid URL caught later */ }
-
-      // Check domain allowlist from secret metadata
-      const meta = secrets.getMeta(path);
-      if (meta?.metadata?.allowed_domains) {
-        const domains: string[] = splitList(meta.metadata.allowed_domains);
-
-        if (domains.length > 0) {
-          const { allowed, hostname } = hostAllowed(resolvedUrl, domains);
-
-          if (!allowed) {
-            audit.log({
-              identity: auth.identity,
-              action: "proxy.forward",
-              path,
-              source_ip: sourceIp,
-              metadata: {
-                target_url: req.url,
-                target_path: targetPath,
-                hostname,
-                reason: "domain_blocked",
-                allowed_domains: meta.metadata.allowed_domains,
-              },
-              success: false,
-            });
-            return c.json(
-              {
-                error: `Domain ${hostname} is not in the allowed domains for secret ${path}`,
-                request_id: c.get("requestId"),
-              },
-              403
-            );
+    // Policy, rate-limit and approval gates, domain and path allowlists,
+    // private-network policy, protocol. Shared with the MCP tool and
+    // passthrough; denials are already audited, this handler only formats
+    // the response.
+    const deps: ProxyDeps = { secrets, policies, audit, db, rateLimiter, leases, patterns };
+    const call: ProxyCall = {
+      auth,
+      sourceIp,
+      requestId: c.get("requestId"),
+      secretPaths,
+      auditUrl: req.url,
+      resolveUrl: (resolved) => injectSecrets(req.url, resolved),
+      auditAction: "proxy.forward",
+    };
+    const authz = authorizeProxyCall(deps, call);
+    if (!authz.ok) {
+      const d = authz.denial;
+      const requestId = c.get("requestId");
+      switch (d.code) {
+        case "policy_denied":
+          return c.json({ error: `Forbidden: no proxy capability on ${d.path}`, request_id: requestId }, 403);
+        case "gate_blocked":
+          if (d.gate.headers) {
+            for (const [k, v] of Object.entries(d.gate.headers)) c.header(k, v);
           }
-        }
-      }
-
-      // Check path-prefix allowlist from secret metadata
-      if (meta?.metadata?.allowed_path_prefixes) {
-        const prefixes: string[] = splitList(meta.metadata.allowed_path_prefixes);
-
-        if (prefixes.length > 0) {
-          const resolvedPath = parsedResolvedUrl?.pathname ?? targetPath;
-          if (!pathMatchesAnyPrefix(resolvedPath, prefixes)) {
-            audit.log({
-              identity: auth.identity,
-              action: "proxy.forward",
-              path,
-              source_ip: sourceIp,
-              metadata: {
-                target_url: req.url,
-                target_path: targetPath,
-                reason: "path_prefix_blocked",
-                allowed_path_prefixes: meta.metadata.allowed_path_prefixes,
-              },
-              success: false,
-            });
-            return c.json(
-              {
-                error: `Path '${resolvedPath}' is not in allowed_path_prefixes for secret '${path}'`,
-                request_id: c.get("requestId"),
-              },
-              403
-            );
-          }
-        }
+          return c.json(d.gate.body, d.gate.status);
+        case "gates_unavailable":
+          return c.json({ error: `Proxy gates are unavailable for ${d.path}`, request_id: requestId }, 500);
+        case "secret_not_found":
+          return c.json({ error: `Secret not found: ${d.path}`, request_id: requestId }, 404);
+        case "domain_blocked":
+          return c.json(
+            { error: `Domain ${d.hostname} is not in the allowed domains for secret ${d.path}`, request_id: requestId },
+            403
+          );
+        case "path_prefix_blocked":
+          return c.json(
+            { error: `Path '${d.resolvedPath}' is not in allowed_path_prefixes for secret '${d.path}'`, request_id: requestId },
+            403
+          );
+        case "ssrf_blocked":
+          return c.json({ error: d.reason, request_id: requestId }, 403);
+        case "bad_protocol":
+          return c.json({ error: `Unsupported protocol: ${d.protocol}`, request_id: requestId }, 400);
+        case "invalid_url":
+          return c.json({ error: "Invalid upstream URL", request_id: requestId }, 400);
       }
     }
-
-    // SSRF protection: private/internal networks are allowed by default
-    // (homelab-friendly). Block globally via GATEHOUSE_PROXY_ALLOW_PRIVATE=false,
-    // or block a specific secret via its metadata allow_private=false.
-    const upstreamUrl = injectSecrets(req.url, resolved);
-    try {
-      const parsedUpstream = new URL(upstreamUrl);
-      const ssrf = checkPrivateNetworkPolicy(
-        parsedUpstream.hostname,
-        secretPaths,
-        (p) => secrets.getMeta(p)
-      );
-      if (!ssrf.allowed) {
-        audit.log({
-          identity: auth.identity,
-          action: "proxy.forward",
-          path: secretPaths.join(","),
-          source_ip: sourceIp,
-          metadata: { target_host: parsedUpstream.hostname, target_path: targetPath, reason: "ssrf_blocked" },
-          success: false,
-        });
-        return c.json({ error: ssrf.reason, request_id: c.get("requestId") }, 403);
-      }
-      // Block non-HTTP(S) schemes
-      if (!["http:", "https:"].includes(parsedUpstream.protocol)) {
-        return c.json(
-          { error: `Unsupported protocol: ${parsedUpstream.protocol}`, request_id: c.get("requestId") },
-          400
-        );
-      }
-    } catch {
-      return c.json({ error: "Invalid upstream URL", request_id: c.get("requestId") }, 400);
-    }
+    const { resolved, upstreamUrl, tlsInsecure } = authz;
 
     // Build the upstream request with secrets injected
     const upstreamHeaders: Record<string, string> = {};
@@ -555,15 +389,10 @@ export function proxyRouter(
       }
     }
 
-    // Check if any referenced secret has tls_allow_insecure metadata
-    const tlsInsecure = secretPaths.some(p => {
-      const meta = secrets.getMeta(p);
-      return meta?.metadata?.tls_allow_insecure === "true";
-    });
-
     // Make the upstream request
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
+    let counted = false;
 
     try {
       const fetchOptions: any = {
@@ -587,29 +416,12 @@ export function proxyRouter(
 
       clearTimeout(timer);
 
-      // Log success (never log the resolved URL - it might contain secrets in path)
-      const successMeta: Record<string, string> = {
-        target_host: new URL(upstreamUrl).hostname,
-        target_path: targetPath,
-        target_url: req.url,
-        method,
-        status: String(upstream.status),
-      };
-      const leaseIdsList = Object.values(gateLeaseIds);
-      if (leaseIdsList.length > 0) {
-        successMeta.lease_id = leaseIdsList.join(",");
-      }
-      // Surface the authorizing lease_id as the top-level audit column when
-      // exactly one approval lease gated this call. Lets the audit UI filter
-      // by lease without parsing metadata. Multi-secret proxy calls keep the
-      // comma-joined list in metadata only.
-      const topLeaseId = leaseIdsList.length === 1 ? leaseIdsList[0] : undefined;
-
       // Count this call against AppRole + per-secret rate-limit buckets.
       // Upstream 4xx/5xx still counts: the gate work happened and the
       // upstream connection consumed proxy capacity. Pre-forward failures
       // (rate-limited, approval-required, policy denied) do NOT count.
-      if (rateLimiter) rateLimiter.recordCall(gateRoleId, secretPaths);
+      recordProxyCall(deps, call, authz);
+      counted = true;
 
       // Return the upstream response. Read with a hard body cap so an
       // oversized/hostile upstream can't exhaust memory, then scrub any
@@ -652,35 +464,19 @@ export function proxyRouter(
       // Now that the body/header scrub has run, the redaction count is known.
       // Logging here (rather than before the upstream read) means an oversized
       // upstream that throws in readCappedText produces only the failure row.
-      successMeta.redaction_count = String(redactionCount);
-      audit.log({
-        identity: auth.identity,
-        action: "proxy.forward",
-        path: secretPaths.join(","),
-        source_ip: sourceIp,
-        ...(topLeaseId ? { lease_id: topLeaseId } : {}),
-        metadata: successMeta,
+      // The pattern uses the pre-injection URL (with {{secret:...}}
+      // placeholders) so resolved values never reach the patterns table.
+      recordProxyOutcome(deps, call, authz, {
+        method,
+        status: upstream.status,
+        redactionCount,
+        pattern: {
+          url: req.url,
+          requestHeaderNames: Object.keys(upstreamHeaders),
+          requestBody: req.body,
+          responseBody: tryParseJson(responseBody),
+        },
       });
-
-      // Record pattern (fire-and-forget, non-critical)
-      // Use the pre-injection URL (with {{secret:...}} placeholders) to avoid
-      // storing resolved secret values in the patterns table.
-      if (patterns) {
-        try {
-          patterns.record({
-            secret_paths: secretPaths,
-            method,
-            url: req.url,
-            request_headers: Object.keys(upstreamHeaders),
-            request_body: req.body,
-            response_status: upstream.status,
-            response_body: tryParseJson(responseBody),
-            identity: auth.identity,
-          });
-        } catch {
-          // Pattern recording must never fail a proxy call
-        }
-      }
 
       const responseJson: Record<string, any> = {
         status: upstream.status,
@@ -707,18 +503,12 @@ export function proxyRouter(
       const reason =
         err.name === "AbortError" ? "timeout" : err.message || "unknown";
 
-      audit.log({
-        identity: auth.identity,
-        action: "proxy.forward",
-        path: secretPaths.join(","),
-        source_ip: sourceIp,
-        metadata: { target_url: req.url, target_path: targetPath, method, reason },
-        success: false,
-      });
+      recordProxyOutcome(deps, call, authz, { method, failureReason: reason });
 
       // Failed upstream calls still count against rate limits: we did the
-      // gate + injection work and made the outbound request.
-      if (rateLimiter) rateLimiter.recordCall(gateRoleId, secretPaths);
+      // gate + injection work and made the outbound request. Counted once:
+      // a body-cap overrun after the fetch was already counted above.
+      if (!counted) recordProxyCall(deps, call, authz);
 
       if (err.name === "AbortError") {
         const resp: any = {

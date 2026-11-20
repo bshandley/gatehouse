@@ -1,6 +1,8 @@
 // Exported as ES module so bun test can import; also attached to
 // window.SecretForm so the inline modal handlers in index.html can call in.
 
+import { PASSTHROUGH_ALIAS_PATTERN, canonicalizeUpstreamUrl } from "./list-validate.js";
+
 const KNOWN_AUTH_SCHEMES = new Set(["none", "bearer", "basic", "header", "query"]);
 
 export function DEFAULT_STATE() {
@@ -16,6 +18,8 @@ export function DEFAULT_STATE() {
     rate_limit_per_minute: "",
     auto_approve_from_ip: "",
     auto_approve_ttl_seconds: "",
+    passthrough_alias: "",
+    upstream_url: "",
     custom: [],
   };
 }
@@ -65,6 +69,22 @@ export function buildMetadata(state) {
   if (ip) {
     out.auto_approve_from_ip = ip;
     writeIfPositiveInt(out, "auto_approve_ttl_seconds", state.auto_approve_ttl_seconds);
+  }
+
+  // Passthrough is paired: both or neither. Rules come from list-validate.js,
+  // the same module the server validates with.
+  const alias = String(state.passthrough_alias ?? "").trim();
+  const upstream = String(state.upstream_url ?? "").trim();
+  if (alias || upstream) {
+    if (!alias) throw new Error("passthrough_alias required when upstream_url is set");
+    if (!upstream) throw new Error("upstream_url required when passthrough_alias is set");
+    if (!PASSTHROUGH_ALIAS_PATTERN.test(alias)) {
+      throw new Error("passthrough_alias must match ^[a-z0-9][a-z0-9-]{0,62}$ (lowercase letters, digits, hyphens)");
+    }
+    const parsed = canonicalizeUpstreamUrl(upstream);
+    if (!parsed.ok) throw new Error(`upstream_url ${parsed.reason}`);
+    out.passthrough_alias = alias;
+    out.upstream_url = upstream;
   }
 
   // Custom rows last; structured fields win on key collision.
@@ -132,10 +152,27 @@ export function hydrateMetadata(metadata) {
     delete remaining.auto_approve_ttl_seconds;
   }
 
+  if ("passthrough_alias" in remaining) {
+    s.passthrough_alias = String(remaining.passthrough_alias ?? "");
+    delete remaining.passthrough_alias;
+  }
+  if ("upstream_url" in remaining) {
+    s.upstream_url = String(remaining.upstream_url ?? "");
+    delete remaining.upstream_url;
+  }
+
   s.custom = Object.entries(remaining).map(([k, v]) => [k, String(v ?? "")]);
   return s;
 }
 
+/**
+ * True when an api() error is the passthrough alias collision: HTTP 409 whose
+ * message names passthrough_alias. Other 409s are not alias errors.
+ */
+export function isAliasConflict(err) {
+  return !!err && err.status === 409 && /passthrough_alias/.test(String(err.message ?? ""));
+}
+
 if (typeof window !== "undefined") {
-  window.SecretForm = { buildMetadata, hydrateMetadata, DEFAULT_STATE };
+  window.SecretForm = { buildMetadata, hydrateMetadata, DEFAULT_STATE, isAliasConflict };
 }

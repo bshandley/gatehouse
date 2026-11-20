@@ -1,4 +1,5 @@
 import { describe, test, expect } from "bun:test";
+import { encodePassthroughKey } from "../src/proxy/passthroughKey";
 import {
   referenceChipHtml,
   postureChips,
@@ -12,6 +13,9 @@ import {
   hygieneFlags,
   hygieneBadgeHtml,
   formatHygieneSummary,
+  passthroughBaseUrl,
+  passthroughSectionHtml,
+  encodePassthroughKey as encodeKeyInBrowser,
 } from "../src/ui/secret-detail-render.js";
 
 describe("referenceChipHtml", () => {
@@ -312,5 +316,65 @@ describe("formatHygieneSummary", () => {
 
   test("shows only the nonzero bucket", () => {
     expect(formatHygieneSummary({ stale_90d: 2, older_18mo: 0, total_secrets: 9 })).toBe("2 unused 90d");
+  });
+});
+
+describe("passthroughBaseUrl", () => {
+  test("origin plus /p/<alias> when both keys are set", () => {
+    expect(passthroughBaseUrl("https://vault.example.com", { passthrough_alias: "openai", upstream_url: "https://api.example.com" })).toBe(
+      "https://vault.example.com/p/openai"
+    );
+  });
+
+  test("null when either key is missing or empty", () => {
+    expect(passthroughBaseUrl("https://vault.example.com", {})).toBeNull();
+    expect(passthroughBaseUrl("https://vault.example.com", { passthrough_alias: "openai" })).toBeNull();
+    expect(passthroughBaseUrl("https://vault.example.com", { upstream_url: "https://api.example.com" })).toBeNull();
+    expect(passthroughBaseUrl("https://vault.example.com", { passthrough_alias: "", upstream_url: "" })).toBeNull();
+    expect(passthroughBaseUrl("https://vault.example.com", undefined)).toBeNull();
+  });
+});
+
+describe("passthroughSectionHtml", () => {
+  const meta = { passthrough_alias: "openai", upstream_url: "https://api.example.com" };
+
+  test("renders base URL, copy button, and the one-line hint", () => {
+    const html = passthroughSectionHtml("https://vault.example.com", meta);
+    expect(html).toContain("PASSTHROUGH");
+    expect(html).toContain("https://vault.example.com/p/openai");
+    expect(html).toContain("Copy");
+    expect(html).toContain("Point an SDK's base URL here and use a Gatehouse credential as its API key.".replace("'", "&#39;"));
+  });
+
+  test("renders nothing without an alias", () => {
+    expect(passthroughSectionHtml("https://vault.example.com", {})).toBe("");
+  });
+
+  test("escapes hostile values", () => {
+    const html = passthroughSectionHtml("https://vault.example.com", {
+      passthrough_alias: '"><img src=x onerror=alert(1)>',
+      upstream_url: "https://api.example.com",
+    });
+    expect(html).not.toContain("<img");
+  });
+});
+
+describe("encodePassthroughKey (browser)", () => {
+  const inputs: Array<[string, string]> = [
+    ["role-1", "plainsecret"],
+    ["role-2", "a+b/c:d=e"],
+    ["r\u00f4le-\u00e9", "s\u00e9cret-\u2603-\u{1F511}"],
+    ["role-4", "x:y:z"],
+  ];
+  for (const [r, s] of inputs) {
+    test(`matches the server for ${JSON.stringify([r, s])}`, () => {
+      expect(encodeKeyInBrowser(r, s)).toBe(encodePassthroughKey(r, s));
+    });
+  }
+
+  test("has the gatehouse_pt_ prefix and no padding or unsafe characters", () => {
+    const k = encodeKeyInBrowser("role", "a+b/c:d");
+    expect(k.startsWith("gatehouse_pt_")).toBe(true);
+    expect(k.slice("gatehouse_pt_".length)).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 });

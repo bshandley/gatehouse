@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import nacl from "tweetnacl";
 import { encodeBase64, decodeBase64 } from "tweetnacl-util";
 import { hkdfSync } from "crypto";
+import { ALIAS_INDEX_NAME, FIND_BY_ALIAS_SQL } from "./aliasSql";
 
 export interface StoredSecret {
   path: string;
@@ -10,6 +11,23 @@ export interface StoredSecret {
   created_at: string;
   updated_at: string;
   last_accessed_at: string | null;
+}
+
+/** Thrown when a write would give two secrets the same passthrough_alias. */
+export class AliasConflictError extends Error {
+  constructor(public readonly alias?: string) {
+    super("passthrough_alias is already in use");
+    this.name = "AliasConflictError";
+  }
+}
+
+
+/** True when `err` is the unique-index violation on passthrough_alias. */
+function isAliasConflict(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null;
+  if (!e) return false;
+  if (typeof e.message === "string" && e.message.includes(ALIAS_INDEX_NAME)) return true;
+  return e.code === "SQLITE_CONSTRAINT_UNIQUE";
 }
 
 /**
@@ -131,7 +149,12 @@ export class SecretsEngine {
           version
         );
     });
-    putTxn();
+    try {
+      putTxn();
+    } catch (err) {
+      if (isAliasConflict(err)) throw new AliasConflictError(metadata.passthrough_alias);
+      throw err;
+    }
 
     return this.getMeta(path)!;
   }
@@ -189,7 +212,13 @@ export class SecretsEngine {
       return true;
     });
 
-    const updated = txn();
+    let updated: true | null;
+    try {
+      updated = txn();
+    } catch (err) {
+      if (isAliasConflict(err)) throw new AliasConflictError(metadata.passthrough_alias);
+      throw err;
+    }
     if (!updated) return null;
     return this.getMeta(path);
   }
@@ -270,6 +299,40 @@ export class SecretsEngine {
       updated_at: row.updated_at,
       last_accessed_at: row.last_accessed_at ?? null,
     };
+  }
+
+  /**
+   * The secret whose passthrough_alias is `alias`, or null. Uses the same
+   * expression as the unique index (src/secrets/aliasSql.ts). Fails closed:
+   * if more than one row matches (a pre-existing duplicate the index could not
+   * be built over), returns null.
+   */
+  findByAlias(alias: string): StoredSecret | null {
+    if (typeof alias !== "string" || alias === "") return null;
+    const rows = this.db.query(FIND_BY_ALIAS_SQL).all(alias) as any[];
+    if (rows.length !== 1) return null;
+    const row = rows[0];
+    return {
+      path: row.path,
+      metadata: JSON.parse(row.metadata),
+      version: row.version,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      last_accessed_at: row.last_accessed_at ?? null,
+    };
+  }
+
+  /** Run `fn` in one SQLite transaction; any throw rolls everything back. */
+  transaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)();
+  }
+
+  /** Metadata archived in secret_versions for `version` of `path`, or null. */
+  getVersionMetadata(path: string, version: number): Record<string, string> | null {
+    const row = this.db
+      .query("SELECT metadata FROM secret_versions WHERE path = ? AND version = ?")
+      .get(path, version) as { metadata: string } | null;
+    return row ? JSON.parse(row.metadata) : null;
   }
 
   /**

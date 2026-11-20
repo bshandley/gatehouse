@@ -27,6 +27,17 @@ curl -X POST http://gatehouse:3100/v1/proxy \
 
 Domain allowlisting prevents exfiltration. An agent cannot use proxy mode to send a secret to an attacker-controlled host.
 
+### Passthrough
+
+The envelope only works for clients that know Gatehouse. Passthrough works for everything else that has a base-URL setting. Give a secret a `passthrough_alias` and an `upstream_url`, then point the client at `/p/<alias>` with a Gatehouse credential in its API-key slot:
+
+```bash
+export OPENAI_BASE_URL=http://gatehouse:3100/p/openai/v1
+export OPENAI_API_KEY="$GATEHOUSE_PT_KEY"
+```
+
+Gatehouse runs the same controls, injects the real key, and streams the upstream response back natively. The credential can be a Gatehouse JWT or a passthrough key (`gatehouse_pt_...`, the AppRole's `role_id` and `secret_id` in one token). An alias grants nothing: the caller still needs `proxy` on the secret. See [Passthrough](/docs/passthrough/).
+
 ## Credential leasing
 
 A lease is a time-bounded checkout of a secret. Agents request a lease with a TTL (10 to 86400 seconds), Gatehouse returns the value and a lease ID. When the TTL expires, a server-side reaper revokes the lease automatically. Agents can also revoke leases early.

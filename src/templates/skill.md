@@ -294,6 +294,28 @@ and a clock.
    metadata. Never call `gatehouse_get` just to see metadata, it
    returns the raw value and requires `read`.
 
+## Passthrough
+
+If a secret's `passthrough_alias` metadata is set (it appears in the
+`gatehouse_list` entry), skip the proxy envelope. Call the upstream API
+through `{GATEHOUSE_URL}/p/<alias>/...` with your JWT as the key. The
+method, path, query, and body are forwarded as is, and Gatehouse injects
+the real credential:
+
+    ALIAS=example   # the secret's passthrough_alias
+    curl -fsSL -H "Authorization: Bearer $TOKEN" \
+      "$GATEHOUSE_URL/p/$ALIAS/v1/models"
+
+Your JWT is the only credential you send. You still need `proxy` on the
+secret, and approval-gated secrets still need an approved lease. SDKs
+take `{GATEHOUSE_URL}/p/<alias>` as their base URL and the JWT as their
+API key.
+
+A failed JWT does not lock you out, but five failed passthrough keys
+(`gatehouse_pt_...`) in 60 seconds lock every passthrough key from your
+IP out of `/p/` for the rest of the window, so never retry a 401 in a
+loop: refresh your JWT (or fix the key) first.
+
 ## Injection styles for gatehouse_proxy
 
 `POST /v1/proxy` (or the MCP tool) takes a flat JSON envelope. Keys

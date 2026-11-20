@@ -111,6 +111,16 @@ One-shot links that rotate an existing AppRole's `secret_id` without touching it
 |---|---|---|
 | POST | `/v1/proxy` | Forward an HTTP request with secret injection. |
 
+## Passthrough
+
+Mounted outside `/v1/` and its auth middleware: the route authenticates the caller itself. Details, recipes, and limits: [Passthrough](/docs/passthrough/).
+
+| Method | Path | Description |
+|---|---|---|
+| GET, POST, PUT, PATCH, DELETE, HEAD | `/p/:alias/*` | Forward to the secret's `upstream_url` plus the remainder and query, with the secret injected per `header_name` and `auth_scheme`. The caller's credential (Gatehouse JWT, root token, or `gatehouse_pt_` passthrough key) is read from the secret's injection header, then `Authorization: Bearer`, then `x-api-key`. Requires `proxy` on the secret. Returns the upstream status, headers, and streamed body, scrubbed. Gatehouse-originated errors are `{error, code, request_id}` with `X-Gatehouse-Error: 1`. Request bodies are capped at `GATEHOUSE_MAX_BODY_SIZE` (`413 body_too_large`). Other methods: `405`. |
+
+The secret metadata keys `passthrough_alias` and `upstream_url` are validated on every write path: `POST` and `PATCH /v1/secrets/:path`, `POST /v1/secrets/:path/rollback` (the restored metadata), the bulk import `POST /v1/secrets-bulk`, and the MCP `gatehouse_put` tool: both or neither, alias `^[a-z0-9][a-z0-9-]{0,62}$` and unique (409 on a duplicate), `upstream_url` an absolute `http` or `https` URL with no query, fragment, or userinfo whose host satisfies the secret's `allowed_domains`.
+
 ## Dynamic secrets
 
 | Method | Path | Description |

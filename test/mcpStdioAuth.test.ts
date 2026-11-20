@@ -179,3 +179,40 @@ describe("stdio MCP identity", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
+
+describe("stdio MCP proxy gates", () => {
+  /** A vault whose only proxyable secret is approval-gated. */
+  function seedGated(): string {
+    const dir = mkdtempSync(join(tmpdir(), "gh-stdio-gates-"));
+    const db = initDB(dir);
+    new SecretsEngine(db, Buffer.from(KEY, "hex")).put("api-keys/example", "sk-example-value-123", { requires_approval: "true" });
+    new PolicyEngine(dir, db).savePolicy("proxy-agent", [{ path: "api-keys/*", capabilities: ["proxy"] }]);
+    db.close();
+    return dir;
+  }
+
+  test("an approval-gated secret is gated over stdio, not refused as gates_unavailable", async () => {
+    const dir = seedGated();
+    try {
+      const call = {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "gatehouse_proxy", arguments: { method: "GET", url: "https://api.example.com/v1", auto_inject: ["api-keys/example"] } },
+      };
+      const r = await run(dir, { GATEHOUSE_IDENTITY: "local-dev", GATEHOUSE_POLICIES: "proxy-agent" }, [call]);
+      expect(r.code).toBe(0);
+      const text = textOf(r.responses[0]);
+      expect(text).not.toContain("gates are unavailable");
+      expect(text).toContain("requires_approval");
+      expect(text).not.toContain("sk-example-value-123");
+      const db = initDB(dir);
+      const reasons = (db.query("SELECT action, metadata FROM audit_log WHERE action LIKE 'proxy.%'").all() as any[]).map(
+        (row) => `${row.action}:${JSON.parse(row.metadata ?? "{}").reason ?? ""}`
+      );
+      db.close();
+      expect(reasons.some((x) => x.endsWith(":gates_unavailable"))).toBe(false);
+      expect(reasons.some((x) => x.startsWith("proxy.blocked."))).toBe(true);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
