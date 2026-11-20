@@ -23,6 +23,8 @@ projects). Gatehouse-specific bindings:
 
 - **Linear:** team `Bradley` / prefix `BRA`, project `Gatehouse`. Milestones
   A-E mirror `docs/superpowers/specs/2026-06-05-ubiquity-roadmap-design.md`.
+  Work outside the roadmap gets its own lettered milestone (F is the
+  passthrough proxy, shipped in 0.24.0).
 - **Specs and plans** live under `docs/superpowers/` and are public.
 - **Ship steps** for this repo: the Versioning section and the remotes
   section below.
@@ -58,6 +60,9 @@ git push github main
 
 - **Push after every commit.** Feature branches go to `origin` only. `main`
   goes to `origin` and `github`. Do not wait to be asked.
+- **A push of `main` to `origin` is a production deploy.** Feature-branch
+  pushes deploy nothing. For a release, publish to `github` first so CI runs
+  on Linux before the deploy (see Versioning).
 - **Squash-merge is the default** for landing a feature branch, so
   intermediate private commits never become public history.
 - **GitHub-side changes** (dependabot, outside pull requests) are merged on
@@ -115,9 +120,14 @@ Release procedure:
 2. Update `CHANGELOG.md` with the new version block.
 3. Commit using the existing style: `feat(0.x.y): summary` or `fix(0.x.y): summary`
    (`git log` shows the pattern).
-4. Push `main` to `origin` and `github`.
+4. Push `main` to `github` first and wait for its Test workflow
+   (`gh run watch`). That run is the Linux check: the suite and the
+   first-boot smoke test. Then push `main` to `origin`. The `origin` push
+   redeploys the maintainer's live instance, so say so before pushing and
+   confirm `/health` reports the new version afterwards.
 5. `git tag v0.x.y`, then `git push origin v0.x.y && git push github v0.x.y`.
    The tag push triggers the GitHub release and Docker image workflows.
+   Confirm both finish.
 6. If `packaging/` changed, update the open upstream catalog pull requests.
 
 ## Style and voice
