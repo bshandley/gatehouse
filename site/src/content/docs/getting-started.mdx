@@ -23,8 +23,10 @@ docker run -d \
 ```
 
 <Callout type="warning" title="Save your master key">
-  The `GATEHOUSE_MASTER_KEY` is never written to disk. Losing it means losing access to every encrypted secret. Save it somewhere safe (a password manager, a printed backup, another vault) before you put real data in.
+  Losing the master key means losing access to every encrypted secret. Save it somewhere safe (a password manager, a printed backup, another vault) before you put real data in. See [Backup & Recovery](/docs/backup/).
 </Callout>
+
+`GATEHOUSE_MASTER_KEY` is optional. If you leave it out on a fresh volume, Gatehouse generates a key, saves it to `master.key` in the data volume (mode 0600), and prints it once to the container log. The tradeoff: the key then sits in the same volume as the database, so anyone who can read the volume has both. Set `GATEHOUSE_MASTER_KEY` in the environment and delete `master.key` if you want them apart. A set variable always wins over the file.
 
 Open `http://localhost:3100` in a browser. You'll see the login screen. Paste the `GATEHOUSE_ROOT_TOKEN` value you set above.
 

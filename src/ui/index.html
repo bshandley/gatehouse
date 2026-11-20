@@ -6631,7 +6631,33 @@
         <div class="config-row"><span class="config-key">SSO</span><span class="config-val">${cfg.oauth_enabled ? `<span class="badge badge-success" style="font-size:10px">Enabled</span>${cfg.oauth_issuer ? ` <span style="color:var(--text-tertiary);font-size:12px;margin-left:6px">${esc(cfg.oauth_issuer)}</span>` : ''}` : '<span class="badge badge-neutral" style="font-size:10px">Disabled</span>'}</span></div>
         <div class="config-row"><span class="config-key">Root Token</span><span class="config-val">${rootTokenBadge}</span></div>
         <div style="padding:4px 0 0 0;color:var(--text-tertiary);font-size:12px;line-height:1.5">${rootTokenHint}</div>
+        <div class="config-row"><span class="config-key">Encryption key</span><span class="config-val" id="settings-key-verify"><span class="badge badge-neutral" style="font-size:10px">Checking</span></span></div>
       `;
+      try {
+        const kv = await api('/v1/admin/key-verify');
+        const kvEl = document.getElementById('settings-key-verify');
+        kvEl.textContent = '';
+        const badge = document.createElement('span');
+        badge.style.fontSize = '10px';
+        if (!kv.ok) {
+          badge.className = 'badge badge-danger';
+          badge.textContent = 'DOES NOT MATCH DATA';
+        } else if (kv.tested === 'none') {
+          badge.className = 'badge badge-neutral';
+          badge.textContent = 'Loaded, no encrypted rows to test';
+        } else {
+          badge.className = 'badge badge-success';
+          badge.textContent = 'Matches data';
+        }
+        kvEl.appendChild(badge);
+        const fp = document.createElement('span');
+        fp.style.cssText = 'color:var(--text-tertiary);font-size:12px;margin-left:6px;font-family:monospace';
+        fp.textContent = String(kv.fingerprint || '');
+        kvEl.appendChild(fp);
+      } catch {
+        const kvEl = document.getElementById('settings-key-verify');
+        if (kvEl) kvEl.textContent = 'Unavailable';
+      }
     } catch {
       document.getElementById('settings-config-body').innerHTML = '<div style="color:var(--text-tertiary);font-size:13px">Unable to load configuration</div>';
     }
@@ -6802,7 +6828,7 @@
             <p class="muted-12 mb-md">Paste a new 64+ char hex master key (e.g. <code class="inline-code">openssl rand -hex 32</code>). Every secret DEK will be re-wrapped. Back up the old key before rotating.</p>
             <div class="form-group">
               <label class="form-label">New Master Key (hex)</label>
-              <input type="password" class="input mono" id="rotate-new-key" placeholder="64+ hex characters" autocomplete="off" spellcheck="false">
+              <input type="password" class="input mono" id="rotate-new-key" placeholder="64 hex characters" autocomplete="off" spellcheck="false">
             </div>
             <div class="form-group">
               <label class="form-label">Confirm New Key</label>
@@ -6818,11 +6844,57 @@
     setTimeout(() => document.getElementById('rotate-new-key')?.focus(), 30);
   }
 
+  // The rotation result stays on screen until the operator closes it: it may
+  // tell them to update GATEHOUSE_MASTER_KEY before the next restart.
+  function showRotateError(msg) {
+    document.getElementById('modal-container').innerHTML = `
+      <div class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title">Key rotation failed</h3>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').parentElement.innerHTML=''">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p style="color:var(--danger);font-size:13px;margin:0 0 16px 0;font-weight:500;padding:10px 12px;background:var(--danger-subtle);border-radius:6px;border:1px solid var(--border)">${esc(msg)}</p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-primary" onclick="this.closest('.modal-overlay').parentElement.innerHTML=''">Close</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function showRotateResult(res) {
+    const n = res.secrets_rewrapped ?? 0;
+    const d = res.dynamic_configs_rewrapped ?? 0;
+    const callout = (color, subtle, text) =>
+      `<p style="color:var(${color});font-size:13px;margin:0 0 16px 0;font-weight:500;padding:10px 12px;background:var(${subtle});border-radius:6px;border:1px solid var(--border)">${esc(text)}</p>`;
+    const warning = res.warning ? callout('--danger', '--danger-subtle', res.warning) : '';
+    const message = res.message ? `<p class="muted-12 mb-md">${esc(res.message)}</p>` : '';
+    document.getElementById('modal-container').innerHTML = `
+      <div class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title">Encryption key rotated</h3>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').parentElement.innerHTML=''">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-md">Re-wrapped ${esc(n)} secret${n === 1 ? '' : 's'} and ${esc(d)} dynamic config${d === 1 ? '' : 's'}.</p>
+            ${warning}
+            ${message}
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-primary" onclick="this.closest('.modal-overlay').parentElement.innerHTML=''">Done</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
   window.submitRotateKey = async function() {
     const k1 = document.getElementById('rotate-new-key').value.trim();
     const k2 = document.getElementById('rotate-new-key-confirm').value.trim();
     if (!k1 || k1 !== k2) { toast('Keys must match', 'error'); return; }
-    if (!/^[0-9a-fA-F]+$/.test(k1) || k1.length < 64) { toast('Key must be 64+ hex chars', 'error'); return; }
+    if (!/^[0-9a-fA-F]{64}$/.test(k1)) { toast('Key must be exactly 64 hex characters', 'error'); return; }
     if (!await ghConfirm({
       title: 'Rotate now?',
       message: 'Every secret will be re-wrapped. Make sure you have a backup of the old key.',
@@ -6831,10 +6903,9 @@
     })) return;
     try {
       const res = await api('/v1/admin/rotate-key', { method: 'POST', body: { new_master_key: k1 } });
-      toast(`Rotated ${res.rotated_secrets ?? res.secrets_rotated ?? 0} secrets`, 'success');
-      document.getElementById('modal-container').innerHTML = '';
+      showRotateResult(res);
     } catch (e) {
-      toast('Failed: ' + e.message, 'error');
+      showRotateError(e.message);
     }
   };
 

@@ -20,7 +20,7 @@ Gatehouse is designed for the homelab threat model: a single operator, one or mo
 
 ## What Gatehouse does not protect against
 
-- **Host compromise.** If an attacker gets root on the container host, they can read the master key from process memory, `/proc/$PID/environ`, or via `docker inspect` if the master key is set as an env var. Gatehouse reads the master key only from the `GATEHOUSE_MASTER_KEY` env var (there is no file or Docker secrets option), so limit who can reach the Docker socket and the host.
+- **Host compromise.** If an attacker gets root on the container host, they can read the master key from process memory, `/proc/$PID/environ`, or via `docker inspect` if the master key is set as an env var. Gatehouse reads the master key from `GATEHOUSE_MASTER_KEY` or, when that is unset, from `master.key` in the data volume (there is no Docker secrets option). A key file means anyone who can read the volume has the database and the key together, so limit who can reach the Docker socket and the host.
 - **A malicious admin.** An admin user with the `admin` capability can read any secret and revoke any lease. The audit log records what they did, but it does not prevent them.
 - **Side channels in upstream APIs.** If an agent proxies a request and the upstream API includes the credential in its response (a misconfiguration on the upstream's side), Gatehouse cannot un-leak it.
 
@@ -28,14 +28,16 @@ Gatehouse is designed for the homelab threat model: a single operator, one or mo
 
 ### Master key handling
 
-The `GATEHOUSE_MASTER_KEY` is never written to disk by Gatehouse. Losing it means losing access to every encrypted secret. Store the master key:
+Gatehouse writes the master key to disk only when it generates one on first boot with no `GATEHOUSE_MASTER_KEY` set: `master.key` in the data volume, mode 0600. Losing the key means losing access to every encrypted secret. Store the master key:
 
 - **For homelabs:** in a password manager separate from the one that holds Gatehouse credentials, plus a printed backup in a safe place.
-- **For higher-trust deployments:** the key is still supplied as an env var, so it is visible in `docker inspect` output and `/proc/$PID/environ`. Inject it at container start from your secret store rather than keeping it in a compose file or `.env` on disk, and restrict access to the Docker socket.
+- **For higher-trust deployments:** set `GATEHOUSE_MASTER_KEY` and delete `master.key`, so the key is not in the same volume as the database. The key is then an env var, so it is visible in `docker inspect` output and `/proc/$PID/environ`. Inject it at container start from your secret store rather than keeping it in a compose file or `.env` on disk, and restrict access to the Docker socket.
 
 <Callout type="warning" title="Do not check in your master key">
   The master key is a 32-byte secret. Never commit it to a git repo, never paste it into Slack, never send it in an email.
 </Callout>
+
+Backup, export and restore are covered in [Backup & Recovery](/docs/backup/).
 
 ### Root token handling
 

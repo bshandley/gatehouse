@@ -16,7 +16,100 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # Runs the recoverability path against a locally loaded image. The publish
+  # job needs it, so a broken image is never pushed.
+  smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (amd64, loaded locally)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: gatehouse:smoke
+          cache-from: type=gha
+
+      - name: Smoke test backup, export, import, verify
+        shell: bash
+        env:
+          SMOKE_PASSPHRASE: smoke-test-passphrase-not-secret
+        run: |
+          set -euo pipefail
+          IMG=gatehouse:smoke
+          VOL=gh-smoke-data
+          VOL2=gh-smoke-restore
+          OUT="$RUNNER_TEMP/gh-smoke-out"
+          cleanup() {
+            docker rm -f gh-smoke >/dev/null 2>&1 || true
+            docker volume rm -f "$VOL" "$VOL2" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          mkdir -p "$OUT"
+          chmod 777 "$OUT"
+          docker volume create "$VOL" >/dev/null
+          docker volume create "$VOL2" >/dev/null
+
+          echo "verify on an empty volume fails and creates no key"
+          if docker run --rm -v "$VOL:/data" "$IMG" verify; then
+            echo "verify succeeded on an empty volume" >&2
+            exit 1
+          fi
+          docker run --rm -v "$VOL:/data" --entrypoint sh "$IMG" -c 'test ! -e /data/master.key'
+
+          echo "server starts with no env and generates a key"
+          SMOKE_TOKEN="$(openssl rand -hex 16)"
+          echo "::add-mask::$SMOKE_TOKEN"
+          docker run -d --name gh-smoke -v "$VOL:/data" -p 3100:3100 \
+            -e GATEHOUSE_ROOT_TOKEN="$SMOKE_TOKEN" "$IMG" >/dev/null
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3100/health >/dev/null 2>&1; then ok=1; break; fi
+            sleep 1
+          done
+          if [ "$ok" != 1 ]; then
+            docker logs gh-smoke >&2 || true
+            echo "server did not become healthy" >&2
+            exit 1
+          fi
+          docker logs gh-smoke > "$OUT/server.log" 2>&1
+          grep -q "GATEHOUSE GENERATED A NEW MASTER KEY" "$OUT/server.log"
+
+          echo "store one secret through the API"
+          curl -fsS -X POST http://localhost:3100/v1/secrets/api-keys/example \
+            -H "Authorization: Bearer $SMOKE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"value":"smoke-value-not-secret"}' >/dev/null
+
+          echo "backup and verify against the live volume"
+          docker run --rm -v "$VOL:/data" -v "$OUT:/backup" "$IMG" backup --out /backup/smoke.db
+          test -s "$OUT/smoke.db"
+          docker run --rm -v "$VOL:/data" "$IMG" verify > "$OUT/verify1.txt"
+          cat "$OUT/verify1.txt"
+          grep -q "decrypted a secret" "$OUT/verify1.txt"
+
+          echo "export, then import into a second volume"
+          docker run --rm -v "$VOL:/data" -v "$OUT:/backup" -e SMOKE_PASSPHRASE "$IMG" \
+            export --out /backup/smoke.bundle --passphrase-env SMOKE_PASSPHRASE
+          docker run --rm -v "$VOL2:/data" -v "$OUT:/backup" -e SMOKE_PASSPHRASE "$IMG" \
+            import --in /backup/smoke.bundle --passphrase-env SMOKE_PASSPHRASE
+          docker run --rm -v "$VOL2:/data" "$IMG" verify > "$OUT/verify2.txt"
+          cat "$OUT/verify2.txt"
+          grep -q "decrypted a secret" "$OUT/verify2.txt"
+          echo "smoke test passed"
+
   build:
+    needs: smoke
     runs-on: ubuntu-latest
     permissions:
       contents: read

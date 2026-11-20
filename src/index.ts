@@ -8,6 +8,8 @@ import { onboardRouter } from "./api/onboard";
 import { rotateRouter } from "./api/rotate";
 import { skillRouter } from "./api/skill";
 import { versionRouter } from "./api/version";
+import { keyVerifyRouter } from "./api/keyVerify";
+import { rotateKeyRouter } from "./api/rotateKey";
 import { meRouter } from "./api/me";
 import { policyRouter } from "./api/policy";
 import { auditRouter } from "./api/audit";
@@ -25,21 +27,22 @@ import { patternsRouter } from "./api/patterns";
 import { initDB } from "./db/init";
 import { LeaseManager } from "./lease/manager";
 import { AuditLog } from "./audit/logger";
-import { SecretsEngine } from "./secrets/engine";
+import { SecretsEngine, keyFingerprint } from "./secrets/engine";
 import { PolicyEngine } from "./policy/engine";
 import { getConnInfo } from "hono/bun";
 import { resolveSourceIp, parseTrustedProxies } from "./auth/sourceIp";
 import { validateCIDRs } from "./auth/cidr";
 import { uiAssetsRouter, UI_CSP } from "./api/uiAssets";
 import { loadConfig } from "./config";
+import { startHeartbeat } from "./backup/snapshot";
 import { VERSION } from "./version";
 import { EventBus } from "./events/bus";
 import { RateLimiter } from "./rateLimits/limiter";
 import { warnIfWebhookPrivate } from "./lease/webhook";
-import { hkdfSync } from "crypto";
 
 const config = loadConfig();
 const db = initDB(config.dataDir);
+const stopHeartbeat = startHeartbeat(config.dataDir);
 seedSsoFromEnv(db);
 const eventBus = new EventBus();
 const audit = new AuditLog(db, eventBus);
@@ -343,71 +346,13 @@ app.get("/v1/admin/key-fingerprint", (c) => {
   if (!policies.check(auth.policies, "*", "admin")) {
     return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
   }
-  const fp = Buffer.from(
-    hkdfSync("sha256", config.masterKey, "gatehouse-v1", "gatehouse-fingerprint", 16)
-  ).toString("hex");
+  const fp = keyFingerprint(config.masterKey);
   return c.json({ fingerprint: fp, algorithm: "HKDF-SHA256/gatehouse-fingerprint" });
 });
 
-// Key rotation ceremony (admin only)
-app.post("/v1/admin/rotate-key", async (c) => {
-  const auth = c.get("auth") as any;
-  if (!policies.check(auth.policies, "*", "admin")) {
-    return c.json({ error: "Forbidden", request_id: c.get("requestId") }, 403);
-  }
-
-  let body: { new_master_key: string };
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: "Invalid JSON body", request_id: c.get("requestId") }, 400);
-  }
-
-  const { new_master_key } = body;
-  if (!new_master_key || typeof new_master_key !== "string" || new_master_key.length < 64) {
-    return c.json({
-      error: "new_master_key must be a 64+ char hex string (openssl rand -hex 32)",
-      request_id: c.get("requestId"),
-    }, 400);
-  }
-
-  // Validate it's valid hex
-  if (!/^[0-9a-fA-F]+$/.test(new_master_key)) {
-    return c.json({ error: "new_master_key must be a hex string", request_id: c.get("requestId") }, 400);
-  }
-
-  const newKey = Buffer.from(new_master_key, "hex");
-
-  try {
-    // Re-wrap all secret DEKs
-    const secretsRotated = secrets.rotateKEK(newKey);
-
-    // Re-encrypt all dynamic secret configs
-    const dynamicRotated = dynamicSecrets.rotateConfigKey(newKey);
-
-    audit.log({
-      identity: auth.identity,
-      action: "admin.key_rotation",
-      metadata: {
-        secrets_rotated: String(secretsRotated),
-        dynamic_configs_rotated: String(dynamicRotated),
-      },
-      source_ip: c.get("sourceIp"),
-    });
-
-    return c.json({
-      rotated: true,
-      secrets_rewrapped: secretsRotated,
-      dynamic_configs_rewrapped: dynamicRotated,
-      warning: "Update GATEHOUSE_MASTER_KEY env var to the new key before restarting",
-    });
-  } catch (err: any) {
-    return c.json({
-      error: `Rotation failed: ${err.message}`,
-      request_id: c.get("requestId"),
-    }, 500);
-  }
-});
+// Key rotation ceremony (admin only). Persists the new key to master.key on
+// key-file installs; see src/api/rotateKey.ts.
+app.route("/v1/admin/rotate-key", rotateKeyRouter({ secrets, dynamicSecrets, policies, audit, config }));
 
 // Server-Sent Events stream: audit fanout + heartbeat ticks.
 // Admins see all events; non-admins see only events whose identity matches theirs.
@@ -479,6 +424,7 @@ app.get("/v1/events", (c) => {
 
 app.route("/v1/skill", skillRouter(policies, audit));
 app.route("/v1/version", versionRouter());
+app.route("/v1/admin/key-verify", keyVerifyRouter(db, () => config.masterKey, policies));
 app.route("/v1/secrets", secretsRouter(secrets, policies, audit, patternEngine, dynamicSecrets));
 app.route("/v1/secrets-bulk", bulkSecretsRouter(secrets, policies, audit));
 app.route("/v1/lease", leaseRouter(leases, policies, audit, dynamicSecrets, secrets));
@@ -499,6 +445,7 @@ process.on("SIGTERM", () => {
   dynamicSecrets.stopReaper();
   clearInterval(auditPurgeInterval);
   clearInterval(ssoStateReaperInterval);
+  stopHeartbeat();
   db.close();
   process.exit(0);
 });
@@ -509,6 +456,7 @@ process.on("SIGINT", () => {
   dynamicSecrets.stopReaper();
   clearInterval(auditPurgeInterval);
   clearInterval(ssoStateReaperInterval);
+  stopHeartbeat();
   db.close();
   process.exit(0);
 });

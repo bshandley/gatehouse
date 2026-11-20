@@ -1,11 +1,15 @@
 {
   "name": "gatehouse",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "description": "Self-hosted agent secrets vault for AI coding agents and LLM tools. Proxy mode keeps API keys, database credentials, and SSH certificates out of LLM context windows. MCP-native, single Docker container, open-source HashiCorp Vault alternative.",
   "type": "module",
+  "bin": {
+    "gatehouse": "src/cli.ts"
+  },
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
+    "cli": "bun run src/cli.ts",
     "test": "bun test",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "site:dev": "cd site && bun run dev",

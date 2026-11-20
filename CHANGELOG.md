@@ -5,6 +5,22 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.22.0] - 2026-11-19
+
+Recoverability. A fresh install no longer needs a master key up front, and the vault can be backed up, exported, restored and checked from the image. See the new Backup & Recovery docs page.
+
+### Added
+
+- **First-boot key generation.** With `GATEHOUSE_MASTER_KEY` unset or empty and no `gatehouse.db` in the data dir, Gatehouse generates a key, writes it to `master.key` (mode 0600), and prints an escrow banner to stderr. A set key always wins over the file, an invalid set key is an error, and a data dir that has a database but no key still refuses to start. The key file shares a volume with the database, which is a deliberate convenience tradeoff.
+- **`backup`, `export`, `import`, `verify` commands.** `backup` takes a consistent snapshot of the database. `export` writes a passphrase-sealed bundle (scrypt, secretbox) that includes the master key by default (`--no-key` opts out; passphrase of 12 or more characters). `import` is a full replace from a bundle; it keeps the old database as `gatehouse.db.pre-import-<stamp>`, rolls back on failure, and refuses a mismatched key (exit 2) or a live server (exit 3). `verify` prints the key fingerprint and checks that it decrypts the data. Passphrases come from `--passphrase-env` or a TTY prompt, never a flag value. `backup`, `export` and `verify` are safe against a running server.
+- **`GET /v1/admin/key-verify`** and an "Encryption key: matches data" row in Settings.
+- **Heartbeat lock.** The server touches `gatehouse.lock` in the data dir every 10 seconds. Import treats a lock younger than 30 seconds as a live server.
+
+### Changed
+
+- **The image has a real entrypoint.** `docker-entrypoint.sh` routes `backup`, `export`, `import`, `verify` and `mcp`. No arguments, or `src/index.ts`, still starts the server.
+- `GATEHOUSE_MASTER_KEY` is optional in `.env.example` and the docs.
+
 ## [0.21.0] - 2026-11-18
 
 List entry in the web UI is rebuilt around one input, the allowed-domains matcher now honours the forms the product documents, and the UI shell gets keyboard, phone and offline fixes.

@@ -5,11 +5,15 @@
  * Run as a local MCP server for Claude Code, Codex, OpenClaw, etc.
  * The agent harness launches this process and communicates via stdin/stdout.
  *
- * Usage:
- *   GATEHOUSE_MASTER_KEY=<hex> GATEHOUSE_TOKEN=<token> bunx gatehouse-mcp
+ * It reads the master key from GATEHOUSE_MASTER_KEY or the data dir's
+ * master.key, and never generates one: it will not create a new vault.
+ * The token comes from GATEHOUSE_TOKEN (or the first argument).
  *
- * Or via the Docker image:
- *   docker run --rm -i gatehouse:latest mcp --token <token>
+ * Usage:
+ *   GATEHOUSE_TOKEN=... bunx gatehouse-mcp
+ *
+ * Or via the Docker image, against the server's data volume:
+ *   docker run --rm -i -v gatehouse-data:/data -e GATEHOUSE_TOKEN gatehouse:latest mcp
  */
 
 import { initDB } from "./db/init";
@@ -20,9 +24,17 @@ import { AuditLog } from "./audit/logger";
 import { DynamicSecretsManager } from "./dynamic/manager";
 import { runStdioTransport } from "./mcp/server";
 import { loadConfig } from "./config";
+import { MasterKeyError } from "./backup/keyfile";
 import { type AuthContext, safeEqual } from "./auth/middleware";
 
-const config = loadConfig();
+let config: ReturnType<typeof loadConfig>;
+try {
+  config = loadConfig({ allowGenerate: false });
+} catch (e) {
+  if (!(e instanceof MasterKeyError)) throw e;
+  console.error(`[gatehouse:mcp] ${e.message}`);
+  process.exit(1);
+}
 const db = initDB(config.dataDir);
 const audit = new AuditLog(db);
 const secrets = new SecretsEngine(db, config.masterKey);

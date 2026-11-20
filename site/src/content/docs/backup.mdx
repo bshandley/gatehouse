@@ -1,0 +1,200 @@
+---
+title: "Backup & Recovery"
+description: "Back up and restore a Gatehouse vault: the master key, backup, export, import, verify, and a restore walkthrough."
+sidebar_order: 5
+sidebar_group: "USING GATEHOUSE"
+---
+
+import Callout from "../../components/Callout.astro";
+
+A Gatehouse vault is two things: the SQLite database (`gatehouse.db`) and the master key that decrypts it. Either one alone is useless. A backup that holds the database but not the key restores to ciphertext.
+
+## The master key
+
+Gatehouse resolves the master key in this order:
+
+1. `GATEHOUSE_MASTER_KEY`, if set to a non-empty value. It always wins over the key file. A set but invalid value is a hard error, never a fall-through. An empty value counts as unset.
+2. `${GATEHOUSE_DATA_DIR}/master.key` (hex, mode 0600), if it exists.
+3. On a fresh data dir with no `gatehouse.db`: Gatehouse generates a key, writes it to `master.key`, and prints a banner to stderr with the key and where it was saved.
+4. A data dir that has a `gatehouse.db` but no key anywhere: Gatehouse refuses to start. It never generates a key over existing data.
+
+The key file lives in the same volume as the database, so anyone who can read the volume has both. That is a convenience tradeoff. If you want the key kept apart from the data, set `GATEHOUSE_MASTER_KEY` in the environment and delete `master.key`.
+
+<Callout type="warning" title="Escrow the key">
+  Copy the key from the first-boot banner (or from `master.key`) to somewhere that is not this host, such as a password manager. Losing it means losing every secret.
+</Callout>
+
+## The commands
+
+The image routes `backup`, `export`, `import` and `verify` to the `gatehouse` CLI. With no arguments it starts the server. The examples mount the data volume at `/data` and a host directory at `/backup` (it must be writable by the container user).
+
+| Command | Safe while the server runs | Includes the master key |
+|---|---|---|
+| `backup` | yes | no |
+| `export` | yes | yes, unless `--no-key` |
+| `import` | no, it refuses | restores it from a sealed bundle |
+| `verify` | yes | n/a |
+
+`export`, `verify`, and an `import` of a bundle made with `--no-key` need the master key, and none of them generates one. They read `GATEHOUSE_MASTER_KEY`, else `master.key` on the volume, and fail with "no master key" if neither exists. A sealed `import` and `backup` do not need it. If you keep the key in the environment instead of a key file, pass it through by name so it never appears on the command line or in shell history (`-e GATEHOUSE_MASTER_KEY` with no value forwards it from your shell):
+
+```bash
+docker run --rm \
+  -v gatehouse-data:/data \
+  -e GATEHOUSE_MASTER_KEY \
+  ghcr.io/bshandley/gatehouse verify
+```
+
+Passphrases never arrive as a flag value. Pass `--passphrase-env VAR` to read one from the environment variable named `VAR`, or run with `-it` on a TTY to be prompted. With neither, the command fails.
+
+### backup
+
+A consistent snapshot of `gatehouse.db` (SQLite `VACUUM INTO`). The file is written mode 0600. It does not contain the master key. Secret values are encrypted, but everything else in it is plaintext: the audit log, secret paths and metadata, user records, and policies. Give the file the same protection as the vault's volume. It is owned by the container user.
+
+```bash
+docker run --rm \
+  -v gatehouse-data:/data \
+  -v "$PWD/backups:/backup" \
+  ghcr.io/bshandley/gatehouse backup --out /backup/gatehouse.db.bak
+```
+
+Nightly from cron, with a dated filename:
+
+```bash
+0 3 * * * docker run --rm -v gatehouse-data:/data -v /srv/backups:/backup ghcr.io/bshandley/gatehouse backup --out /backup/gatehouse-$(date +\%F).db
+```
+
+(The `\%` is cron's escape for a literal percent sign.) `--out` must not already exist, so the dated name is what keeps each run from failing.
+
+### export
+
+A passphrase-encrypted bundle (scrypt key derivation, secretbox encryption), written mode 0600. By default it also carries the master key, so one file plus one passphrase recovers the whole vault. `--no-key` leaves the key out.
+
+```bash
+docker run --rm \
+  -v gatehouse-data:/data \
+  -v "$PWD/backups:/backup" \
+  -e GATEHOUSE_BACKUP_PASSPHRASE \
+  ghcr.io/bshandley/gatehouse export --out /backup/gatehouse.bundle --passphrase-env GATEHOUSE_BACKUP_PASSPHRASE
+```
+
+The passphrase must be at least 12 characters.
+
+Export checks that the master key it resolved decrypts the vault before it writes anything. If it does not (for example a stale `master.key` after a rotation on an env-key install), it exits 1 and writes no file: pass the right key with `-e GATEHOUSE_MASTER_KEY`.
+
+Export needs roughly 130 MiB of memory for the key derivation, plus several times the database size. Run it as a separate `docker run` as shown, not with `docker compose exec` inside a service that has a memory limit.
+
+<Callout type="warning" title="A sealed export is only as strong as its passphrase">
+  Anyone who gets the bundle can attack the passphrase offline, and the bundle holds the master key. Use a long random passphrase and keep the bundle and the passphrase in different places. Export also holds the whole database snapshot in memory while it runs, so budget memory for a large vault.
+</Callout>
+
+### import
+
+A full replace of the vault from a bundle, never a merge. It reads a bundle made by `export`. Stop the server first (see the walkthrough below).
+
+```bash
+docker run --rm \
+  -v gatehouse-data:/data \
+  -v "$PWD/backups:/backup" \
+  -e GATEHOUSE_BACKUP_PASSPHRASE \
+  ghcr.io/bshandley/gatehouse import --in /backup/gatehouse.bundle --passphrase-env GATEHOUSE_BACKUP_PASSPHRASE
+```
+
+What import does to the data dir:
+
+- The existing database is never deleted. It is renamed to `gatehouse.db.pre-import-<timestamp>`, with its `-wal` file beside it.
+- A sealed bundle writes its key to `master.key` only when `GATEHOUSE_MASTER_KEY` is not set. An identical existing `master.key` is left in place. A different one is kept as `master.key.pre-import-<timestamp>`.
+- If the import fails partway, it rolls back to the previous state. If the rollback itself fails, the command prints exactly where the previous database is.
+- After the restore it prints the row counts, the key fingerprint, and the result of a decrypt check.
+
+If `GATEHOUSE_MASTER_KEY` is set in the environment of the import and differs from the key in a sealed bundle, import refuses with exit code 2, because the environment key wins at the next boot and the restored data would not decrypt. Unset it, or set it to the bundle's key. A bundle made with `--no-key` needs the matching key supplied the same way, or import refuses with exit code 2. `--force` overrides the refusal and restores data that will not decrypt, so use it only to recover rows you can read some other way.
+
+Import refuses with exit code 3 while a server is live on the same data dir. The server touches `gatehouse.lock` in the data dir every 10 seconds. The lock counts as live until it is 30 seconds old, so after stopping or crashing a server, wait about 30 seconds before importing.
+
+Once you have confirmed the restored vault works (see `verify`), remove the leftovers. They hold the old vault, including its key if `master.key.pre-import-<timestamp>` exists, so do not leave them lying around. This works without a TTY. First list them:
+
+```bash
+docker run --rm -v gatehouse-data:/data --entrypoint sh ghcr.io/bshandley/gatehouse \
+  -c 'ls -la /data'
+```
+
+Then remove them by exact name, using the stamp from the listing (`STAMP` below stands for it). Include the `-wal` file if it is listed, and the `master.key` one only if it exists:
+
+```bash
+docker run --rm -v gatehouse-data:/data --entrypoint sh ghcr.io/bshandley/gatehouse \
+  -c 'rm /data/gatehouse.db.pre-import-STAMP /data/gatehouse.db.pre-import-STAMP-wal /data/master.key.pre-import-STAMP'
+```
+
+### verify
+
+Prints the master key fingerprint and checks that the key decrypts the data. It reads the database read-only.
+
+```bash
+docker run --rm -v gatehouse-data:/data ghcr.io/bshandley/gatehouse verify
+```
+
+The same check is available while the server runs: `GET /v1/admin/key-verify` (admin only), shown in Settings as the **Encryption key** row (**Matches data** when it does).
+
+## After rotating the master key
+
+Settings, Danger Zone, **Rotate Encryption Key** (`POST /v1/admin/rotate-key`) re-wraps the data under a new key. What happens to the key itself depends on where it came from:
+
+- **Key-file installs** (`master.key`, including a key generated on first boot): Gatehouse writes the new key to `master.key` for you. The previous key is kept beside it as `master.key.pre-rotate-<timestamp>`. Escrow the new key, then delete the pre-rotate file once you no longer need old exports.
+- **Env installs** (`GATEHOUSE_MASTER_KEY`): nothing is written to disk. Update `GATEHOUSE_MASTER_KEY` to the new key before the next restart, or the server boots with a key that no longer decrypts the data.
+
+Every export taken before the rotation needs the old key. A sealed bundle carries the key it was made with, so it still restores with its own passphrase; a `--no-key` bundle or a plain `backup` needs the old key supplied. Take a fresh export after rotating.
+
+If the server stopped in the middle of a rotation, a `master.key.next` file may be left in the data dir and the server logs a warning at boot. If `verify` then fails, data is under the key in `master.key.next`. Rename the current `master.key` to `master.key.old` and keep it, then move `master.key.next` to `master.key` and restart. Do not overwrite or delete the old key: if the rotation stopped partway, dynamic provider configs may still be encrypted under it, and `verify` only tests one secret.
+
+## Snapshots of the volume
+
+On Proxmox, or anywhere you can snapshot the storage under the volume, a volume snapshot captures the database and `master.key` together. That makes it a complete backup of a vault that uses the key file. It is also a copy of the key next to the data, so keep snapshots as private as the vault. If you set `GATEHOUSE_MASTER_KEY` in the environment instead, the snapshot has no key in it: escrow the key separately.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success. |
+| 1 | General failure (bad arguments, unreadable file, wrong passphrase, failed write). One case needs care: if `import` prints that it restored the database and then reports a failed decrypt check, the restored database is already in place and the previous one is at `gatehouse.db.pre-import-<stamp>`. |
+| 2 | Key mismatch. The bundle and the active master key do not agree. |
+| 3 | A server is live on this data dir. Import refused. |
+
+## Restore walkthrough
+
+This restores a vault from a sealed bundle onto a fresh or damaged volume.
+
+1. Stop the server: `docker stop gatehouse`. Wait about 30 seconds if it crashed rather than stopping cleanly.
+2. Make sure `GATEHOUSE_MASTER_KEY` is not set for the import, unless it equals the key in the bundle.
+3. Run the `import` command above. If you keep the key in the environment rather than a key file, add `-e GATEHOUSE_MASTER_KEY` to that `docker run` so the import checks against it and no key file is written.
+4. Read the output: row counts, the key fingerprint, and `verify: ok`.
+5. Start the server: `docker start gatehouse`. If you ran the import with `GATEHOUSE_MASTER_KEY` set, no key file was written, so that same key must stay set on the container. If you ran it with the variable unset, a sealed bundle wrote `master.key` and the container should leave the variable unset (or set it to the same key).
+6. Log in and check that Settings shows the **Encryption key** row as **Matches data**.
+7. Remove the `pre-import` files as described under `import`.
+
+To restore from a plain `backup` file instead, prefer `export` and `import`, which handle all of the following automatically. The manual path has no lock check, so running it against a live server corrupts the vault. Follow the steps in order:
+
+1. Stop the server: `docker stop gatehouse`. If it crashed rather than stopping cleanly, that is fine, the stale files are handled below.
+2. Run the restore in one container so ownership comes out right. It first checks that the backup file exists and exits before touching anything if it does not. Then it moves the current `gatehouse.db` (and its `-wal`) aside as `.pre-restore-<stamp>`, deletes only the old `-shm`, copies the backup in, and hands the file to the container user (backups are written mode 0600). Each move is skipped when the file is absent, so it works on an empty volume, and any failed step aborts the rest. Substitute your real backup file name for `gatehouse-YYYY-MM-DD.db` on the last line:
+
+   ```bash
+   docker run --rm --user root \
+     -v gatehouse-data:/data \
+     -v "$PWD/backups:/backup:ro" \
+     --entrypoint sh ghcr.io/bshandley/gatehouse \
+     -c 'set -e
+   f=/backup/$1
+   if [ ! -f "$f" ]; then echo "backup file not found: $f" >&2; exit 1; fi
+   stamp=$(date +%Y%m%d%H%M%S)
+   if [ -f /data/gatehouse.db ]; then mv /data/gatehouse.db /data/gatehouse.db.pre-restore-$stamp; fi
+   if [ -f /data/gatehouse.db-wal ]; then mv /data/gatehouse.db-wal /data/gatehouse.db.pre-restore-$stamp-wal; fi
+   rm -f /data/gatehouse.db-shm
+   cp "$f" /data/gatehouse.db
+   chown gatehouse:gatehouse /data/gatehouse.db
+   chmod 600 /data/gatehouse.db' sh gatehouse-YYYY-MM-DD.db
+   ```
+
+   If the command fails partway, the previous database is at `gatehouse.db.pre-restore-<stamp>` with its `-wal` beside it. Move both back to `gatehouse.db` and `gatehouse.db-wal` before starting the server.
+3. Start the server with the original master key (`GATEHOUSE_MASTER_KEY`, or the `master.key` still on the volume): `docker start gatehouse`.
+4. Run `verify` as shown above, or check that Settings shows the **Encryption key** row as **Matches data**.
+5. The `gatehouse.db.pre-restore-<stamp>` files hold the previous vault. Once `verify` confirms the restore, list and remove them by exact name the same way as the pre-import files.
+
+`import` does not read a plain backup.

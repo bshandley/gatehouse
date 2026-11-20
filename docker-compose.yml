@@ -9,7 +9,8 @@ services:
       - gatehouse-data:/data
       - ./config:/config:ro
     environment:
-      # REQUIRED: 64-char hex string. Generate with: openssl rand -hex 32
+      # Optional: 64-char hex string (openssl rand -hex 32). When unset, a key is
+      # generated on first boot and saved to /data/master.key.
       - GATEHOUSE_MASTER_KEY=${GATEHOUSE_MASTER_KEY}
       # Bootstrap root token. Remove after creating users/AppRoles.
       - GATEHOUSE_ROOT_TOKEN=${GATEHOUSE_ROOT_TOKEN:-gatehouse-root-changeme}

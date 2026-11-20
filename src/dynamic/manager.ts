@@ -55,6 +55,71 @@ export interface DynamicLease {
 }
 
 /**
+ * Decrypt a nonce+ciphertext config blob. Fails closed: legacy plaintext
+ * blobs are never accepted here (they are migrated once at startup).
+ */
+function decryptConfigBlob(
+  data: Buffer | Uint8Array,
+  configKey: Uint8Array
+): Record<string, string> {
+  const bytes = new Uint8Array(data);
+  const nonceLen = nacl.secretbox.nonceLength;
+
+  if (bytes.length <= nonceLen) {
+    throw new Error("Failed to decrypt dynamic secret config: blob too short");
+  }
+
+  const nonce = bytes.slice(0, nonceLen);
+  const ciphertext = bytes.slice(nonceLen);
+  const plaintext = nacl.secretbox.open(ciphertext, nonce, configKey);
+  if (!plaintext) {
+    throw new Error("Failed to decrypt dynamic secret config");
+  }
+  return JSON.parse(new TextDecoder().decode(plaintext));
+}
+
+/** True when a config blob is a legacy plaintext JSON object (same test the startup migration uses). */
+function isLegacyPlaintextConfig(data: Buffer | Uint8Array): boolean {
+  try {
+    const parsed = JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(data))
+    );
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Pure, read-only check that configKey decrypts one encrypted
+ * dynamic_secrets.config row. Legacy plaintext rows are skipped. Only runs
+ * SELECTs; constructs nothing with side effects.
+ */
+function verifyConfigKey(
+  db: Database,
+  configKey: Uint8Array
+): { tested: boolean; ok: boolean } {
+  const rows = db.query("SELECT config FROM dynamic_secrets").all() as {
+    config: Buffer | Uint8Array;
+  }[];
+  const row = rows.find((r) => !isLegacyPlaintextConfig(r.config));
+  if (!row) return { tested: false, ok: true };
+  try {
+    decryptConfigBlob(row.config, configKey);
+    return { tested: true, ok: true };
+  } catch {
+    return { tested: true, ok: false };
+  }
+}
+
+export function verifyDynamicConfigKey(
+  db: Database,
+  masterKey: Buffer
+): { tested: boolean; ok: boolean } {
+  return verifyConfigKey(db, deriveKey(masterKey, "gatehouse-dynamic-config"));
+}
+
+/**
  * Dynamic Secrets Manager
  *
  * Manages the lifecycle of dynamic secrets:
@@ -163,25 +228,7 @@ export class DynamicSecretsManager {
   }
 
   private decryptConfig(data: Buffer | Uint8Array): Record<string, string> {
-    const bytes = new Uint8Array(data);
-    const nonceLen = nacl.secretbox.nonceLength;
-
-    if (bytes.length <= nonceLen) {
-      throw new Error("Failed to decrypt dynamic secret config: blob too short");
-    }
-
-    // Fail closed on decryption errors. Legacy plaintext configs are
-    // migrated once at startup by migrateLegacyPlaintextConfigs; at runtime
-    // we never accept a plaintext blob, because an attacker with DB write
-    // access could otherwise swap an encrypted row for a malicious
-    // plaintext one and have it honored.
-    const nonce = bytes.slice(0, nonceLen);
-    const ciphertext = bytes.slice(nonceLen);
-    const plaintext = nacl.secretbox.open(ciphertext, nonce, this.configKey);
-    if (!plaintext) {
-      throw new Error("Failed to decrypt dynamic secret config");
-    }
-    return JSON.parse(new TextDecoder().decode(plaintext));
+    return decryptConfigBlob(data, this.configKey);
   }
 
   registerProvider(provider: DynamicProvider) {
@@ -238,6 +285,14 @@ export class DynamicSecretsManager {
       .run(path, providerType, encryptedConfig);
 
     return this.getConfig(path)!;
+  }
+
+  /**
+   * Prove the master key matches the data by decrypting one config row.
+   * tested is false when there are no dynamic configs.
+   */
+  verifyKey(): { tested: boolean; ok: boolean } {
+    return verifyConfigKey(this.db, this.configKey);
   }
 
   getConfig(path: string): DynamicSecretConfig | null {

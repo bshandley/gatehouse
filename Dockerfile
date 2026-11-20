@@ -25,6 +25,7 @@ RUN groupadd -r gatehouse && useradd -r -g gatehouse -d /app gatehouse
 
 WORKDIR /app
 COPY --from=build --chown=gatehouse:gatehouse /app /app
+COPY --chown=gatehouse:gatehouse docker-entrypoint.sh /app/
 
 RUN mkdir -p /data /config/policies && \
     chown -R gatehouse:gatehouse /data /config
@@ -42,5 +43,5 @@ USER gatehouse
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD bun -e "const r = await fetch('http://localhost:3100/health'); process.exit(r.ok ? 0 : 1)"
 
-ENTRYPOINT ["bun", "run"]
-CMD ["src/index.ts"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD []

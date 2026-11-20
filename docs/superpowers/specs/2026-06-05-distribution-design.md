@@ -143,12 +143,20 @@ prevents a class of bad deploys and support load.
 3. `packaging/` templates.
 4. Upstream catalog submissions, one PR per ecosystem, tracked per release.
 
-## Open questions
+## Resolved questions (2026-11-19)
 
-- Persist the bootstrap root token to a file, or print-only? File survives a
-  container restart so the operator can still find it, but it is another secret
-  on the volume. Leaning file with 0600, deleted by the golden path on
-  completion. Decide at review.
-- Pin catalog templates to a specific version tag or track `latest`? Pinning
-  is safer for reproducibility, `latest` is lower-maintenance. Leaning pinned,
-  bumped per release.
+Plan: `docs/superpowers/plans/2026-11-19-distribution.md`.
+
+- The bootstrap root token is persisted to `/data/bootstrap-root.token`
+  (0600). It does not wait for the golden path to retire it: on any boot where
+  an admin principal exists and no root token env is set, the file is deleted
+  and no root token is active. The golden path (C) can later retire it live,
+  without the restart.
+- An admin principal is an enabled `users` row with role `admin`, or an
+  AppRole whose policy list contains `admin` exactly.
+- Catalog templates pin a version tag. `test/packaging.test.ts` fails until
+  every template matches `VERSION`, so a release cannot forget them.
+- The reference compose pulls the published image. Building from source moves
+  to a `docker-compose.dev.yml` override.
+- Upstream catalog submissions are manual and need the maintainer's go-ahead
+  each time.

@@ -35,6 +35,7 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 - **MCP + REST.** 11 MCP tools for Claude Code, Codex, Cursor, Windsurf, OpenCode; parallel REST API for everything else.
 - **Per-agent identity.** Each agent gets its own AppRole with scoped policies and a full audit trail.
 - **Key rotation.** Rotate the master key and re-wrap all DEKs in one API call, zero downtime.
+- **Backup and restore.** `backup`, `export`, `import` and `verify` commands ship in the image. A passphrase-sealed export carries the master key, so one file plus one passphrase recovers the vault. First boot generates a key file if you do not supply a key.
 - **Web UI.** Dark-themed control panel with command palette (Cmd/Ctrl+K) for managing secrets, leases, agents, patterns, and audit logs.
 - **SSO.** Optional OpenID Connect single sign-on for human admins. Works with PocketID, Authentik, Keycloak, Google, and any other OIDC provider. Strict link-by-verified-email account model; configure once in Settings.
 - **Rate limits.** Per-AppRole (minute/hour/day) and per-secret (minute) on proxy traffic. Bound damage from a runaway agent or an expensive upstream. 429 with `Retry-After` when hit; root and user JWTs exempt.
@@ -108,6 +109,7 @@ Full documentation lives at **[gatehouse.to](https://gatehouse.to)**.
 | [Authentication](https://gatehouse.to/docs/authentication/) | AppRoles, user accounts, onboarding links, TOTP. |
 | [Web UI Tour](https://gatehouse.to/docs/web-ui/) | Every tab, every button. |
 | [Dynamic Secret Providers](https://gatehouse.to/docs/providers/) | PostgreSQL, MySQL, MongoDB, Redis, SSH certificates. |
+| [Backup & Recovery](https://gatehouse.to/docs/backup/) | Master key, backup, export, import, verify, restore. |
 | [Security & Threat Model](https://gatehouse.to/docs/security/) | What Gatehouse protects, what it doesn't. |
 | [API Reference](https://gatehouse.to/docs/api-reference/) | Every REST endpoint and MCP tool. |
 | [For Agents](https://gatehouse.to/docs/for-agents/) | Hand this URL to an agent. It's written for them. |

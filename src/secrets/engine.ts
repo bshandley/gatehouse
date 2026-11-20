@@ -23,6 +23,16 @@ export function deriveKey(masterKey: Buffer, purpose: string): Uint8Array {
 }
 
 /**
+ * Non-reversible fingerprint of a master key (32 hex chars). Lets operators
+ * confirm which key is loaded without revealing it.
+ */
+export function keyFingerprint(masterKey: Buffer): string {
+  return Buffer.from(
+    hkdfSync("sha256", masterKey, "gatehouse-v1", "gatehouse-fingerprint", 16)
+  ).toString("hex");
+}
+
+/**
  * Envelope encryption scheme:
  * 1. Each secret gets its own random DEK (data encryption key)
  * 2. The secret value is encrypted with the DEK using XSalsa20-Poly1305
@@ -182,6 +192,24 @@ export class SecretsEngine {
     const updated = txn();
     if (!updated) return null;
     return this.getMeta(path);
+  }
+
+  /**
+   * Prove the master key matches the data by unwrapping the DEK of one row.
+   * Read-only: does not touch last_accessed_at and writes no audit rows.
+   * tested is false when there are no secrets to test against.
+   */
+  verifyKey(): { tested: boolean; ok: boolean } {
+    const row = this.db
+      .query("SELECT encrypted_dek, dek_nonce FROM secrets LIMIT 1")
+      .get() as { encrypted_dek: Buffer; dek_nonce: Buffer } | null;
+    if (!row) return { tested: false, ok: true };
+    const dek = nacl.secretbox.open(
+      new Uint8Array(row.encrypted_dek),
+      new Uint8Array(row.dek_nonce),
+      this.kek
+    );
+    return { tested: true, ok: dek !== null };
   }
 
   get(path: string): string | null {

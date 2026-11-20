@@ -1,7 +1,7 @@
 # Recoverability: master-key lifecycle, backup, restore
 
 Date: 2026-06-05
-Status: design
+Status: shipped in 0.22.0
 Sub-project A of the ubiquity roadmap. Build first.
 
 ## Problem
@@ -256,10 +256,27 @@ Surface the test pass count in the summary when these run.
    one-liner, the Proxmox note, and the escrow guidance. This page is the thing
    that lets people commit.
 
-## Open questions
+## Resolved questions (2026-11-19)
 
-- Should `export` default to sealed? Leaning yes for the homelab DR story, but
-  it changes the safer default. Decide at review.
-- Lock mechanism for the live-server import refusal: a pid/lock file written at
-  server start versus probing whether the db is held open. Pid file is simpler
-  and also useful elsewhere.
+Plan: `docs/superpowers/plans/2026-11-19-recoverability.md`.
+
+- `export` defaults to sealed. `--no-key` opts out, replacing the `--sealed`
+  flag in D2. One file plus one passphrase is the homelab disaster-recovery
+  story, so it is the default. To offset the weaker default, export rejects a
+  passphrase shorter than 12 characters.
+- The live-server check is a heartbeat lock, not a pid file. The server writes
+  `${GATEHOUSE_DATA_DIR}/gatehouse.lock` and touches it every 10 seconds;
+  import refuses when the lock is fresher than 30 seconds. A pid is
+  meaningless from a second container on the same volume, which is how import
+  normally runs, and a crashed server's lock goes stale without help.
+- Import does not delete an existing database. It renames it to
+  `gatehouse.db.pre-import-<timestamp>` first. Still a full replace, never a
+  merge.
+- A sealed import refuses (exit 2) when `GATEHOUSE_MASTER_KEY` is set to a
+  different key than the bundle carries, because env wins at the next boot and
+  the restored vault would be undecryptable.
+- The escrow banner prints to stderr. The stdio MCP entry shares the key
+  resolution path and stdout is its protocol channel.
+- The Docker entrypoint does not route `mcp` today (`ENTRYPOINT ["bun",
+  "run"]`). This work adds a real entrypoint script that routes `mcp` and the
+  four subcommands.
