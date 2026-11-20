@@ -1,0 +1,29 @@
+manifestVersion: 1
+id: gatehouse
+storage:
+  dataRoot: data
+category: developer
+name: Gatehouse
+version: "0.23.0"
+tagline: The agent secrets vault. Credentials never leave the vault.
+description: >-
+  Gatehouse is a self-hosted secrets manager built for AI agent harnesses. Agents get scoped access and the vault injects the credential into the upstream call, so raw secrets never enter the agent context.
+
+
+  Gatehouse is single-instance by design (in-memory rate limiting and an in-process event bus). Run one. It is built for a homelab, not a cluster.
+
+
+  First run: open the app logs. Gatehouse prints a generated master key and a one-time bootstrap root token, once. Copy both. Escrow the master key somewhere other than this device: if you lose it, the data is unrecoverable.
+releaseNotes: ""
+developer: Gatehouse
+website: https://gatehouse.to
+dependencies: []
+repo: https://github.com/bshandley/gatehouse
+support: https://github.com/bshandley/gatehouse/issues
+port: 3100
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+submitter: Gatehouse
+submission: ""

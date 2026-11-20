@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Gatehouse</Name>
+  <Repository>ghcr.io/bshandley/gatehouse:0.23.0</Repository>
+  <Registry>https://github.com/bshandley/gatehouse/pkgs/container/gatehouse</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/bshandley/gatehouse/issues</Support>
+  <Project>https://github.com/bshandley/gatehouse</Project>
+  <Overview>The agent secrets vault. Credentials never leave the vault. Gatehouse is a self-hosted secrets manager built for AI agent harnesses: agents get scoped access, and the vault injects the credential into the upstream call. Gatehouse is single-instance by design (in-memory rate limiting and an in-process event bus). Run one. It is built for a homelab, not a cluster.</Overview>
+  <Category>Security: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3100]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/bshandley/gatehouse/main/packaging/unraid/gatehouse.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/bshandley/gatehouse/main/docs/logo.svg</Icon>
+  <ExtraParams>--memory=256m --user 99:100</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>After first start, open the container log (Docker tab, Logs). It prints the generated master key and a one-time bootstrap root token, once. Copy both. The master key must be escrowed somewhere other than this server: if you lose it, the data is unrecoverable. No secrets are needed in this template.</Requires>
+  <Config Name="WebUI Port" Target="3100" Default="3100" Mode="tcp" Description="Container Port: 3100" Type="Port" Display="always" Required="true" Mask="false">3100</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/gatehouse" Mode="rw" Description="Container Path: /data. Holds the database, the generated master key file, and the bootstrap token file. Back it up." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/gatehouse</Config>
+  <Config Name="Public URL" Target="GATEHOUSE_PUBLIC_URL" Default="" Mode="" Description="Optional. URL agents should use to reach Gatehouse (onboarding links). Set when behind a reverse proxy or when the Host header is not the address you want. Leave empty to use the request host." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Trusted proxies" Target="GATEHOUSE_TRUSTED_PROXIES" Default="" Mode="" Description="Optional. Comma-separated CIDRs of reverse proxies allowed to set the client IP via X-Forwarded-For. Needed only behind a proxy on another host or Docker network if you use AppRole IP allowlists or auto-approve by IP. Loopback is always trusted." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Proxy allow private" Target="GATEHOUSE_PROXY_ALLOW_PRIVATE" Default="true" Mode="" Description="Allow the credential proxy to reach private and LAN addresses. Set to false to enable SSRF blocking if Gatehouse is exposed to the internet." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="OAuth issuer" Target="GATEHOUSE_OAUTH_ISSUER" Default="" Mode="" Description="Optional. OIDC issuer URL. Seeds SSO settings on first boot only; afterwards configure SSO in the web UI." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="OAuth client ID" Target="GATEHOUSE_OAUTH_CLIENT_ID" Default="" Mode="" Description="Optional. OIDC client ID (first-boot seed only)." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="OAuth client secret" Target="GATEHOUSE_OAUTH_CLIENT_SECRET" Default="" Mode="" Description="Optional. OIDC client secret (first-boot seed only)." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="OAuth redirect URI" Target="GATEHOUSE_OAUTH_REDIRECT_URI" Default="" Mode="" Description="Optional. OIDC redirect URI, ending in /v1/auth/sso/callback (first-boot seed only)." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+</Container>

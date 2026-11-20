@@ -1,7 +1,7 @@
 # Distribution: zero-config first boot and catalog presence
 
 Date: 2026-06-05
-Status: design
+Status: shipped in 0.23.0
 Sub-project B of the ubiquity roadmap. Depends on A (first-boot key).
 
 ## Problem

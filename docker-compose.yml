@@ -1,6 +1,10 @@
+# Gatehouse is single-instance by design (in-memory rate limiting and an in-process event bus). Run one. It is built for a homelab, not a cluster.
+#
+# To build from a checkout instead of pulling the image:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 services:
   gatehouse:
-    build: .
+    image: ghcr.io/bshandley/gatehouse:latest
     container_name: gatehouse
     restart: unless-stopped
     ports:
@@ -9,11 +13,18 @@ services:
       - gatehouse-data:/data
       - ./config:/config:ro
     environment:
-      # Optional: 64-char hex string (openssl rand -hex 32). When unset, a key is
-      # generated on first boot and saved to /data/master.key.
-      - GATEHOUSE_MASTER_KEY=${GATEHOUSE_MASTER_KEY}
-      # Bootstrap root token. Remove after creating users/AppRoles.
-      - GATEHOUSE_ROOT_TOKEN=${GATEHOUSE_ROOT_TOKEN:-gatehouse-root-changeme}
+      # No secrets are needed here. Both variables below are optional. When
+      # unset (empty), first boot generates them:
+      #   - a master key, saved to /data/master.key (mode 0600)
+      #   - a one-time bootstrap root token, saved to /data/bootstrap-root.token
+      # Both are printed once in the container logs (docker compose logs gatehouse).
+      # Escrow the master key somewhere other than this host. If you lose it the
+      # data is unrecoverable: https://gatehouse.to/docs/backup/
+      # Existing installs that set them in .env keep working: a non-empty value
+      # always wins. Stronger posture: set GATEHOUSE_MASTER_KEY (64 hex chars,
+      # openssl rand -hex 32) and delete /data/master.key.
+      - GATEHOUSE_MASTER_KEY=${GATEHOUSE_MASTER_KEY:-}
+      - GATEHOUSE_ROOT_TOKEN=${GATEHOUSE_ROOT_TOKEN:-}
       # Proxying to private/LAN IPs (10.x, 192.168.x, etc.) is allowed by
       # default, since homelab services live on the local network. Set to
       # "false" to block them (403 SSRF block), e.g. when Gatehouse is

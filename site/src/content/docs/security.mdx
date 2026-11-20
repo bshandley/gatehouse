@@ -28,7 +28,13 @@ Gatehouse is designed for the homelab threat model: a single operator, one or mo
 
 ### Master key handling
 
-Gatehouse writes the master key to disk only when it generates one on first boot with no `GATEHOUSE_MASTER_KEY` set: `master.key` in the data volume, mode 0600. Losing the key means losing access to every encrypted secret. Store the master key:
+Gatehouse writes a master key to disk in three cases, always as a 0600 file in the data volume:
+
+- **First boot** with no `GATEHOUSE_MASTER_KEY` and no database: the generated key goes to `master.key`.
+- **Key rotation on a key-file install**: the new key replaces `master.key`, the old one stays beside it as `master.key.pre-rotate-<timestamp>`, and a rotation that stops partway can leave `master.key.next`. An env-key install writes nothing.
+- **A sealed import** with `GATEHOUSE_MASTER_KEY` unset: the bundle's key is written to `master.key`, and a different existing one is kept as `master.key.pre-import-<timestamp>`.
+
+The leftover `pre-rotate` and `pre-import` files hold old keys, so delete them once you no longer need old exports or the rollback. Losing the key means losing access to every encrypted secret. Store the master key:
 
 - **For homelabs:** in a password manager separate from the one that holds Gatehouse credentials, plus a printed backup in a safe place.
 - **For higher-trust deployments:** set `GATEHOUSE_MASTER_KEY` and delete `master.key`, so the key is not in the same volume as the database. The key is then an env var, so it is visible in `docker inspect` output and `/proc/$PID/environ`. Inject it at container start from your secret store rather than keeping it in a compose file or `.env` on disk, and restrict access to the Docker socket.
@@ -41,13 +47,26 @@ Backup, export and restore are covered in [Backup & Recovery](/docs/backup/).
 
 ### Root token handling
 
-The root token is for bootstrapping only. Create a real admin user via the web UI, log in as that user, verify everything works, then:
+A root token bypasses every access control check. It exists only to create the first admin. Where it comes from, in order:
 
-1. Stop the container.
-2. Remove the `GATEHOUSE_ROOT_TOKEN` env var from your `docker-compose.yml` or `docker run` command.
-3. Restart the container.
+1. **`GATEHOUSE_ROOT_TOKEN` is set and not empty or whitespace.** It is the root token and always wins. Gatehouse never generates, writes, or deletes anything for it, and it never retires on its own. Remove it from your `docker-compose.yml` or `docker run` command, and restart, once you have an admin user.
+2. **An admin exists** (an enabled admin user, or a non-suspended AppRole holding the `admin` policy). There is no root token. A leftover `bootstrap-root.token` is deleted at startup and never loaded.
+3. **No admin, and `bootstrap-root.token` exists.** The saved token is reused, so restarting before you have created an admin does not change it.
+4. **No admin, no file.** Gatehouse generates a token (16 random bytes, 32 hex characters), writes it to `${GATEHOUSE_DATA_DIR}/bootstrap-root.token` (mode 0600, default `/data`), and prints it once to the container log (stderr) under `GATEHOUSE BOOTSTRAP ROOT TOKEN`. If the data directory is not writable, the banner says `NOT SAVED` and the token is lost on restart.
 
-The root token still works for bootstrapping if you set it again later, but leaving it set in production bypasses every access control check.
+The bootstrap token retires on the first restart after an admin exists, not the moment you create the admin. Until that restart it still works. Create your admin, confirm you can sign in as that user, then restart the container once.
+
+`GET /v1/config` reports the active source as `root_token_source`: `env`, `bootstrap` (generated or reused from disk), or `null` when there is no root token.
+
+Rule 1 is checked before rule 2, so while `GATEHOUSE_ROOT_TOKEN` is set a leftover `bootstrap-root.token` is left alone. If you later remove the env token while no admin exists, that file becomes the active root token again.
+
+**Locked out?** Set `GATEHOUSE_ROOT_TOKEN` to a fresh random value (`openssl rand -hex 32`) and recreate the container (`docker compose up -d`; a plain restart does not pick up an environment change). Sign in with it, fix or create your admin, then remove the variable and recreate the container again.
+
+<Callout type="warning" title="Upgrading from an older compose file">
+  Before 0.23.0 the reference `docker-compose.yml` contained `GATEHOUSE_ROOT_TOKEN=${GATEHOUSE_ROOT_TOKEN:-gatehouse-root-changeme}`. That default lived in your compose file, not in the image. Pulling the new image does not touch your compose file, the env token wins, and the publicly known token `gatehouse-root-changeme` stays active. The old `.env.example` carried the same value, so a `.env` copied from it has it too. It stops working only once neither your compose file nor your `.env` supplies `gatehouse-root-changeme`. Remove it from both now, then recreate the container with `docker compose up -d` (a plain restart keeps the old environment). Check with `docker compose config | grep GATEHOUSE_ROOT_TOKEN`: it must not print `gatehouse-root-changeme`. That reads your files, not the running container, so also confirm the startup WARNING is gone from `docker logs gatehouse`: Gatehouse logs it on every start while the token is active.
+
+  If there is no enabled admin user, no active (non-suspended) admin AppRole, and no env token, first boot of 0.23.0 generates a bootstrap root token and prints it to the container log. Create an admin and restart to retire it. If you set your own `GATEHOUSE_ROOT_TOKEN` (in `.env` or elsewhere), or your own `GATEHOUSE_MASTER_KEY`, it still wins: a non-empty value always does. Remove your own root token once you have an admin.
+</Callout>
 
 ### Policy discipline
 
@@ -90,7 +109,7 @@ If your IdP's authentication assurance is weaker than your local TOTP setup, lea
 ## Cryptographic details
 
 - **Symmetric encryption:** XSalsa20-Poly1305 via `tweetnacl`. Per-secret random 32-byte DEK, encrypted with a KEK derived from the master key via HKDF-SHA256 with a domain separation label.
-- **Password hashing:** Argon2id via `Bun.password.hash` with default parameters (64 MiB memory, 3 iterations, parallelism 1).
+- **Password hashing:** Argon2id via `Bun.password.hash`. Gatehouse passes no options, so the cost parameters are Bun's Argon2id defaults, and each stored hash records the parameters it was made with.
 - **JWT signing:** HS256 with the `GATEHOUSE_JWT_SECRET` env var (if unset, derived from the master key with HKDF on every start; nothing is persisted).
 - **TOTP:** RFC 6238, SHA1, 6 digits, 30-second period.
 - **Recovery codes:** 10 one-time codes per user, each 8 characters, hashed with Argon2id before storage.

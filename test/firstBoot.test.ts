@@ -28,6 +28,7 @@ function boot(dataDir: string, configDir: string) {
   const port = freePort();
   const env: Record<string, string | undefined> = { ...process.env };
   delete env.GATEHOUSE_MASTER_KEY;
+  delete env.GATEHOUSE_ROOT_TOKEN;
   env.GATEHOUSE_DATA_DIR = dataDir;
   env.GATEHOUSE_CONFIG_DIR = configDir;
   env.GATEHOUSE_PORT = String(port);
@@ -98,5 +99,107 @@ describe("first boot", () => {
     expect(existsSync(join(dir, "gatehouse.lock"))).toBe(true);
     await stopAndRead(b);
     expect(existsSync(join(dir, "gatehouse.lock"))).toBe(false);
+  }, 15_000);
+});
+
+describe("CORS", () => {
+  test("preflight allows PATCH, which PATCH /v1/secrets/:path needs", async () => {
+    const { dir, cfg } = mkdirs();
+    const b = boot(dir, cfg);
+    await waitHealthy(b.port);
+    const res = await fetch(`http://127.0.0.1:${b.port}/v1/secrets/api-keys/example`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: `http://localhost:${b.port}`,
+        "Access-Control-Request-Method": "PATCH",
+        "Access-Control-Request-Headers": "authorization,content-type",
+      },
+    });
+    const allowed = (res.headers.get("access-control-allow-methods") || "").split(",").map((m) => m.trim());
+    await stopAndRead(b);
+    expect(res.headers.get("access-control-allow-origin")).toBe(`http://localhost:${b.port}`);
+    for (const m of ["GET", "POST", "PUT", "PATCH", "DELETE"]) expect(allowed).toContain(m);
+  });
+});
+
+describe("bootstrap root token", () => {
+  const tokenFile = (dir: string) => join(dir, "bootstrap-root.token");
+  const get = (port: number, token: string, path = "/v1/config") =>
+    fetch(`http://127.0.0.1:${port}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+
+  test("bare boot prints a bootstrap token that authenticates as root", async () => {
+    const { dir, cfg } = mkdirs();
+    const b = boot(dir, cfg);
+    await waitHealthy(b.port);
+    const token = readFileSync(tokenFile(dir), "utf8").trim();
+    expect(token).toMatch(/^[0-9a-f]{32}$/);
+    const r = await get(b.port, token);
+    expect(r.status).toBe(200);
+    const body = (await r.json()) as any;
+    expect(body.root_token_source).toBe("bootstrap");
+    expect(body.root_token_set).toBe(true);
+    const { stdout, stderr } = await stopAndRead(b);
+    expect(stderr).toContain("GATEHOUSE BOOTSTRAP ROOT TOKEN");
+    expect(stderr).toContain(token);
+    expect(stdout).not.toContain(token);
+  }, 15_000);
+
+  test("the old default token does not authenticate", async () => {
+    const { dir, cfg } = mkdirs();
+    const b = boot(dir, cfg);
+    await waitHealthy(b.port);
+    expect((await get(b.port, "gatehouse-root-changeme")).status).toBe(401);
+    await stopAndRead(b);
+  }, 15_000);
+
+  test("after an admin user is created, a restart retires the token", async () => {
+    const { dir, cfg } = mkdirs();
+    const first = boot(dir, cfg);
+    await waitHealthy(first.port);
+    const token = readFileSync(tokenFile(dir), "utf8").trim();
+    const created = await fetch(`http://127.0.0.1:${first.port}/v1/auth/users`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "admin1", password: "correct-horse-1", display_name: "Admin" }),
+    });
+    expect(created.status).toBe(201);
+    await stopAndRead(first);
+    expect(existsSync(tokenFile(dir))).toBe(true);
+
+    const second = boot(dir, cfg);
+    await waitHealthy(second.port);
+    expect(existsSync(tokenFile(dir))).toBe(false);
+    expect((await get(second.port, token)).status).toBe(401);
+    const login = await fetch(`http://127.0.0.1:${second.port}/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "admin1", password: "correct-horse-1" }),
+    });
+    expect(login.status).toBe(200);
+    const jwt = ((await login.json()) as any).token;
+    const cfgRes = await get(second.port, jwt);
+    expect(cfgRes.status).toBe(200);
+    const body = (await cfgRes.json()) as any;
+    expect(body.root_token_set).toBe(false);
+    expect(body.root_token_source).toBeNull();
+    const { stderr } = await stopAndRead(second);
+    expect(stderr).toContain("removed stale bootstrap-root.token");
+  }, 20_000);
+
+  test("GATEHOUSE_ROOT_TOKEN in the environment wins and no file is written", async () => {
+    const { dir, cfg } = mkdirs();
+    const port = freePort();
+    const env: Record<string, string | undefined> = { ...process.env, GATEHOUSE_ROOT_TOKEN: "env-root-token-value" };
+    delete env.GATEHOUSE_MASTER_KEY;
+    env.GATEHOUSE_DATA_DIR = dir;
+    env.GATEHOUSE_CONFIG_DIR = cfg;
+    env.GATEHOUSE_PORT = String(port);
+    const proc = Bun.spawn(["bun", "run", "src/index.ts"], { cwd: ROOT, env, stdout: "pipe", stderr: "pipe" });
+    procs.push(proc);
+    await waitHealthy(port);
+    const r = await get(port, "env-root-token-value");
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as any).root_token_source).toBe("env");
+    expect(existsSync(tokenFile(dir))).toBe(false);
   }, 15_000);
 });

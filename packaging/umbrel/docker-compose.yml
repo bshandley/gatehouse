@@ -1,0 +1,18 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: gatehouse_server_1
+      APP_PORT: 3100
+      # Gatehouse has its own login, and agents and MCP clients cannot pass
+      # Umbrel's. Same setting as Umbrel's reference vault app.
+      PROXY_AUTH_ADD: "false"
+
+  server:
+    image: ghcr.io/bshandley/gatehouse:0.23.0
+    user: "1000:1000"
+    restart: on-failure
+    stop_grace_period: 1m
+    volumes:
+      - ${APP_DATA_DIR}/data:/data

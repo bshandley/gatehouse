@@ -138,3 +138,7 @@ Signs ephemeral SSH certificates with a CA key stored in Gatehouse. Agents prese
 ```
 
 Required: `ca_private_key`. Optional: `principals`, `extensions`, `allowed_hosts`. There is no validity setting in the config: a certificate is valid for the TTL requested at checkout.
+
+**`allowed_hosts` is advisory.** It is a comma-separated list of hosts (for example `10.0.0.107,db.lab`) that tells the agent where to connect. Gatehouse does not enforce it: SSH certificates are not scoped to hosts, so the signed certificate works on any host that trusts your CA, and signing never checks the list. The value is shown to agents in the `metadata` of their secret list entry and in `credential.allowed_hosts` on the checkout response (omitted when empty). Whether a host accepts the certificate is decided by that host's `TrustedUserCAKeys` and the principals. To limit where an agent can log in, restrict it on the hosts (trusted CA, principals, `AuthorizedPrincipalsFile`), not here.
+
+To see which provider types a server supports, call `GET /v1/dynamic/providers` (any authenticated caller). It returns `{ "providers": [...] }`.

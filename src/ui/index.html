@@ -2784,7 +2784,9 @@
   initLoginScreen();
 
   // Handle hash routing on page load and hash change
+  // Back and forward land here: each in-app navigation is its own history entry.
   window.addEventListener('hashchange', () => {
+    if (!token) return; // signed out: the login screen owns the view
     const page = location.hash.slice(1) || 'dashboard';
     if (page !== currentPage && document.querySelector(`.page[data-page="${page}"]`)) {
       showPage(page, true);
@@ -3248,7 +3250,7 @@
     // Navigate to hash or default to dashboard
     const hashPage = location.hash.slice(1);
     const targetPage = hashPage && document.querySelector(`.page[data-page="${hashPage}"]`) ? hashPage : 'dashboard';
-    showPage(targetPage);
+    showPage(targetPage, false, true);
   }
 
   async function loadUpdateBanner() {
@@ -3286,11 +3288,17 @@
   };
 
   // Page routing
-  function showPage(page, fromHash = false) {
+  // fromHash: the URL already changed (back, forward, typed hash), leave history alone.
+  // replace: the initial page after load or sign-in, which must not add an entry.
+  function showPage(page, fromHash = false, replace = false) {
     currentPage = page;
-    // Update URL hash without triggering hashchange again
     if (!fromHash) {
-      history.replaceState(null, '', '#' + page);
+      // pushState does not fire hashchange. Push a new entry so the browser's
+      // back button returns to the previous page inside the app; re-selecting
+      // the current page replaces instead of stacking duplicates.
+      const url = '#' + page;
+      if (replace || location.hash === url) history.replaceState(null, '', url);
+      else history.pushState(null, '', url);
     }
     // Legacy #proxy hash redirects to patterns (proxy page removed)
     if (page === 'proxy') page = 'patterns';
@@ -6620,7 +6628,9 @@
       const rootTokenBadge = cfg.root_token_set
         ? '<span class="badge badge-warning" style="font-size:10px">Set</span>'
         : '<span class="badge badge-neutral" style="font-size:10px">Not set</span>';
-      const rootTokenHint = cfg.root_token_set
+      const rootTokenHint = cfg.root_token_source === 'bootstrap'
+        ? 'Temporary bootstrap token. Create an admin user and restart to retire it.'
+        : cfg.root_token_set
         ? 'Bootstrap admin credential is active. Recommended to unset <code>GATEHOUSE_ROOT_TOKEN</code> once an admin AppRole or user exists.'
         : 'Bootstrap admin credential, used once to mint the first admin AppRole. "Not set" is the recommended steady state.';
       document.getElementById('settings-config-body').innerHTML = `
@@ -6825,7 +6835,7 @@
             <button class="modal-close" onclick="this.closest('.modal-overlay').parentElement.innerHTML=''">&times;</button>
           </div>
           <div class="modal-body">
-            <p class="muted-12 mb-md">Paste a new 64+ char hex master key (e.g. <code class="inline-code">openssl rand -hex 32</code>). Every secret DEK will be re-wrapped. Back up the old key before rotating.</p>
+            <p class="muted-12 mb-md">Paste a new master key of exactly 64 hex characters (e.g. <code class="inline-code">openssl rand -hex 32</code>). Every secret DEK will be re-wrapped. Back up the old key before rotating.</p>
             <div class="form-group">
               <label class="form-label">New Master Key (hex)</label>
               <input type="password" class="input mono" id="rotate-new-key" placeholder="64 hex characters" autocomplete="off" spellcheck="false">

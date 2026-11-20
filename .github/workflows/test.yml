@@ -33,3 +33,14 @@ jobs:
         env:
           GATEHOUSE_MASTER_KEY: 0000000000000000000000000000000000000000000000000000000000000000
           GATEHOUSE_ROOT_TOKEN: test-root-token
+
+  first-boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: First-boot smoke test
+        run: scripts/smoke-first-boot.sh

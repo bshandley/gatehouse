@@ -13,9 +13,12 @@ A Gatehouse vault is two things: the SQLite database (`gatehouse.db`) and the ma
 
 Gatehouse resolves the master key in this order:
 
-1. `GATEHOUSE_MASTER_KEY`, if set to a non-empty value. It always wins over the key file. A set but invalid value is a hard error, never a fall-through. An empty value counts as unset.
+1. `GATEHOUSE_MASTER_KEY`, if set to a non-empty value. It always wins over the key file, and a set value never falls through to the file. An empty or whitespace-only value counts as unset. A set value is checked like this:
+   - Shorter than 64 characters: a hard error. Gatehouse refuses to start (the CLI commands exit 1).
+   - Exactly 64 hex characters (trailing whitespace such as a newline is ignored): the normal case, used with no warning.
+   - 64 or more characters that are anything else (non-hex characters, or hex that is not 64 long): boots with a warning, and the value is decoded the way older versions did it. Export your vault and re-key with a proper `openssl rand -hex 32` value.
 2. `${GATEHOUSE_DATA_DIR}/master.key` (hex, mode 0600), if it exists.
-3. On a fresh data dir with no `gatehouse.db`: Gatehouse generates a key, writes it to `master.key`, and prints a banner to stderr with the key and where it was saved.
+3. On a fresh data dir with no `gatehouse.db`: Gatehouse generates a key, writes it to `master.key`, and prints a banner to stderr with the key and where it was saved. If the data dir is not writable the banner says `NOT SAVED` instead, and the key exists only in that log line: set `GATEHOUSE_MASTER_KEY` to it or the vault is lost on restart.
 4. A data dir that has a `gatehouse.db` but no key anywhere: Gatehouse refuses to start. It never generates a key over existing data.
 
 The key file lives in the same volume as the database, so anyone who can read the volume has both. That is a convenience tradeoff. If you want the key kept apart from the data, set `GATEHOUSE_MASTER_KEY` in the environment and delete `master.key`.
@@ -26,7 +29,7 @@ The key file lives in the same volume as the database, so anyone who can read th
 
 ## The commands
 
-The image routes `backup`, `export`, `import` and `verify` to the `gatehouse` CLI. With no arguments it starts the server. The examples mount the data volume at `/data` and a host directory at `/backup` (it must be writable by the container user).
+The image routes `backup`, `export`, `import` and `verify` to the `gatehouse` CLI. `help` (also `--help` and `-h`) prints the CLI usage, and `mcp` starts the stdio MCP server (see [Integrations](/docs/integrations/)). With no arguments it starts the server. The examples mount the data volume at `/data` and a host directory at `/backup` (it must be writable by the container user).
 
 | Command | Safe while the server runs | Includes the master key |
 |---|---|---|
@@ -108,7 +111,7 @@ What import does to the data dir:
 
 If `GATEHOUSE_MASTER_KEY` is set in the environment of the import and differs from the key in a sealed bundle, import refuses with exit code 2, because the environment key wins at the next boot and the restored data would not decrypt. Unset it, or set it to the bundle's key. A bundle made with `--no-key` needs the matching key supplied the same way, or import refuses with exit code 2. `--force` overrides the refusal and restores data that will not decrypt, so use it only to recover rows you can read some other way.
 
-Import refuses with exit code 3 while a server is live on the same data dir. The server touches `gatehouse.lock` in the data dir every 10 seconds. The lock counts as live until it is 30 seconds old, so after stopping or crashing a server, wait about 30 seconds before importing.
+Import refuses with exit code 3 while a server is live on the same data dir. The server touches `gatehouse.lock` in the data dir every 10 seconds. A clean stop (`docker stop` sends SIGTERM) removes the lock, so you can import right after it. A crashed or killed server leaves the lock behind, and it counts as live until it is 30 seconds old, so after a crash wait about 30 seconds.
 
 Once you have confirmed the restored vault works (see `verify`), remove the leftovers. They hold the old vault, including its key if `master.key.pre-import-<timestamp>` exists, so do not leave them lying around. This works without a TTY. First list them:
 
@@ -136,7 +139,7 @@ The same check is available while the server runs: `GET /v1/admin/key-verify` (a
 
 ## After rotating the master key
 
-Settings, Danger Zone, **Rotate Encryption Key** (`POST /v1/admin/rotate-key`) re-wraps the data under a new key. What happens to the key itself depends on where it came from:
+Settings, Danger Zone, **Rotate Encryption Key** (`POST /v1/admin/rotate-key`) re-wraps the data under a new key. You supply the new key: generate one with `openssl rand -hex 32` and paste it into **New Master Key (hex)**, then again into **Confirm New Key**. It must be exactly 64 hex characters, and the dialog refuses a mismatch. Gatehouse does not generate it for you. After you confirm, the **Encryption key rotated** dialog stays open until you close it. It shows how many secrets and dynamic configs were re-wrapped, a red warning if the key was not saved (the env case below), and a message saying where the new key went, where the previous key was kept, and that older exports need the old key. What happens to the key itself depends on where it came from:
 
 - **Key-file installs** (`master.key`, including a key generated on first boot): Gatehouse writes the new key to `master.key` for you. The previous key is kept beside it as `master.key.pre-rotate-<timestamp>`. Escrow the new key, then delete the pre-rotate file once you no longer need old exports.
 - **Env installs** (`GATEHOUSE_MASTER_KEY`): nothing is written to disk. Update `GATEHOUSE_MASTER_KEY` to the new key before the next restart, or the server boots with a key that no longer decrypts the data.

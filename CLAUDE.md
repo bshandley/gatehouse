@@ -107,13 +107,18 @@ Bump rules (pre-1.0):
 
 Release procedure:
 
-1. Update `VERSION` in `src/version.ts` and `version` in `package.json`.
+1. Update `VERSION` in `src/version.ts`, `version` in `package.json`, and the
+   pinned image tag in every file under `packaging/` (`test/packaging.test.ts`
+   fails until they match).
+   `packaging/umbrel/umbrel-app.yml` also carries a `version:` field. Site pages
+   regenerate with `bun run site:build`.
 2. Update `CHANGELOG.md` with the new version block.
 3. Commit using the existing style: `feat(0.x.y): summary` or `fix(0.x.y): summary`
    (`git log` shows the pattern).
 4. Push `main` to `origin` and `github`.
 5. `git tag v0.x.y`, then `git push origin v0.x.y && git push github v0.x.y`.
    The tag push triggers the GitHub release and Docker image workflows.
+6. If `packaging/` changed, update the open upstream catalog pull requests.
 
 ## Style and voice
 

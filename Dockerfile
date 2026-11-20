@@ -23,9 +23,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssh-client 
 # Create non-root user
 RUN groupadd -r gatehouse && useradd -r -g gatehouse -d /app gatehouse
 
+# Unraid templates run as 99:100. ssh-keygen refuses a uid with no passwd
+# entry, so give 99 one (primary group 100 is Debian's "users").
+RUN useradd -u 99 -g 100 -M -s /usr/sbin/nologin unraid
+
 WORKDIR /app
 COPY --from=build --chown=gatehouse:gatehouse /app /app
 COPY --chown=gatehouse:gatehouse docker-entrypoint.sh /app/
+# Readable (and dirs traversable) under any --user uid.
+RUN chmod -R a+rX /app
 
 RUN mkdir -p /data /config/policies && \
     chown -R gatehouse:gatehouse /data /config

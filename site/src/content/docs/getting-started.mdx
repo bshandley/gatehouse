@@ -7,44 +7,53 @@ sidebar_group: "GETTING STARTED"
 
 import Callout from "../../components/Callout.astro";
 
-Gatehouse runs in a single Docker container. You don't need a cluster, a sidecar, or an external key store. This page walks through installing it, getting a root token, and storing your first secret.
+Gatehouse runs in a single Docker container. You don't need a cluster, a sidecar, or an external key store. This page walks through installing it, signing in with the bootstrap token, and storing your first secret.
 
 ## Install with Docker
 
 ```bash
-docker run -d \
-  --name gatehouse \
-  -p 3100:3100 \
-  -v gatehouse-data:/data \
-  -v ./config:/config \
-  -e GATEHOUSE_MASTER_KEY="$(openssl rand -hex 32)" \
-  -e GATEHOUSE_ROOT_TOKEN="$(openssl rand -hex 24)" \
-  ghcr.io/bshandley/gatehouse:latest
+docker run -d --name gatehouse -p 3100:3100 -v gatehouse-data:/data ghcr.io/bshandley/gatehouse:latest
+docker logs gatehouse   # your master key and one-time bootstrap token
 ```
 
+No configuration is needed. On a fresh volume the container generates a master key and a one-time bootstrap root token, saves them to `/data/master.key` and `/data/bootstrap-root.token` (mode 0600), and prints each once, in a banner, to the container log.
+
 <Callout type="warning" title="Save your master key">
-  Losing the master key means losing access to every encrypted secret. Save it somewhere safe (a password manager, a printed backup, another vault) before you put real data in. See [Backup & Recovery](/docs/backup/).
+  Losing the master key means losing access to every encrypted secret. Copy it from the log to somewhere off this host (a password manager, a printed backup, another vault) before you put real data in. See [Backup & Recovery](/docs/backup/).
 </Callout>
 
-`GATEHOUSE_MASTER_KEY` is optional. If you leave it out on a fresh volume, Gatehouse generates a key, saves it to `master.key` in the data volume (mode 0600), and prints it once to the container log. The tradeoff: the key then sits in the same volume as the database, so anyone who can read the volume has both. Set `GATEHOUSE_MASTER_KEY` in the environment and delete `master.key` if you want them apart. A set variable always wins over the file.
+The generated key sits in the same volume as the database, so anyone who can read the volume has both. That is a deliberate convenience tradeoff. To keep them apart, set `GATEHOUSE_MASTER_KEY` in the environment and delete `master.key`. A set variable always wins over the file.
 
-Open `http://localhost:3100` in a browser. You'll see the login screen. Paste the `GATEHOUSE_ROOT_TOKEN` value you set above.
+If the log banner says `NOT SAVED` instead of a saved path, the data directory was not writable and the key exists only in that log line. Copy it now and fix the permissions. See [Backup & Recovery](/docs/backup/#the-master-key).
+
+**Bind mounts.** The commands above use a named volume, which Docker creates writable for the container. If you mount a host directory instead (`-v /srv/gatehouse:/data`), that directory must be writable by the user the container runs as. The image runs as the `gatehouse` user unless you pass `--user`. If it is not writable, the key and bootstrap token cannot be saved (the banners say `NOT SAVED`) and the server then fails to open its database.
+
+Open `http://localhost:3100` in a browser. You'll see the login screen. Choose the **Token** tab, paste the bootstrap token from the log into **Access Token**, and click **Sign In**.
 
 ## Create your first user
 
-The root token is for bootstrapping only. Create a real admin user and then unset `GATEHOUSE_ROOT_TOKEN`.
+The bootstrap token is for bootstrapping only. Create a real admin user with it.
 
-1. Log in with the root token.
+1. Log in with the bootstrap token (**Token** tab).
 2. Open the **Users** tab.
-3. Click **Create user**. Pick a username, a strong password, and a display name.
-4. Log out, log back in as the new user.
-5. Stop the container, remove the `GATEHOUSE_ROOT_TOKEN` env var, and restart.
+3. Click **New User**. In the **Create User** dialog fill in **Username** (at least 2 characters: letters, numbers, dots, hyphens, underscores), **Display Name**, an optional **Email**, and **Password** with **Confirm Password** (at least 8 characters), then click **Create User**.
+4. Log out, then log back in as the new user on the **Username** tab.
+
+The bootstrap token retires on the first restart after an admin exists: it stops working and `bootstrap-root.token` is deleted. Until you restart it still works, so restart once you have verified your admin login. See [Security](/docs/security/#root-token-handling) for the full lifecycle.
 
 ## Store your first secret
 
-```bash
-export GATEHOUSE_TOKEN=<paste your JWT from the UI>
+The API needs a bearer token, and the web UI does not display one. Get one by logging in as the user you just created:
 
+```bash
+export GATEHOUSE_TOKEN="$(curl -s -X POST http://localhost:3100/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "password": "your-password"}' | jq -r .token)"
+```
+
+Use your own username and password. If the user has TOTP enabled the response has `totp_required` instead of a token, so finish with `POST /v1/auth/login/totp` (see [Authentication](/docs/authentication/#user-accounts-for-humans)). The token lasts 24 hours. Until you have a user, the bootstrap token also works as the bearer value: `export GATEHOUSE_TOKEN="$(docker exec gatehouse cat /data/bootstrap-root.token)"`.
+
+```bash
 curl -X POST http://localhost:3100/v1/secrets/api-keys/example \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Content-Type: application/json" \

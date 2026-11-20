@@ -16,6 +16,10 @@
 
 **Gatehouse is a self-hosted secrets vault built for AI agents and LLM tools.** It stores API keys, database credentials, and SSH certificates for autonomous coding agents (Claude Code, Codex, Cursor, Windsurf, OpenCode) and proxies upstream HTTP calls so secrets never enter agent context windows, log files, or tool output. Think of it as an open-source HashiCorp Vault alternative purpose-built for agentic AI: MCP-native, REST-parallel, single Docker container, AGPL-3.0.
 
+Gatehouse is single-instance by design (in-memory rate limiting and an in-process event bus). Run one. It is built for a homelab, not a cluster.
+
+**Install.** Ready-made templates for [Unraid, Umbrel, CasaOS, and Coolify](packaging/) are in `packaging/`. You can use them yourself today. They are not listed in any upstream catalog.
+
 ## Why a secrets vault built for AI agents?
 
 Traditional secret managers assume the client is trusted once authenticated. AI agents break that assumption. Their context windows get logged, cached, and shipped to cloud APIs. A credential that enters an agent's memory can end up anywhere.
@@ -34,7 +38,7 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 - **Onboarding links.** Generate a one-time bootstrap URL in the web UI; the agent curls it, exchanges the token, and auto-installs a `gatehouse` skill into its harness. Credentials never appear in chat.
 - **MCP + REST.** 11 MCP tools for Claude Code, Codex, Cursor, Windsurf, OpenCode; parallel REST API for everything else.
 - **Per-agent identity.** Each agent gets its own AppRole with scoped policies and a full audit trail.
-- **Key rotation.** Rotate the master key and re-wrap all DEKs in one API call, zero downtime.
+- **Key rotation.** Rotate the master key and re-wrap all DEKs in one API call, zero downtime. You supply the new 64-hex key. Key-file installs get `master.key` rewritten with the old key kept; env installs must set `GATEHOUSE_MASTER_KEY` to the new key before the next restart.
 - **Backup and restore.** `backup`, `export`, `import` and `verify` commands ship in the image. A passphrase-sealed export carries the master key, so one file plus one passphrase recovers the vault. First boot generates a key file if you do not supply a key.
 - **Web UI.** Dark-themed control panel with command palette (Cmd/Ctrl+K) for managing secrets, leases, agents, patterns, and audit logs.
 - **SSO.** Optional OpenID Connect single sign-on for human admins. Works with PocketID, Authentik, Keycloak, Google, and any other OIDC provider. Strict link-by-verified-email account model; configure once in Settings.
@@ -60,16 +64,11 @@ For everything else (leasing, dynamic secrets, SSH certificates, audit logging) 
 ## Quick start
 
 ```bash
-docker run -d \
-  --name gatehouse \
-  -p 3100:3100 \
-  -v gatehouse-data:/data \
-  -e GATEHOUSE_MASTER_KEY="$(openssl rand -hex 32)" \
-  -e GATEHOUSE_ROOT_TOKEN="$(openssl rand -hex 16)" \
-  ghcr.io/bshandley/gatehouse:latest
+docker run -d --name gatehouse -p 3100:3100 -v gatehouse-data:/data ghcr.io/bshandley/gatehouse:latest
+docker logs gatehouse   # your master key and one-time bootstrap token
 ```
 
-Open `http://localhost:3100`, create an admin user, then unset `GATEHOUSE_ROOT_TOKEN` and restart. Full walkthrough at [gatehouse.to/docs/getting-started](https://gatehouse.to/docs/getting-started/).
+Save the master key somewhere off this host. Then open `http://localhost:3100` and sign in with the bootstrap token to create your first admin user. Full walkthrough at [gatehouse.to/docs/getting-started](https://gatehouse.to/docs/getting-started/).
 
 ## Proxy mode in 10 seconds
 

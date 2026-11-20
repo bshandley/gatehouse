@@ -1,0 +1,60 @@
+name: gatehouse
+services:
+  gatehouse:
+    image: ghcr.io/bshandley/gatehouse:0.23.0
+    container_name: gatehouse
+    user: "1000:1000"
+    restart: unless-stopped
+    network_mode: bridge
+    ports:
+      - target: 3100
+        published: "3100"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: /DATA/AppData/$AppID/data
+        target: /data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    x-casaos:
+      ports:
+        - container: "3100"
+          description:
+            en_US: WebUI HTTP port
+      volumes:
+        - container: /data
+          description:
+            en_US: Database, generated master key file, and bootstrap token file. Back it up.
+x-casaos:
+  id: to.gatehouse.gatehouse
+  main: gatehouse
+  index: /
+  port_map: "3100"
+  scheme: http
+  icon: https://raw.githubusercontent.com/bshandley/gatehouse/main/docs/logo.svg
+  title:
+    en_US: Gatehouse
+  tagline:
+    en_US: The agent secrets vault. Credentials never leave the vault.
+  description:
+    en_US: |-
+      Gatehouse is a self-hosted secrets manager built for AI agent harnesses. Gatehouse is single-instance by design (in-memory rate limiting and an in-process event bus). Run one. It is built for a homelab, not a cluster.
+  tips:
+    before_install:
+      en_US: |-
+        No secrets are needed to install. On first start Gatehouse generates a master key and a one-time bootstrap root token and prints both once to the container log. Copy both. Escrow the master key somewhere other than this device: if you lose it, the data is unrecoverable.
+  author: Gatehouse
+  developer: Gatehouse
+  category: Developer
+  architectures:
+    - amd64
+    - arm64
+  version: "0.23.0"
+  website: https://gatehouse.to
+  repo: https://github.com/bshandley/gatehouse
+  support: https://github.com/bshandley/gatehouse/issues
+  docs: https://gatehouse.to/docs/

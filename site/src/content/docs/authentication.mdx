@@ -11,15 +11,22 @@ Gatehouse supports three authentication methods. They all produce (or are) a bea
 
 ## Root token
 
-Set via the `GATEHOUSE_ROOT_TOKEN` environment variable on the container. The root token has `admin` capability on everything. Use it to bootstrap the first admin user, then unset the env var and restart.
+The root token has `admin` capability on everything. There are two sources:
+
+- **Bootstrap token (default).** On a fresh install with no admin, Gatehouse generates a one-time token, saves it to `/data/bootstrap-root.token` (mode 0600), and prints it to the container log. Use it to create the first admin user. It retires on the first restart after an admin exists.
+- **`GATEHOUSE_ROOT_TOKEN` (override).** If this environment variable is set and non-empty, it is the root token and always wins. No bootstrap token is generated, and it never retires on its own. It works as it did before 0.23.0.
 
 ```bash
-curl -H "Authorization: Bearer $GATEHOUSE_ROOT_TOKEN" \
+# The bootstrap token. If you set GATEHOUSE_ROOT_TOKEN yourself, use that value instead.
+ROOT_TOKEN="$(docker exec gatehouse cat /data/bootstrap-root.token)"
+curl -H "Authorization: Bearer $ROOT_TOKEN" \
   http://localhost:3100/v1/auth/users
 ```
 
-<Callout type="danger" title="Do not leave the root token set in production">
-  The root token bypasses every access control check. Once you have an admin user account, remove `GATEHOUSE_ROOT_TOKEN` from the container environment and restart.
+`GET /v1/config` reports which one is active as `root_token_source`: `env`, `bootstrap`, or `null` when there is no root token. See [Security](/docs/security/#root-token-handling) for the lifecycle.
+
+<Callout type="danger" title="Do not leave a root token active in production">
+  The root token bypasses every access control check. The bootstrap token retires itself once an admin exists and you restart. If you set `GATEHOUSE_ROOT_TOKEN` yourself, remove it from the container environment and restart once you have an admin user account.
 </Callout>
 
 ## User accounts (for humans)
@@ -40,11 +47,31 @@ Response (when TOTP is disabled):
 {
   "token": "<JWT>",
   "identity": "user:alice",
+  "display_name": "Alice",
+  "role": "admin",
   "expires_in": 86400
 }
 ```
 
-When TOTP is enabled, the login endpoint returns a short-lived pre-auth token that can only be exchanged for a full JWT at `POST /v1/auth/login/totp` with a valid 6-digit code or recovery code.
+When TOTP is enabled, the login endpoint does not return a JWT. It returns `totp_required` and a pre-auth token that lasts 5 minutes:
+
+```json
+{
+  "totp_required": true,
+  "totp_token": "<pre-auth token>"
+}
+```
+
+Exchange it at `POST /v1/auth/login/totp` with the 6-digit code (or a recovery code):
+
+```bash
+# TOTP_TOKEN holds the totp_token from the login response
+curl -X POST http://localhost:3100/v1/auth/login/totp \
+  -H "Content-Type: application/json" \
+  -d "{\"totp_token\": \"$TOTP_TOKEN\", \"code\": \"123456\"}"
+```
+
+The response has the same fields as a normal login, plus `recovery_code_consumed` (`true` when the code was a recovery code, which is then spent).
 
 ## AppRoles (for agents)
 
@@ -111,14 +138,21 @@ Response:
 {
   "id": "onboard-...",
   "onboard_url": "https://gatehouse.example/v1/onboard/<token>",
-  "expires_at": "..."
+  "onboard_url_internal": "http://10.0.0.5:3100/v1/onboard/<token>",
+  "token": "<token>",
+  "expires_at": "...",
+  "role_display_name": "my-agent",
+  "policies": ["agent-readonly"]
 }
 ```
+
+`onboard_url_internal` appears only when `GATEHOUSE_INTERNAL_URL` is set (split-DNS setups). `ttl_seconds` is 60 to 3600 and defaults to 900.
 
 **Agent side: exchange the token.** The agent runs the curl snippet, reads the markdown (which is self-installing instructions), and calls exchange exactly once:
 
 ```bash
-curl -X POST https://gatehouse.example/v1/onboard/<token>/exchange
+# ONBOARD_TOKEN is the last path segment of the onboarding URL
+curl -X POST "https://gatehouse.example/v1/onboard/$ONBOARD_TOKEN/exchange"
 ```
 
 Response (consumed on success; subsequent calls return 410 Gone):
@@ -126,17 +160,29 @@ Response (consumed on success; subsequent calls return 410 Gone):
 ```json
 {
   "token": "<JWT>",
+  "identity": "approle:my-agent",
+  "policies": ["agent-readonly"],
+  "expires_in": 86400,
   "role_id": "role-...",
   "secret_id": "...",
   "base_url": "https://gatehouse.example",
+  "internal_url": "http://10.0.0.5:3100",
   "mcp_url": "https://gatehouse.example/v1/mcp",
-  "role_display_name": "my-agent",
-  "policies": ["agent-readonly"],
-  "expires_in": 86400
+  "role_display_name": "my-agent"
 }
 ```
 
-The agent writes `role_id` / `secret_id` into its harness's credential path (`~/.hermes/.env`, `~/.claude/.env.gatehouse`, `~/.openclaw/workspace/.env`, or `.env.gatehouse` in cwd for Codex/Cursor/Windsurf) and installs a `gatehouse` skill so future sessions know how to use the vault.
+`internal_url` appears only when `GATEHOUSE_INTERNAL_URL` is set. When it is present the agent writes it as its URL instead of `base_url`.
+
+The agent writes `role_id` / `secret_id` into its harness's credential path and installs a `gatehouse` skill so future sessions know how to use the vault:
+
+| Harness | Credential file | Skill |
+|---|---|---|
+| Hermes Agent | `~/.hermes/.env` | `skill_manage` tool |
+| OpenClaw | `~/.openclaw/workspace/.env` | `~/.openclaw/skills/gatehouse/SKILL.md` |
+| Claude Code | `~/.claude/.env.gatehouse` | `~/.claude/skills/gatehouse/SKILL.md` |
+| Pi | `~/.pi/agent/.env.gatehouse` | appended to `~/.pi/agent/AGENTS.md` |
+| Codex, Cursor, Windsurf, opencode, others | `.env.gatehouse` in the working directory | operating rules appended to `AGENTS.md` in the repo root |
 
 **Important behaviors:**
 
@@ -152,8 +198,8 @@ The agent writes `role_id` / `secret_id` into its harness's credential path (`~/
 # List active links
 curl http://localhost:3100/v1/onboard -H "Authorization: Bearer $ADMIN_JWT"
 
-# Revoke an unused link
-curl -X DELETE http://localhost:3100/v1/onboard/<id> \
+# Revoke an unused link. LINK_ID is the "id" field (onboard-...) from the list or create response.
+curl -X DELETE "http://localhost:3100/v1/onboard/$LINK_ID" \
   -H "Authorization: Bearer $ADMIN_JWT"
 ```
 
@@ -165,7 +211,7 @@ Gatehouse supports OIDC single sign-on for the web UI. The login page shows a `S
 
 ### Configure
 
-1. Sign in with the bootstrap root token or an admin user.
+1. Sign in with the bootstrap token or an admin user.
 2. Go to **Settings → SSO / OAuth Configuration** and toggle **Enable SSO** on.
 3. Fill in:
    - **Issuer URL**: the IdP's base URL (e.g. `https://id.example.com`). Gatehouse fetches `<issuer>/.well-known/openid-configuration` when you save and refuses the save if discovery fails.

@@ -5,16 +5,56 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.23.0] - 2026-11-19
+
+Distribution. A bare container now boots with nothing configured, and there are install templates for four self-hosting catalogs.
+
+### Added
+
+- **Bootstrap root token.** With `GATEHOUSE_ROOT_TOKEN` unset or empty and no admin, first boot generates a one-time token (16 random bytes, 32 hex characters), writes it to `bootstrap-root.token` in the data dir (mode 0600), and prints it to stderr under `GATEHOUSE BOOTSTRAP ROOT TOKEN`. A restart before an admin exists reuses the saved token. On the first restart after an admin exists (an enabled admin user, or a non-suspended AppRole holding the `admin` policy) there is no root token and the file is deleted. If the data dir is not writable the banner says `NOT SAVED`. `GET /v1/config` `root_token_source` is `env`, `bootstrap`, or `null`.
+- **Startup warning for the old default root token.** If `GATEHOUSE_ROOT_TOKEN` equals the pre-0.23.0 compose default, a WARNING banner on stderr says a publicly known root token is active. The token still works; the warning is the only change.
+- **Zero-secret reference compose.** `docker-compose.yml` needs no `.env`. Both `GATEHOUSE_MASTER_KEY` and `GATEHOUSE_ROOT_TOKEN` are passed through empty by default, so first boot generates them.
+- **First-boot smoke test** at `scripts/smoke-first-boot.sh`.
+- **Catalog templates** under `packaging/` for Unraid, Umbrel, CasaOS, and Coolify, each pinned to the release image tag. They are templates you can use yourself. None is submitted or listed upstream. `packaging/README.md` records each catalog's constraints and checklist, and `test/packaging.test.ts` fails if a pin drifts from `src/version.ts`.
+
+### Changed
+
+- **Breaking: the stdio MCP entry verifies `GATEHOUSE_TOKEN`.** It used to compare the token only with the root token and otherwise ignore it, running with `GATEHOUSE_POLICIES` (default `admin`) whatever the token was. A token is now verified like an HTTP bearer token: the root token or a Gatehouse JWT, which runs as its own identity and policies. A token that does not verify makes the process exit 1. If your stdio config passes a placeholder or an expired JWT as `GATEHOUSE_TOKEN`, remove it or replace it.
+- **Breaking: the stdio MCP entry no longer defaults to the `admin` policy.** With no token, `GATEHOUSE_POLICIES` used to default to `admin`, so an agent connected over stdio could read and write every secret unless the operator remembered to restrict it. `GATEHOUSE_POLICIES` is now required when no token is given, and the process exits 1 without it. Set `GATEHOUSE_POLICIES` to your policy name in every stdio MCP config (`admin` still works, but must be written out). An unknown policy name logs a warning.
+- **The stdio MCP entry uses the server's policies.** Policies created in the web UI or API now apply, not only YAML files.
+- **No default root token.** The reference compose no longer falls back to a fixed placeholder token. `GATEHOUSE_ROOT_TOKEN`, when set and non-empty, still always wins and behaves as before. A whitespace-only value now counts as unset.
+- **`docker-compose.yml` uses the published image** (`ghcr.io/bshandley/gatehouse`) instead of building. To build from a checkout: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`.
+- A suspended AppRole holding the `admin` policy no longer counts as an admin for the bootstrap token decision.
+- Docs now start from the bootstrap token flow: README, getting started, authentication, security, and integrations. The security page documents the token lifecycle.
+- **The image runs under an arbitrary uid.** App files are world-readable (`chmod -R a+rX /app`) and uid 99 (Unraid's default) has a passwd entry, because `ssh-keygen` refuses a uid with none.
+
+### Fixed
+
+- The stdio MCP entry wrote audit rows and policy load notices to stdout, between JSON-RPC responses. They now go to stderr.
+- CORS preflight now allows `PATCH`, which `PATCH /v1/secrets/:path` needs from a browser on another origin.
+- The Codex CLI example in the integrations page used a config shape Codex does not accept.
+- **Browser Back and Forward move between pages inside the web UI.** Every in-app navigation replaced the history entry, so Back left the app for whatever was open before it. Navigation now pushes an entry; the first page after load or sign-in, and a re-click of the current page, still replace.
+
+### Upgrade notes
+
+- **Action required if your compose file predates 0.23.0.** The old default lived in your compose file, not in the image: `GATEHOUSE_ROOT_TOKEN=${GATEHOUSE_ROOT_TOKEN:-gatehouse-root-changeme}`. Pulling the new image does not change that line, the env token wins, and the publicly known token `gatehouse-root-changeme` stays active. The old `.env.example` carried the same value, so a `.env` copied from it has it too. It stops working only once neither your compose file nor your `.env` supplies `gatehouse-root-changeme`. Remove it from both now, then recreate the container with `docker compose up -d` (a plain restart keeps the old environment). Check with `docker compose config | grep GATEHOUSE_ROOT_TOKEN`: it must not print `gatehouse-root-changeme`. That reads your files, not the running container, so also confirm the startup WARNING is gone from `docker logs gatehouse`: 0.23.0 logs it on every start while the token is active. If your `.env` sets a root token of your own, it still wins; remove it too once you have an admin.
+- **Installs with no admin.** If there is no enabled admin user, no active (non-suspended) admin AppRole, and no env token, first boot of 0.23.0 generates a bootstrap root token and prints it to the container log (`docker logs gatehouse`). Create an admin and restart to retire it. Either way, confirm your master key is escrowed off this host ([Backup & Recovery](https://gatehouse.to/docs/backup/)).
+- An install that keeps `GATEHOUSE_MASTER_KEY` in `.env` is unchanged. A non-empty value always wins over a generated one.
+
 ## [0.22.0] - 2026-11-19
 
 Recoverability. A fresh install no longer needs a master key up front, and the vault can be backed up, exported, restored and checked from the image. See the new Backup & Recovery docs page.
 
 ### Added
 
-- **First-boot key generation.** With `GATEHOUSE_MASTER_KEY` unset or empty and no `gatehouse.db` in the data dir, Gatehouse generates a key, writes it to `master.key` (mode 0600), and prints an escrow banner to stderr. A set key always wins over the file, an invalid set key is an error, and a data dir that has a database but no key still refuses to start. The key file shares a volume with the database, which is a deliberate convenience tradeoff.
+- **First-boot key generation.** With `GATEHOUSE_MASTER_KEY` unset or empty and no `gatehouse.db` in the data dir, Gatehouse generates a key, writes it to `master.key` (mode 0600), and prints an escrow banner to stderr. A set key always wins over the file. A set key shorter than 64 characters is an error. A longer value that is not clean 64-character hex boots with a warning and is decoded as older versions did. A data dir that has a database but no key still refuses to start. The key file shares a volume with the database, which is a deliberate convenience tradeoff.
 - **`backup`, `export`, `import`, `verify` commands.** `backup` takes a consistent snapshot of the database. `export` writes a passphrase-sealed bundle (scrypt, secretbox) that includes the master key by default (`--no-key` opts out; passphrase of 12 or more characters). `import` is a full replace from a bundle; it keeps the old database as `gatehouse.db.pre-import-<stamp>`, rolls back on failure, and refuses a mismatched key (exit 2) or a live server (exit 3). `verify` prints the key fingerprint and checks that it decrypts the data. Passphrases come from `--passphrase-env` or a TTY prompt, never a flag value. `backup`, `export` and `verify` are safe against a running server.
 - **`GET /v1/admin/key-verify`** and an "Encryption key: matches data" row in Settings.
-- **Heartbeat lock.** The server touches `gatehouse.lock` in the data dir every 10 seconds. Import treats a lock younger than 30 seconds as a live server.
+- **Heartbeat lock.** The server touches `gatehouse.lock` in the data dir every 10 seconds. Import treats a lock younger than 30 seconds as a live server. A clean stop removes the lock; only a crash leaves one to age out.
+- **Key rotation persists the new key.** On a key-file install (`master.key`, including a generated one), `POST /v1/admin/rotate-key` writes the new key to `master.key` crash-safely and keeps the old one as `master.key.pre-rotate-<stamp>`. On an env install nothing is written and the response carries a `warning` to update `GATEHOUSE_MASTER_KEY` before the next restart. The endpoint now requires `new_master_key` to be exactly 64 hex characters (400 otherwise) and returns `rotated`, `secrets_rewrapped`, `dynamic_configs_rewrapped`, `key_persisted_to`, `previous_key_kept_as`, `message`, and `warning` when the key was not saved. A rotation that stops partway can leave `master.key.next`, and the server warns about it at boot.
+- **Rotate result dialog.** The Settings rotate dialog asks for the new key twice and, after rotating, stays open on a result that shows the counts, the warning, and where the key went, until closed. Failures show in a dialog too.
+- **The stdio MCP entry reads `master.key`.** `src/mcp-stdio.ts` (and the image's `mcp` argument) takes the key from `GATEHOUSE_MASTER_KEY` or `master.key` in the data dir and never generates one, so it cannot start a second vault.
+- **Export refuses a key that does not decrypt the vault.** `export` checks the resolved key against the data before writing, and exits 1 with no file if it fails (for example a stale `master.key` after a rotation on an env install).
 
 ### Changed
 

@@ -6,7 +6,7 @@
 <p>Your operator probably handed you a one-time URL along the lines of <code>https://gatehouse.example/v1/onboard/&lt;token&gt;</code>, wrapped in a prompt that tells you to curl it. Do exactly that:</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -fsSL</span><span style="color:#98C379"> &quot;https://gatehouse.example/v1/onboard/&lt;token&gt;&quot;</span><span style="color:#ABB2BF"> &gt; </span><span style="color:#98C379">/tmp/gatehouse-onboard.md</span></span>
 <span class="line"><span style="color:#61AFEF">cat</span><span style="color:#98C379"> /tmp/gatehouse-onboard.md</span></span></code></pre>
-<p>The response is self-installing markdown. It contains your identity, a bootstrap token, and step-by-step instructions for your harness (Hermes, OpenClaw, Claude Code, Codex/Cursor/Windsurf). Follow the steps in the file: call <code>POST /v1/onboard/&lt;token&gt;/exchange</code> exactly once to receive your rotated <code>role_id</code>, <code>secret_id</code>, and a 24h JWT, then persist the credentials and install the <code>gatehouse</code> skill as instructed. The bootstrap token is single-use; fetching the markdown is safely repeatable until you exchange.</p>
+<p>The response is self-installing markdown. It contains your identity, a bootstrap token, and step-by-step instructions for your harness (Hermes, OpenClaw, Claude Code, Pi, Codex/Cursor/Windsurf). Follow the steps in the file: call <code>POST /v1/onboard/&lt;token&gt;/exchange</code> exactly once to receive your rotated <code>role_id</code>, <code>secret_id</code>, and a 24h JWT, then persist the credentials and install the <code>gatehouse</code> skill as instructed. The bootstrap token is single-use; fetching the markdown is safely repeatable until you exchange.</p>
 <h3 id="direct-approle-login-alternative">Direct AppRole login (alternative)<a class="heading-anchor" aria-label="Link to this heading" href="#direct-approle-login-alternative">#</a></h3>
 <p>If your operator handed you <code>role_id</code> and <code>secret_id</code> directly, exchange them for a JWT:</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/auth/approle/login</span><span style="color:#56B6C2"> \</span></span>
@@ -33,7 +33,7 @@
 <span class="line"><span style="color:#E06C75">  &quot;policies&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;agent-readonly&quot;</span><span style="color:#ABB2BF">],</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;expires_in&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">86400</span></span>
 <span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
-<p>Refresh re-checks AppRole suspension, IP allowlist, and the current policy list, so the new token reflects any operator changes since your last login. Refresh <strong>does not</strong> issue a new JWT from an expired one — <code>401</code> from <code>/refresh</code> means the token is past its TTL or the AppRole was deleted/suspended; fall back to a full re-login from <code>role_id</code> / <code>secret_id</code>.</p>
+<p>Refresh re-checks AppRole suspension, IP allowlist, and the current policy list, so the new token reflects any operator changes since your last login. Refresh <strong>does not</strong> issue a new JWT from an expired one - <code>401</code> from <code>/refresh</code> means the token is past its TTL or the AppRole was deleted/suspended; fall back to a full re-login from <code>role_id</code> / <code>secret_id</code>.</p>
 <h3 id="refreshing-the-installed-skill-without-re-onboarding">Refreshing the installed skill (without re-onboarding)<a class="heading-anchor" aria-label="Link to this heading" href="#refreshing-the-installed-skill-without-re-onboarding">#</a></h3>
 <p>When the operator ships an updated Gatehouse skill template, existing agents stay on whatever skill they got at first install until they re-onboard. Re-onboarding side-effects a <code>secret_id</code> rotation. To pick up skill improvements without rotating credentials, fetch the current skill body for your policies:</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/skill</span><span style="color:#56B6C2"> \</span></span>
@@ -125,22 +125,39 @@
 <span class="line"><span style="color:#E06C75">  &quot;secrets&quot;</span><span style="color:#ABB2BF">: [</span></span>
 <span class="line"><span style="color:#ABB2BF">    {</span></span>
 <span class="line"><span style="color:#E06C75">      &quot;path&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;services/memos-pat&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;kind&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;static&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;caps&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;proxy&quot;</span><span style="color:#ABB2BF">],</span></span>
 <span class="line"><span style="color:#E06C75">      &quot;version&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">1</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">      &quot;created_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;...&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">      &quot;metadata&quot;</span><span style="color:#ABB2BF">: {</span><span style="color:#E06C75">&quot;allowed_domains&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;10.0.0.50:5230&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;header_name&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;Authorization&quot;</span><span style="color:#ABB2BF">},</span></span>
 <span class="line"><span style="color:#E06C75">      &quot;pattern_count&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">4</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">      &quot;top_pattern&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;POST http://10.0.0.50:5230/api/v1/memos&quot;</span></span>
 <span class="line"><span style="color:#ABB2BF">    },</span></span>
-<span class="line"><span style="color:#ABB2BF">    {</span><span style="color:#E06C75">&quot;path&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;api-keys/anthropic&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;version&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">1</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;created_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;...&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;pattern_count&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">0</span><span style="color:#ABB2BF">}</span></span>
+<span class="line"><span style="color:#ABB2BF">    {</span><span style="color:#E06C75">&quot;path&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;api-keys/anthropic&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;kind&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;static&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;caps&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;read&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;proxy&quot;</span><span style="color:#ABB2BF">], </span><span style="color:#E06C75">&quot;version&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">1</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;created_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;...&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#E06C75">&quot;pattern_count&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">0</span><span style="color:#ABB2BF">},</span></span>
+<span class="line"><span style="color:#ABB2BF">    {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;path&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;ssh/lab&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;kind&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;dynamic&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;caps&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;lease&quot;</span><span style="color:#ABB2BF">],</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;provider_type&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;ssh-cert&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;metadata&quot;</span><span style="color:#ABB2BF">: {},</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;updated_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;...&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
 <span class="line"><span style="color:#ABB2BF">  ]</span></span>
 <span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
-<p>The response is filtered to only show secrets you can use via any capability (<code>read</code>, <code>list</code>, <code>proxy</code>, or <code>lease</code>). Use an empty prefix to discover everything available to you.</p>
-<p>Two fields matter for figuring out how to use a secret without probing:</p>
+<p>Static and dynamic secrets come back merged in one list, sorted by path. Every entry has:</p>
 <ul>
-<li><strong><code>pattern_count</code></strong> — how many known-good request shapes other agents have verified for this secret.</li>
-<li><strong><code>top_pattern</code></strong> — when <code>pattern_count &gt; 0</code>, a <code>METHOD url_template</code> preview of the highest-confidence pattern. This IS the endpoint; don’t scan for ports.</li>
+<li><strong><code>kind</code></strong> - <code>&quot;static&quot;</code> (a stored value) or <code>&quot;dynamic&quot;</code> (a credential minted on demand). Branch on this before choosing a tool: static secrets use the proxy, lease, and get calls; dynamic ones use <code>POST /v1/dynamic/&lt;path&gt;/checkout</code>.</li>
+<li><strong><code>caps</code></strong> - the capabilities you hold on that path, for example <code>[&quot;read&quot;, &quot;proxy&quot;]</code>. Filter on it, such as <code>caps.includes(&quot;proxy&quot;)</code> when you want something to call through the proxy.</li>
 </ul>
-<p>If <code>pattern_count &gt; 0</code>, call <code>gatehouse_patterns</code> (MCP) or <code>GET /v1/proxy/patterns?secret=&lt;path&gt;</code> for the full verified pattern including headers and body schema, then copy that shape. If <code>pattern_count == 0</code>, use <code>metadata.allowed_domains</code> as the canonical host; your first successful proxy call seeds a pattern for the next agent. If <code>gatehouse_list</code> returns an empty array, your policy grants nothing — stop and tell the operator rather than probing.</p>
+<p>The list is filtered to secrets you can use. A static secret shows up if you hold any of <code>read</code>, <code>list</code>, <code>proxy</code>, or <code>lease</code> on it. A dynamic secret shows up if you hold <code>lease</code> or <code>admin</code>. Use an empty prefix to discover everything available to you. <code>prefix</code> is a starts-with match on the full path.</p>
+<p>Static entries carry <code>version</code>, timestamps, and <code>metadata</code>. Dynamic entries carry <code>provider_type</code> and <code>metadata</code> (advisory routing info such as <code>allowed_hosts</code> for <code>ssh-cert</code>, or <code>host</code> and <code>database</code> for DB providers) instead.</p>
+<p>Two more fields on static entries matter for figuring out how to use a secret without probing:</p>
+<ul>
+<li><strong><code>pattern_count</code></strong> - how many known-good request shapes other agents have verified for this secret.</li>
+<li><strong><code>top_pattern</code></strong> - when <code>pattern_count &gt; 0</code>, a <code>METHOD url_template</code> preview of the highest-confidence pattern. This IS the endpoint; don’t scan for ports.</li>
+</ul>
+<p>Dynamic entries have neither field.</p>
+<p>If <code>pattern_count &gt; 0</code>, call <code>gatehouse_patterns</code> (MCP) or <code>GET /v1/proxy/patterns?secret=&lt;path&gt;</code> for the full verified pattern including headers and body schema, then copy that shape. If <code>pattern_count == 0</code>, use <code>metadata.allowed_domains</code> as the canonical host; your first successful proxy call seeds a pattern for the next agent. If <code>gatehouse_list</code> returns an empty array, your policy grants nothing - stop and tell the operator rather than probing.</p>
 <h3 id="get-a-secrets-value">Get a secret’s value<a class="heading-anchor" aria-label="Link to this heading" href="#get-a-secrets-value">#</a></h3>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/secrets/api-keys/example/value</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>
@@ -158,7 +175,7 @@
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/secrets/api-keys/example</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$TOKEN</span><span style="color:#98C379">&quot;</span></span></code></pre>
 <p>Returns path, version, metadata, and timestamps, but not the secret value. Accepts any usable capability (<code>read</code>, <code>proxy</code>, <code>lease</code>, or <code>list</code>), so proxy-only AppRoles can inspect metadata for the secrets they can use. Only <code>/value</code> and <code>/versions</code> require <code>read</code>.</p>
-<p>In practice you shouldn’t need this endpoint often — the same metadata is already returned by <code>GET /v1/secrets</code> for every secret in one round trip, so list first, fetch-by-path only when you specifically want one entry’s metadata.</p>
+<p>In practice you shouldn’t need this endpoint often - the same metadata is already returned by <code>GET /v1/secrets</code> for every secret in one round trip, so list first, fetch-by-path only when you specifically want one entry’s metadata.</p>
 <h2 id="leasing-secrets">Leasing secrets<a class="heading-anchor" aria-label="Link to this heading" href="#leasing-secrets">#</a></h2>
 <p>Leases give you temporary, tracked access to a secret. The lease auto-expires after the TTL, and all access is logged.</p>
 <h3 id="check-out-a-lease">Check out a lease<a class="heading-anchor" aria-label="Link to this heading" href="#check-out-a-lease">#</a></h3>
@@ -345,7 +362,27 @@
 
 
 
-<table><thead><tr><th>Code</th><th>Meaning</th></tr></thead><tbody><tr><td>400</td><td>Bad request (invalid input, missing fields)</td></tr><tr><td>401</td><td>Unauthorized (missing or expired token, re-login needed)</td></tr><tr><td>403</td><td>Forbidden (valid token, but policy does not allow this action on this path)</td></tr><tr><td>404</td><td>Not found (secret path does not exist)</td></tr><tr><td>502</td><td>Provider error (dynamic secret backend unreachable)</td></tr></tbody></table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Code</th><th>Meaning</th></tr></thead><tbody><tr><td>400</td><td>Bad request (invalid input, missing fields)</td></tr><tr><td>401</td><td>Unauthorized (missing or expired token, re-login needed)</td></tr><tr><td>403</td><td>Forbidden (valid token, but policy does not allow this action on this path). With <code>requires_approval: true</code> in the body, the secret needs an approved lease first (see “Approval-gated secrets” in the skill).</td></tr><tr><td>404</td><td>Not found (secret path does not exist)</td></tr><tr><td>409</td><td>Conflict. The lease is not in a state that allows the call (renewing a lease that is not approved, or approving or denying one that is no longer pending), or a user with that name already exists.</td></tr><tr><td>410</td><td>Gone. An onboarding or rotate link was already used or has expired.</td></tr><tr><td>413</td><td>Request body too large. The request’s <code>Content-Length</code> is above <code>GATEHOUSE_MAX_BODY_SIZE</code> (default 1 MiB).</td></tr><tr><td>429</td><td>Rate limited. Sent for AppRole and per-secret proxy limits, repeated failed logins, and onboarding or rotate link creation and exchange. The <code>Retry-After</code> header and the <code>retry_after</code> body field give the seconds to wait. Do not retry sooner.</td></tr><tr><td>502</td><td>Upstream or provider error. From <code>POST /v1/proxy</code>: the upstream request failed, or its response was larger than the proxy body limit. From dynamic checkout: the provider backend failed or is unreachable.</td></tr><tr><td>504</td><td>Proxy timeout. The upstream did not answer within the request <code>timeout</code> (the proxy limit caps it).</td></tr></tbody></table>
 <h2 id="mcp-interface">MCP interface<a class="heading-anchor" aria-label="Link to this heading" href="#mcp-interface">#</a></h2>
 <p>If your harness supports MCP (Model Context Protocol), you can use Gatehouse as an MCP tool server instead of calling the REST API directly.</p>
 <p><strong>Endpoint:</strong> <code>POST /v1/mcp</code> (Streamable HTTP transport)</p>

@@ -67,6 +67,10 @@ jobs:
           fi
           docker run --rm -v "$VOL:/data" --entrypoint sh "$IMG" -c 'test ! -e /data/master.key'
 
+          echo "image runs as an arbitrary user (Unraid 99:100): passwd entry, ssh-keygen, readable app"
+          docker run --rm --user 99:100 --entrypoint sh "$IMG" \
+            -c 'id -un && ssh-keygen -t ed25519 -N "" -f /tmp/k -q && test -r /app/src/index.ts'
+
           echo "server starts with no env and generates a key"
           SMOKE_TOKEN="$(openssl rand -hex 16)"
           echo "::add-mask::$SMOKE_TOKEN"

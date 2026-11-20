@@ -25,6 +25,7 @@ import { DynamicSecretsManager } from "./dynamic/manager";
 import { PatternEngine } from "./patterns/engine";
 import { patternsRouter } from "./api/patterns";
 import { initDB } from "./db/init";
+import { resolveBootstrapRootToken } from "./auth/bootstrapToken";
 import { LeaseManager } from "./lease/manager";
 import { AuditLog } from "./audit/logger";
 import { SecretsEngine, keyFingerprint } from "./secrets/engine";
@@ -42,6 +43,25 @@ import { warnIfWebhookPrivate } from "./lease/webhook";
 
 const config = loadConfig();
 const db = initDB(config.dataDir);
+
+// Bootstrap root token. Must run before authMiddleware(...) is constructed
+// (it captures GATEHOUSE_ROOT_TOKEN at construction) and before any request.
+const publicUrl = process.env.GATEHOUSE_PUBLIC_URL || `http://localhost:${config.port}`;
+const bootstrap = resolveBootstrapRootToken({
+  db,
+  dataDir: config.dataDir,
+  envToken: process.env.GATEHOUSE_ROOT_TOKEN,
+  publicUrl: process.env.GATEHOUSE_PUBLIC_URL || undefined,
+  port: config.port,
+});
+if (bootstrap.source === "file" || bootstrap.source === "generated" || bootstrap.source === "generated-unpersisted") {
+  process.env.GATEHOUSE_ROOT_TOKEN = bootstrap.token!;
+} else if (bootstrap.source === "none") {
+  // Env was unset, empty, or whitespace-only: make sure nothing downstream sees it.
+  delete process.env.GATEHOUSE_ROOT_TOKEN;
+}
+const rootTokenSource: "env" | "bootstrap" | null =
+  bootstrap.source === "env" ? "env" : bootstrap.token ? "bootstrap" : null;
 const stopHeartbeat = startHeartbeat(config.dataDir);
 seedSsoFromEnv(db);
 const eventBus = new EventBus();
@@ -57,7 +77,6 @@ const rateLimiter = new RateLimiter();
 // Resolve and remember the public-facing server URL so approval webhooks can
 // build absolute /v1/lease/<id>/approve and #leases links. Falls back to the
 // local port when not configured.
-const publicUrl = process.env.GATEHOUSE_PUBLIC_URL || `http://localhost:${config.port}`;
 leases.setServerBaseUrl(publicUrl);
 warnIfWebhookPrivate();
 
@@ -140,7 +159,7 @@ app.use(
   "*",
   cors({
     origin: corsOrigins,
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
     credentials: true,
     maxAge: 3600,
@@ -247,6 +266,7 @@ app.get("/v1/config", (c) => {
     oauth_enabled: ssoEnabled,
     oauth_issuer: ssoIssuer,
     root_token_set: !!process.env.GATEHOUSE_ROOT_TOKEN,
+    root_token_source: rootTokenSource,
     lease_reaper_interval: 30,
     max_lease_ttl: 86400,
     min_lease_ttl: 10,

@@ -5,29 +5,39 @@ sidebar_order: 1
 sidebar_group: "REFERENCE"
 ---
 
-All REST routes under `/v1/` require `Authorization: Bearer <token>`, except `/health`, the login and SSO routes under `/v1/auth/`, and the token-bearing onboarding and rotation links (`/v1/onboard/:token`, `/v1/rotate/:token` and their `/exchange` routes). The admin routes under `/v1/auth/` (AppRole and user management) do require a token.
+All REST routes under `/v1/` require `Authorization: Bearer <token>`, except `/health`, the login and SSO routes under `/v1/auth/`, and the token-bearing onboarding and rotation links (`/v1/onboard/:token`, `/v1/rotate/:token` and their `/exchange` routes). `POST /v1/auth/refresh` and `GET /v1/auth/whoami` also sit outside the auth middleware: they read and verify the bearer token themselves. The admin routes under `/v1/auth/` (AppRole and user management) do require an admin token. `GET /ui/*` (UI modules and fonts) is public.
+
+Errors are `{"error": "...", "request_id": "..."}`. A request whose `Content-Length` exceeds `GATEHOUSE_MAX_BODY_SIZE` (default 1 MiB) gets `413`.
 
 ## Health and metadata
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/health` | Health check. Returns `{ status, version }`. |
+| GET | `/health` | Public. Returns `{ status: "ok", version, uptime_seconds }`. Returns 503 `{ status: "unhealthy", error: "database unreachable", request_id }` when the database cannot be queried. |
 | GET | `/` | Web UI. |
-| GET | `/v1/config` | Server config (non-sensitive values). |
+| GET | `/ui/:file`, `/ui/fonts/:file` | Public. UI helper modules and bundled fonts. |
+| GET | `/v1/config` | Requires auth (any valid token). Non-sensitive server config: `port`, `jwt_expiry`, `oauth_enabled`, `oauth_issuer`, `root_token_set`, `root_token_source` (`"env"`, `"bootstrap"`, or `null`), `lease_reaper_interval`, `min_lease_ttl`, `max_lease_ttl`, `default_lease_ttl`, `approval_webhook_set`, `approval_webhook_signed`, `approval_request_default_ttl`, `approval_request_max_ttl`. |
+| GET | `/v1/version/check` | Any authenticated caller. `{ current, latest, has_update, release_url, published_at }` from the latest GitHub release, cached for 1 hour. With `GATEHOUSE_UPDATE_CHECK=false` it returns `{ current, check_disabled: true }` and makes no outbound call. A failed lookup returns `{ current, check_failed: true, error }`. |
+| GET | `/v1/events` | Any authenticated caller. Server-Sent Events stream: `ready`, `heartbeat` (every 20 s), `audit`, `lease_request_created`, `lease_status_changed`. Admins see every event; others see only events for their own identity. |
+| GET | `/v1/stats/posture?window=7d` | Admin. `window` is `Nd` or `Nh` (default `7d`, capped at 365 days). Returns `{ redactions: {window, count}, blocked_egress: {window, total, by_reason}, hygiene: {stale_90d, older_18mo, total_secrets} }`. |
+| GET | `/v1/skill` | Any authenticated caller. The Gatehouse skill (`text/markdown`) rendered for the caller's policies. Overwrite the installed skill with it to pick up template changes without re-onboarding. |
 
 ## Authentication
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/v1/auth/login` | User login (username + password → JWT). |
-| POST | `/v1/auth/login/totp` | Exchange pre-auth token + TOTP code for a full JWT. |
+| POST | `/v1/auth/login` | User login. Body `{username, password}`. Returns `{token, identity, display_name, role, expires_in}`, or `{totp_required: true, totp_token}` when the user has TOTP enabled. |
+| POST | `/v1/auth/login/totp` | Body `{totp_token, code}`. `code` is a 6-digit TOTP code or a recovery code. Returns the same shape as login plus `recovery_code_consumed`. |
+| POST | `/v1/auth/refresh` | Send a still-valid JWT as the bearer; get a new one with a full 24h TTL: `{token, identity, policies, expires_in}`. Re-checks AppRole suspension and IP allowlist, or the user's enabled state. 401 once the token is expired; 400 for a TOTP-pending token. |
+| GET | `/v1/auth/whoami` | Introspect the bearer token: `{identity, policies, source, expires_at, expires_in}`. `source` is `root`, `approle`, or `user`; root has no expiry fields. |
 | GET | `/v1/auth/sso/status` | Public. Returns `{enabled}` so the unauth login page can decide whether to show the SSO button. |
 | GET | `/v1/auth/sso/start` | Public. Mints state+nonce+PKCE, redirects (302) to the IdP authorize URL. |
 | GET | `/v1/auth/sso/callback` | Public. OIDC redirect target. Verifies the ID token, links by IdP-verified email, and 302s to `/#sso=<jwt>`. |
-| POST | `/v1/auth/approle/login` | Exchange role_id + secret_id for a JWT. |
+| POST | `/v1/auth/approle/login` | Exchange role_id + secret_id for a JWT: `{token, identity, policies, expires_in}`. |
 | GET | `/v1/auth/approle` | List AppRoles (admin). |
 | POST | `/v1/auth/approle` | Create AppRole (admin). |
 | PUT | `/v1/auth/approle/:roleId` | Update AppRole (admin). |
+| PATCH | `/v1/auth/approle/:roleId/suspend` | Suspend or reinstate an AppRole (admin). Body `{"suspended": true}`. Returns `{role_id, display_name, suspended}`. |
 | DELETE | `/v1/auth/approle/:roleId` | Delete AppRole (admin). |
 | GET | `/v1/auth/users` | List users (admin). |
 | POST | `/v1/auth/users` | Create user (admin). |
@@ -40,11 +50,21 @@ One-time bootstrap tokens that hand an agent durable AppRole credentials without
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/v1/onboard` | Create an onboarding link for an AppRole (admin). Returns `{ id, token, onboard_url, onboard_url_internal, expires_at, role_display_name, policies }`. |
+| POST | `/v1/onboard` | Create an onboarding link for an AppRole (admin). Body `{role_id, ttl_seconds, label}`; `ttl_seconds` is 60 to 3600, default 900. Returns `{ id, onboard_url, onboard_url_internal, token, expires_at, role_display_name, policies }`. `onboard_url_internal` is present only when `GATEHOUSE_INTERNAL_URL` is set. |
 | GET | `/v1/onboard` | List active onboarding links (admin). |
 | GET | `/v1/onboard/:token` | Fetch the rendered markdown bootstrap document (unauthenticated, idempotent until exchange). |
-| POST | `/v1/onboard/:token/exchange` | One-shot exchange: consumes the token, returns `{ token (JWT), role_id, secret_id, base_url, mcp_url, role_display_name, policies, expires_in }`. |
+| POST | `/v1/onboard/:token/exchange` | One-shot exchange: consumes the token, returns `{ token (JWT), identity, policies, expires_in, role_id, secret_id, base_url, internal_url, mcp_url, role_display_name }`. `internal_url` is present only when `GATEHOUSE_INTERNAL_URL` is set. |
 | DELETE | `/v1/onboard/:id` | Revoke an unused onboarding link by its `id` (`onboard-...`), not by its token (admin). |
+
+## Credential rotation links
+
+One-shot links that rotate an existing AppRole's `secret_id` without touching its `role_id`, policies, or installed skill. Same pattern as onboarding links.
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/v1/rotate` | Create a rotate link (admin). Body `{role_id, ttl_seconds, label}`; `ttl_seconds` is 60 to 3600, default 900. Returns `{ id, rotate_url, token, expires_at, role_display_name, policies }`. |
+| GET | `/v1/rotate/:token` | Fetch the rendered markdown instructions (unauthenticated, repeatable until exchange). |
+| POST | `/v1/rotate/:token/exchange` | One-shot: consumes the token, rotates the secret, returns `{ role_id, secret_id, base_url, role_display_name }`. 410 once consumed or expired. |
 
 ## TOTP self-service
 
@@ -60,19 +80,30 @@ One-time bootstrap tokens that hand an agent durable AppRole credentials without
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/v1/secrets?prefix=` | List secrets accessible to the caller. |
-| GET | `/v1/secrets/:path` | Get secret metadata. |
-| GET | `/v1/secrets/:path/value` | Get secret value. |
-| POST | `/v1/secrets/:path` | Create or update secret. |
-| DELETE | `/v1/secrets/:path` | Delete secret. |
+| GET | `/v1/secrets?prefix=` | List secrets and dynamic configs the caller can use. Each entry has `kind` (`static` or `dynamic`) and `caps` (the capabilities the caller holds on it). Static entries add `version`, `metadata`, timestamps, `pattern_count`, and `top_pattern`; dynamic entries add `provider_type`. 403 only if candidates exist but policy hides all of them. |
+| GET | `/v1/secrets/:path` | Get secret metadata. Any of `read`, `proxy`, `lease`, `list` on the path. |
+| GET | `/v1/secrets/:path/value` | Get secret value. Requires `read`. `Accept: text/plain` returns the bare value. |
+| GET | `/v1/secrets/:path/versions` | List stored versions (`read`). |
+| GET | `/v1/secrets/:path/versions/:n` | Get the value of version `n` (`read`). |
+| POST | `/v1/secrets/:path` | Create or update a secret (`write`). Body `{value, metadata}`; metadata values are strings of at most 1 KB. Returns 201. |
+| POST | `/v1/secrets/:path/rollback` | Roll back to an earlier version (`write`). Body `{"version": 2}`. |
+| PATCH | `/v1/secrets/:path` | Replace the metadata of an existing secret without changing the value (`write`). Body `{metadata}`. Bumps the version. 404 if the secret does not exist. |
+| DELETE | `/v1/secrets/:path` | Delete secret (`delete`). |
+| POST | `/v1/secrets-bulk` | Import many secrets (`write` on every path). Body `{prefix, env_text, secrets: [{path, value, metadata}], dry_run}`. `env_text` is a `.env` block; each key becomes a lowercase, dash-separated path segment under `prefix`. All paths are validated first, and nothing is imported if one fails. `dry_run` returns `{dry_run: true, would_import}`; otherwise 201 `{imported_count, paths}`. |
 
 ## Leases
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/v1/lease/:path` | Check out a lease (returns lease + value). |
-| GET | `/v1/lease` | List active leases. |
-| DELETE | `/v1/lease/:leaseId` | Revoke a lease. |
+| POST | `/v1/lease/:path` | Check out a lease (`lease` on the path). Body `{ttl}`, 10 to 86400 seconds, default 300. Returns `{lease, value}`. A secret with `requires_approval` returns 403 with `requires_approval: true` unless the caller holds an approved lease (or the source IP matches `auto_approve_from_ip`). |
+| GET | `/v1/lease` | List active leases, static and dynamic merged (each has `kind`). Admins see all identities; others see their own. |
+| GET | `/v1/lease/pending` | Pending approval requests. Admins see all; others see their own. |
+| GET | `/v1/lease/:leaseId` | One lease, by `lease-` id. Owner or admin. |
+| POST | `/v1/lease/:path/request` | Request an approval-gated lease (`proxy` or `lease` on the path). Body `{ttl, justification, request_ttl}` (defaults 300, empty, 3600). Returns `{lease_id, status, request_expires_at, expires_at_if_approved}`: 202 for a new request, 200 when it deduplicates to an existing one. |
+| POST | `/v1/lease/:leaseId/renew` | Renew an approved lease (owner or admin). Body `{ttl}`, 10 to 86400. 409 if the lease is not approved. |
+| POST | `/v1/lease/:leaseId/approve` | Approve a pending request (admin). 409 if it is no longer pending. |
+| POST | `/v1/lease/:leaseId/deny` | Deny a pending request (admin). Optional body `{reason}`. 409 if it is no longer pending. |
+| DELETE | `/v1/lease/:leaseId` | Revoke a lease (owner or admin). Handles both `lease-` and `dlease-` ids. |
 
 ## Proxy
 
@@ -84,11 +115,12 @@ One-time bootstrap tokens that hand an agent durable AppRole credentials without
 
 | Method | Path | Description |
 |---|---|---|
+| GET | `/v1/dynamic/providers` | List the provider types this server supports: `{providers: [...]}`. Any authenticated caller. |
 | GET | `/v1/dynamic` | List dynamic secret configs (admin). |
 | POST | `/v1/dynamic` | Create or update config (admin). |
 | GET | `/v1/dynamic/:path` | Get config detail (admin, redacted). |
 | DELETE | `/v1/dynamic/:path` | Delete config and revoke all leases (admin). |
-| POST | `/v1/dynamic/:path/checkout` | Create a temp credential. |
+| POST | `/v1/dynamic/:path/checkout` | Create a temp credential (`lease` on the path). Body `{ttl}`, clamped to 10 to 86400, default 300. Returns `{lease_id, path, provider_type, credential, ttl_seconds, expires_at}`. 502 if the provider fails. |
 | POST | `/v1/dynamic/:path/validate` | Test provider connection (admin). |
 | GET | `/v1/dynamic/:path/leases` | List active dynamic leases (admin). |
 | DELETE | `/v1/dynamic/lease/:leaseId` | Revoke a dynamic lease. |
@@ -134,7 +166,9 @@ One-time bootstrap tokens that hand an agent durable AppRole credentials without
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/v1/admin/rotate-key` | Rotate master key, re-wrap all DEKs (admin). |
+| POST | `/v1/admin/rotate-key` | Rotate the master key and re-wrap every secret DEK and dynamic config (admin). Body `{"new_master_key": "..."}`, exactly 64 hex characters, else 400. On a key-file install (`master.key`, including a generated one) the new key is written to `master.key` and the old one is kept as `master.key.pre-rotate-<stamp>`. On an env install nothing is saved and the response carries a `warning`: set `GATEHOUSE_MASTER_KEY` to the new key before the next restart. Response: `{rotated, secrets_rewrapped, dynamic_configs_rewrapped, key_persisted_to, previous_key_kept_as, message, warning?}`. See [Backup & Recovery](/docs/backup/#after-rotating-the-master-key). |
+| GET | `/v1/admin/key-verify` | Admin. Checks that the loaded master key decrypts the stored data: `{fingerprint, tested, ok}`. `tested` is `secret`, `dynamic`, or `none` (nothing encrypted to test, `ok` is true). |
+| GET | `/v1/admin/key-fingerprint` | Admin. Non-reversible fingerprint of the loaded key: `{fingerprint, algorithm}`. |
 | GET | `/v1/settings/sso` | Get SSO config (admin). |
 | POST | `/v1/settings/sso` | Update SSO config (admin). |
 | GET | `/v1/settings/proxy-limits` | Get proxy timeout + body-size limits (admin). |
@@ -151,16 +185,30 @@ One-time bootstrap tokens that hand an agent durable AppRole credentials without
 
 ## MCP tools
 
-| Tool | Description | Capability |
-|---|---|---|
-| `gatehouse_get` | Read a secret value | `read` on path |
-| `gatehouse_lease` | Checkout with TTL | `lease` on path |
-| `gatehouse_checkout` | Check out temporary credentials from a dynamic secret | `lease` on path |
-| `gatehouse_revoke` | Revoke an active lease | Owner or `admin` |
-| `gatehouse_list` | List secret paths | None required. Results are filtered to paths where you hold `list`, `read`, `proxy` or `lease` |
-| `gatehouse_put` | Store or update a secret | `write` on path |
-| `gatehouse_scrub` | Redact credentials from text | Any authenticated |
-| `gatehouse_proxy` | Forward HTTP request with injection | `proxy` on each path |
-| `gatehouse_patterns` | Query learned API patterns by path | `proxy` or `read` on path |
-| `gatehouse_request_access` | Request an approval-gated lease | `proxy` or `lease` on path |
-| `gatehouse_status` | Health and identity info | Any authenticated |
+Argument names and requirements come from the tool schemas in `src/mcp/server.ts` (`GET /v1/mcp/tools` returns them).
+
+| Tool | Description | Arguments | Capability |
+|---|---|---|---|
+| `gatehouse_get` | Read a secret value | `path` (required) | `read` on path |
+| `gatehouse_lease` | Checkout with TTL | `path` (required), `ttl` seconds (default 300, 10 to 86400) | `lease` on path |
+| `gatehouse_checkout` | Check out temporary credentials from a dynamic secret | `path` (required), `ttl` seconds (default 300, 10 to 86400) | `lease` on path |
+| `gatehouse_revoke` | Revoke an active lease | `lease_id` (required) | Owner or `admin` |
+| `gatehouse_list` | List secret paths | `prefix` | None required. Results are filtered to paths where you hold `list`, `read`, `proxy` or `lease` |
+| `gatehouse_put` | Store or update a secret | `path` (required), `value` (required), `metadata` (object) | `write` on path |
+| `gatehouse_scrub` | Redact credentials from text | `text` (required) | Any authenticated |
+| `gatehouse_proxy` | Forward HTTP request with injection | `method` (required), `url` (required), `headers`, `inject`, `auto_inject` (array of paths), `body`, `timeout` ms (default 30000, capped by proxy limits) | `proxy` on each path |
+| `gatehouse_patterns` | Query learned API patterns by path | `secret_path` (required) | `proxy` or `read` on path |
+| `gatehouse_request_access` | Request an approval-gated lease | `path` (required), `justification` (required, 10 to 2000 characters), `ttl` seconds after approval (default 300, 10 to 86400) | `proxy` or `lease` on path |
+| `gatehouse_status` | Health and identity info: `status`, `version`, `identity`, `policies`, `active_leases`, `pending_leases` | none | Any authenticated |
+
+## stdio transport
+
+`src/mcp-stdio.ts` serves the same tools over stdin and stdout for harnesses that launch a local process. Start it with `bun run src/mcp-stdio.ts`, or with the image: `docker run --rm -i -v gatehouse-data:/data -e GATEHOUSE_POLICIES=agent-readonly ghcr.io/bshandley/gatehouse:latest mcp`.
+
+- **It opens the vault directly.** It reads the database in `GATEHOUSE_DATA_DIR` (default `/data`) and the master key from `GATEHOUSE_MASTER_KEY`, or `master.key` in that directory. It never generates a key: with no key source, or with an invalid key, it exits 1. A bare-metal run needs `GATEHOUSE_DATA_DIR` set to the real data directory.
+- **A token is verified.** `GATEHOUSE_TOKEN` (or the first argument) is checked exactly like an HTTP bearer token: the root token (`GATEHOUSE_ROOT_TOKEN` in the stdio process's own environment; the bootstrap token file is not read) or a Gatehouse JWT. A JWT runs as its own identity and policies. A token that does not verify (wrong signature, expired, a disabled user, a TOTP pre-auth token) makes the process exit 1. JWTs last 24 hours, so a long-lived stdio entry should use no token or the root token.
+- **With no token, `GATEHOUSE_POLICIES` is required.** It is the comma-separated list of policies the agent may use, and there is no default: with neither a token nor `GATEHOUSE_POLICIES`, the process exits 1. Full access means setting `GATEHOUSE_POLICIES=admin` on purpose. Identity is `GATEHOUSE_IDENTITY` (default `mcp-agent`).
+- **Policies are the server's policies.** Names resolve against the database, which holds policies created in the web UI or API and those imported from `policies/*.yaml` under `GATEHOUSE_CONFIG_DIR` (default `/config`), plus the built-in `admin`. An unknown name grants nothing and logs a warning at start.
+- **stdout is protocol only.** Audit rows and other log lines go to stderr.
+
+The policy limits what the agent can do through the tools. It does not hide the master key, which sits on the same machine: an agent with shell access may be able to read it and open the vault directly. For a boundary the agent cannot step around, and for per-agent identity, use the HTTP transport with an AppRole.

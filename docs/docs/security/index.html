@@ -17,7 +17,13 @@
 </ul>
 <h2 id="deployment-recommendations">Deployment recommendations<a class="heading-anchor" aria-label="Link to this heading" href="#deployment-recommendations">#</a></h2>
 <h3 id="master-key-handling">Master key handling<a class="heading-anchor" aria-label="Link to this heading" href="#master-key-handling">#</a></h3>
-<p>Gatehouse writes the master key to disk only when it generates one on first boot with no <code>GATEHOUSE_MASTER_KEY</code> set: <code>master.key</code> in the data volume, mode 0600. Losing the key means losing access to every encrypted secret. Store the master key:</p>
+<p>Gatehouse writes a master key to disk in three cases, always as a 0600 file in the data volume:</p>
+<ul>
+<li><strong>First boot</strong> with no <code>GATEHOUSE_MASTER_KEY</code> and no database: the generated key goes to <code>master.key</code>.</li>
+<li><strong>Key rotation on a key-file install</strong>: the new key replaces <code>master.key</code>, the old one stays beside it as <code>master.key.pre-rotate-&lt;timestamp&gt;</code>, and a rotation that stops partway can leave <code>master.key.next</code>. An env-key install writes nothing.</li>
+<li><strong>A sealed import</strong> with <code>GATEHOUSE_MASTER_KEY</code> unset: the bundle’s key is written to <code>master.key</code>, and a different existing one is kept as <code>master.key.pre-import-&lt;timestamp&gt;</code>.</li>
+</ul>
+<p>The leftover <code>pre-rotate</code> and <code>pre-import</code> files hold old keys, so delete them once you no longer need old exports or the rollback. Losing the key means losing access to every encrypted secret. Store the master key:</p>
 <ul>
 <li><strong>For homelabs:</strong> in a password manager separate from the one that holds Gatehouse credentials, plus a printed backup in a safe place.</li>
 <li><strong>For higher-trust deployments:</strong> set <code>GATEHOUSE_MASTER_KEY</code> and delete <code>master.key</code>, so the key is not in the same volume as the database. The key is then an env var, so it is visible in <code>docker inspect</code> output and <code>/proc/$PID/environ</code>. Inject it at container start from your secret store rather than keeping it in a compose file or <code>.env</code> on disk, and restrict access to the Docker socket.</li>
@@ -25,13 +31,18 @@
 <aside class="callout callout-warning" data-astro-cid-q2ml7llr><div class="callout-head" data-astro-cid-q2ml7llr><span class="icon" aria-hidden="true" data-astro-cid-q2ml7llr>!</span><strong data-astro-cid-q2ml7llr>Do not check in your master key</strong></div><div class="callout-body" data-astro-cid-q2ml7llr><p>The master key is a 32-byte secret. Never commit it to a git repo, never paste it into Slack, never send it in an email.</p></div></aside>
 <p>Backup, export and restore are covered in <a href="/docs/backup/">Backup &amp; Recovery</a>.</p>
 <h3 id="root-token-handling">Root token handling<a class="heading-anchor" aria-label="Link to this heading" href="#root-token-handling">#</a></h3>
-<p>The root token is for bootstrapping only. Create a real admin user via the web UI, log in as that user, verify everything works, then:</p>
+<p>A root token bypasses every access control check. It exists only to create the first admin. Where it comes from, in order:</p>
 <ol>
-<li>Stop the container.</li>
-<li>Remove the <code>GATEHOUSE_ROOT_TOKEN</code> env var from your <code>docker-compose.yml</code> or <code>docker run</code> command.</li>
-<li>Restart the container.</li>
+<li><strong><code>GATEHOUSE_ROOT_TOKEN</code> is set and not empty or whitespace.</strong> It is the root token and always wins. Gatehouse never generates, writes, or deletes anything for it, and it never retires on its own. Remove it from your <code>docker-compose.yml</code> or <code>docker run</code> command, and restart, once you have an admin user.</li>
+<li><strong>An admin exists</strong> (an enabled admin user, or a non-suspended AppRole holding the <code>admin</code> policy). There is no root token. A leftover <code>bootstrap-root.token</code> is deleted at startup and never loaded.</li>
+<li><strong>No admin, and <code>bootstrap-root.token</code> exists.</strong> The saved token is reused, so restarting before you have created an admin does not change it.</li>
+<li><strong>No admin, no file.</strong> Gatehouse generates a token (16 random bytes, 32 hex characters), writes it to <code>${GATEHOUSE_DATA_DIR}/bootstrap-root.token</code> (mode 0600, default <code>/data</code>), and prints it once to the container log (stderr) under <code>GATEHOUSE BOOTSTRAP ROOT TOKEN</code>. If the data directory is not writable, the banner says <code>NOT SAVED</code> and the token is lost on restart.</li>
 </ol>
-<p>The root token still works for bootstrapping if you set it again later, but leaving it set in production bypasses every access control check.</p>
+<p>The bootstrap token retires on the first restart after an admin exists, not the moment you create the admin. Until that restart it still works. Create your admin, confirm you can sign in as that user, then restart the container once.</p>
+<p><code>GET /v1/config</code> reports the active source as <code>root_token_source</code>: <code>env</code>, <code>bootstrap</code> (generated or reused from disk), or <code>null</code> when there is no root token.</p>
+<p>Rule 1 is checked before rule 2, so while <code>GATEHOUSE_ROOT_TOKEN</code> is set a leftover <code>bootstrap-root.token</code> is left alone. If you later remove the env token while no admin exists, that file becomes the active root token again.</p>
+<p><strong>Locked out?</strong> Set <code>GATEHOUSE_ROOT_TOKEN</code> to a fresh random value (<code>openssl rand -hex 32</code>) and recreate the container (<code>docker compose up -d</code>; a plain restart does not pick up an environment change). Sign in with it, fix or create your admin, then remove the variable and recreate the container again.</p>
+<aside class="callout callout-warning" data-astro-cid-q2ml7llr><div class="callout-head" data-astro-cid-q2ml7llr><span class="icon" aria-hidden="true" data-astro-cid-q2ml7llr>!</span><strong data-astro-cid-q2ml7llr>Upgrading from an older compose file</strong></div><div class="callout-body" data-astro-cid-q2ml7llr><p>Before 0.23.0 the reference <code>docker-compose.yml</code> contained <code>GATEHOUSE_ROOT_TOKEN=${GATEHOUSE_ROOT_TOKEN:-gatehouse-root-changeme}</code>. That default lived in your compose file, not in the image. Pulling the new image does not touch your compose file, the env token wins, and the publicly known token <code>gatehouse-root-changeme</code> stays active. The old <code>.env.example</code> carried the same value, so a <code>.env</code> copied from it has it too. It stops working only once neither your compose file nor your <code>.env</code> supplies <code>gatehouse-root-changeme</code>. Remove it from both now, then recreate the container with <code>docker compose up -d</code> (a plain restart keeps the old environment). Check with <code>docker compose config | grep GATEHOUSE_ROOT_TOKEN</code>: it must not print <code>gatehouse-root-changeme</code>. That reads your files, not the running container, so also confirm the startup WARNING is gone from <code>docker logs gatehouse</code>: Gatehouse logs it on every start while the token is active.</p><p>If there is no enabled admin user, no active (non-suspended) admin AppRole, and no env token, first boot of 0.23.0 generates a bootstrap root token and prints it to the container log. Create an admin and restart to retire it. If you set your own <code>GATEHOUSE_ROOT_TOKEN</code> (in <code>.env</code> or elsewhere), or your own <code>GATEHOUSE_MASTER_KEY</code>, it still wins: a non-empty value always does. Remove your own root token once you have an admin.</p></div></aside>
 <h3 id="policy-discipline">Policy discipline<a class="heading-anchor" aria-label="Link to this heading" href="#policy-discipline">#</a></h3>
 <p>Give each agent its own AppRole with the minimum capabilities it needs. An agent that only reads from <code>api-keys/*</code> should not have <code>delete</code> or <code>admin</code>. The web UI makes it easy to inspect which policies each AppRole references and what paths each policy covers.</p>
 <h3 id="network-exposure">Network exposure<a class="heading-anchor" aria-label="Link to this heading" href="#network-exposure">#</a></h3>
@@ -60,7 +71,7 @@
 <h2 id="cryptographic-details">Cryptographic details<a class="heading-anchor" aria-label="Link to this heading" href="#cryptographic-details">#</a></h2>
 <ul>
 <li><strong>Symmetric encryption:</strong> XSalsa20-Poly1305 via <code>tweetnacl</code>. Per-secret random 32-byte DEK, encrypted with a KEK derived from the master key via HKDF-SHA256 with a domain separation label.</li>
-<li><strong>Password hashing:</strong> Argon2id via <code>Bun.password.hash</code> with default parameters (64 MiB memory, 3 iterations, parallelism 1).</li>
+<li><strong>Password hashing:</strong> Argon2id via <code>Bun.password.hash</code>. Gatehouse passes no options, so the cost parameters are Bun’s Argon2id defaults, and each stored hash records the parameters it was made with.</li>
 <li><strong>JWT signing:</strong> HS256 with the <code>GATEHOUSE_JWT_SECRET</code> env var (if unset, derived from the master key with HKDF on every start; nothing is persisted).</li>
 <li><strong>TOTP:</strong> RFC 6238, SHA1, 6 digits, 30-second period.</li>
 <li><strong>Recovery codes:</strong> 10 one-time codes per user, each 8 characters, hashed with Argon2id before storage.</li>

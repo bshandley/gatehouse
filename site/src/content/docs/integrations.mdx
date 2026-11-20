@@ -15,6 +15,8 @@ can connect to at least one of them. Pick the method that fits your setup.
 | MCP stdio           | Claude Code, Codex CLI, OpenClaw, Hermes        |
 | REST API            | Scripts, CI/CD, custom tooling, direct `curl`   |
 
+Every stdio example below opens the vault directly, so it needs the data directory (`GATEHOUSE_DATA_DIR`, `/data` in the image) and a master key. `GATEHOUSE_MASTER_KEY` can be omitted when the data dir holds `master.key`, which is what a default install generates. The stdio entry exits with an error if it finds neither, and it never creates a key.
+
 ---
 
 ## 0. Onboarding links (fastest way to hand credentials to an agent)
@@ -28,7 +30,7 @@ curl -fsSL "https://gatehouse.example/v1/onboard/<token>" > /tmp/gatehouse-onboa
 cat /tmp/gatehouse-onboard.md
 ```
 
-The fetched markdown detects the harness (Hermes, OpenClaw, Claude Code, Codex/Cursor/Windsurf, or "no filesystem" fallback), calls `POST /v1/onboard/<token>/exchange` to receive rotated AppRole credentials and a 24h JWT, persists the env vars into the harness's credential path, and installs a `gatehouse` skill. Exchange is single-use and rotates the AppRole's `secret_id` — any agent already holding the previous `secret_id` will need to re-onboard.
+The fetched markdown detects the harness (Hermes, OpenClaw, Claude Code, Pi, Codex/Cursor/Windsurf, or "no filesystem" fallback), calls `POST /v1/onboard/<token>/exchange` to receive rotated AppRole credentials and a 24h JWT, persists the env vars into the harness's credential path, and installs a `gatehouse` skill. Exchange is single-use and rotates the AppRole's `secret_id` - any agent already holding the previous `secret_id` will need to re-onboard.
 
 Behind a reverse proxy? Set `GATEHOUSE_PUBLIC_URL=https://gatehouse.yourdomain.com` so the generated links use the public origin instead of whatever `Host` header Hono observes.
 
@@ -43,21 +45,25 @@ Claude Code supports MCP servers via `.claude/settings.json` or the `claude mcp`
 ### Option A: stdio transport (recommended for local)
 
 ```bash
-# Register Gatehouse as an MCP server
-claude mcp add gatehouse \
-  --transport stdio \
-  -- bun run /path/to/gatehouse/src/mcp-stdio.ts
-
-# Or with Docker
-claude mcp add gatehouse \
-  --transport stdio \
+# With Docker, against a default install (the gatehouse-data volume holds master.key)
+claude mcp add --transport stdio gatehouse \
   -- docker run --rm -i \
     -v gatehouse-data:/data \
-    -v /path/to/config:/config:ro \
-    -e GATEHOUSE_MASTER_KEY=$GATEHOUSE_MASTER_KEY \
-    -e GATEHOUSE_ROOT_TOKEN=$GATEHOUSE_ROOT_TOKEN \
-    gatehouse:latest src/mcp-stdio.ts
+    -e GATEHOUSE_POLICIES=agent-readonly \
+    ghcr.io/bshandley/gatehouse:latest mcp
+
+# Or from a checkout, pointing at the data directory
+claude mcp add --transport stdio \
+  --env GATEHOUSE_DATA_DIR=/path/to/data \
+  --env GATEHOUSE_POLICIES=agent-readonly \
+  gatehouse -- bun run /path/to/gatehouse/src/mcp-stdio.ts
 ```
+
+If the key lives in the environment instead of `master.key`, forward it by name: add `-e GATEHOUSE_MASTER_KEY` to the `docker run` (the value is taken from your shell), or `--env GATEHOUSE_MASTER_KEY=...` to the checkout form. To load policy files, mount your config directory with `-v /path/to/config:/config:ro`.
+
+**`GATEHOUSE_POLICIES` is required.** It names the policies the agent on the other end may use, comma-separated (`agent-readonly` above is an example: use one you created in the UI, or a YAML policy under your config dir). There is no default. With neither `GATEHOUSE_POLICIES` nor `GATEHOUSE_TOKEN` set, the stdio server refuses to start, so an agent never gets the whole vault because a variable was left out. Full access means writing `GATEHOUSE_POLICIES=admin` on purpose. Names resolve against the same policies the server uses; an unknown name grants nothing and logs a warning. The identity recorded in the audit log is `GATEHOUSE_IDENTITY` (default `mcp-agent`).
+
+The policy limits what the agent can do through the tools. It does not hide the master key: in stdio mode the key is on the same machine as the agent, and an agent with shell access may be able to read it. For a boundary the agent cannot step around, run Gatehouse as a service and use the HTTP transport with an AppRole. If you do set `GATEHOUSE_TOKEN`, it is verified like an HTTP bearer token (root token or a Gatehouse JWT) and the entry runs as that identity; a token that does not verify makes it exit. JWTs expire after 24 hours, so for per-agent identity that renews itself, use the HTTP transport.
 
 ### Option B: HTTP transport (Gatehouse running as a service)
 
@@ -94,22 +100,27 @@ Codex supports MCP servers via `~/.codex/config.toml`.
 
 ```toml
 [mcp_servers.gatehouse]
-command = ["bun", "run", "/path/to/gatehouse/src/mcp-stdio.ts"]
-env = [
-  "GATEHOUSE_MASTER_KEY=<your-key>",
-  "GATEHOUSE_DATA_DIR=/path/to/data",
-  "GATEHOUSE_CONFIG_DIR=/path/to/config",
-  "GATEHOUSE_ROOT_TOKEN=<your-token>"
-]
+command = "bun"
+args = ["run", "/path/to/gatehouse/src/mcp-stdio.ts"]
+
+[mcp_servers.gatehouse.env]
+GATEHOUSE_DATA_DIR = "/path/to/data"
+GATEHOUSE_CONFIG_DIR = "/path/to/config"
+GATEHOUSE_POLICIES = "agent-readonly"
+# Add GATEHOUSE_MASTER_KEY = "..." only if /path/to/data has no master.key.
 ```
+
+`command` is a string, `args` an array, and `env` a table. To forward a variable from your shell instead of writing its value here, list its name in `env_vars = ["GATEHOUSE_MASTER_KEY"]`.
 
 ### Option B: HTTP transport
 
 ```toml
 [mcp_servers.gatehouse]
 url = "http://gatehouse.local:3100/v1/mcp"
-env_key = "GATEHOUSE_TOKEN"
+bearer_token_env_var = "GATEHOUSE_TOKEN"
 ```
+
+Codex sends the value of `GATEHOUSE_TOKEN` from its environment as `Authorization: Bearer`.
 
 ### Environment variable safety
 
@@ -174,7 +185,19 @@ Add to `.cursor/mcp.json` (project-level) or `~/.cursor/mcp.json` (global):
 }
 ```
 
-Or use stdio:
+Or use stdio. The Docker form works on a default install:
+```json
+{
+  "mcpServers": {
+    "gatehouse": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "-v", "gatehouse-data:/data", "ghcr.io/bshandley/gatehouse:latest", "mcp"]
+    }
+  }
+}
+```
+
+Or from a checkout (add `GATEHOUSE_MASTER_KEY` to `env` only if the data dir has no `master.key`):
 ```json
 {
   "mcpServers": {
@@ -182,8 +205,8 @@ Or use stdio:
       "command": "bun",
       "args": ["run", "/path/to/gatehouse/src/mcp-stdio.ts"],
       "env": {
-        "GATEHOUSE_MASTER_KEY": "<your-key>",
-        "GATEHOUSE_ROOT_TOKEN": "<your-token>"
+        "GATEHOUSE_DATA_DIR": "/path/to/data",
+        "GATEHOUSE_POLICIES": "agent-readonly"
       }
     }
   }
@@ -214,6 +237,8 @@ Add to your OpenCode config (`opencode.json` or `opencode.yaml`):
 ```
 
 ### Local stdio
+
+Add `GATEHOUSE_MASTER_KEY` to `env` only if the data dir has no `master.key`.
 ```json
 {
   "mcp": {
@@ -222,8 +247,8 @@ Add to your OpenCode config (`opencode.json` or `opencode.yaml`):
         "type": "local",
         "command": ["bun", "run", "/path/to/gatehouse/src/mcp-stdio.ts"],
         "env": {
-          "GATEHOUSE_MASTER_KEY": "<your-key>",
-          "GATEHOUSE_ROOT_TOKEN": "<your-token>"
+          "GATEHOUSE_DATA_DIR": "/path/to/data",
+          "GATEHOUSE_POLICIES": "agent-readonly"
         }
       }
     }
@@ -368,10 +393,12 @@ curl -s -X DELETE \
 
 The real power of Gatehouse is giving each agent its own identity and access scope.
 
+The REST examples below use `$ADMIN_JWT`, the token of an admin user (sign in with `POST /v1/auth/login`, see [Authentication](https://gatehouse.to/docs/authentication/)). On a fresh install, create that admin from the web UI with the one-time bootstrap token from the container log first. The bootstrap token, or a `GATEHOUSE_ROOT_TOKEN` set in the environment, also works as the bearer value.
+
 ```bash
 # Create an AppRole for OpenClaw (read-only API keys, can lease)
 curl -X POST http://localhost:3100/v1/auth/approle \
-  -H "Authorization: Bearer $GATEHOUSE_ROOT_TOKEN" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{
     "display_name": "openclaw-prod",
@@ -382,7 +409,7 @@ curl -X POST http://localhost:3100/v1/auth/approle \
 
 # Create a separate AppRole for Codex (coding agent with broader access)
 curl -X POST http://localhost:3100/v1/auth/approle \
-  -H "Authorization: Bearer $GATEHOUSE_ROOT_TOKEN" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{
     "display_name": "codex-desktop",
@@ -514,7 +541,7 @@ Gatehouse can create temporary credentials on demand - no static passwords neede
 
 ```bash
 curl -X POST http://gatehouse.local:3100/v1/dynamic \
-  -H "Authorization: Bearer $GATEHOUSE_ROOT_TOKEN" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -d '{
     "path": "db/postgres-prod",
     "provider_type": "postgresql",
@@ -581,7 +608,7 @@ curl -X DELETE http://gatehouse.local:3100/v1/dynamic/lease/dlease-abc123 \
 
 ```bash
 curl -X POST http://gatehouse.local:3100/v1/dynamic \
-  -H "Authorization: Bearer $GATEHOUSE_ROOT_TOKEN" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -d '{
     "path": "db/mysql-prod",
     "provider_type": "mysql",
@@ -602,7 +629,7 @@ Creates `CREATE USER` with parameterized grants. On revoke: kills connections, `
 
 ```bash
 curl -X POST http://gatehouse.local:3100/v1/dynamic \
-  -H "Authorization: Bearer $GATEHOUSE_ROOT_TOKEN" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -d '{
     "path": "db/mongo-prod",
     "provider_type": "mongodb",
@@ -623,7 +650,7 @@ Creates `createUser` with role-scoped access. On revoke: kills sessions via `cur
 
 ```bash
 curl -X POST http://gatehouse.local:3100/v1/dynamic \
-  -H "Authorization: Bearer $GATEHOUSE_ROOT_TOKEN" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -d '{
     "path": "cache/redis-prod",
     "provider_type": "redis",
@@ -643,7 +670,7 @@ Creates `ACL SETUSER` with scoped commands and key patterns. On revoke: `ACL DEL
 
 ```bash
 curl -X POST http://gatehouse.local:3100/v1/dynamic \
-  -H "Authorization: Bearer $GATEHOUSE_ROOT_TOKEN" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
   -d '{
     "path": "ssh/prod-servers",
     "provider_type": "ssh-cert",
@@ -707,7 +734,8 @@ Slack tokens, bearer tokens, basic auth URLs, private keys, and connection strin
 ## Key rotation
 
 Rotate the master key without downtime. All secret DEKs and encrypted dynamic
-configs are re-wrapped atomically.
+configs are re-wrapped. You supply the new key: exactly 64 hex characters,
+anything else is a 400.
 
 ```bash
 # Generate a new key
@@ -718,10 +746,24 @@ curl -X POST http://gatehouse.local:3100/v1/admin/rotate-key \
   -H "Authorization: Bearer $GATEHOUSE_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"new_master_key\": \"$NEW_KEY\"}"
-
-# Update your env var and restart Gatehouse
-export GATEHOUSE_MASTER_KEY=$NEW_KEY
 ```
+
+What happens to the key depends on where the old one came from:
+
+- **Key-file install** (`master.key` in the data dir, including a key generated
+  on first boot): the new key is written to `master.key` for you, and the old
+  one is kept as `master.key.pre-rotate-<timestamp>`. Nothing else to do, but
+  escrow the new key.
+- **Env install** (`GATEHOUSE_MASTER_KEY`): nothing is saved. Set
+  `GATEHOUSE_MASTER_KEY` to the new key before the next restart, or the server
+  boots with a key that no longer decrypts the data. The response carries a
+  `warning` saying so.
+
+The response is `{rotated, secrets_rewrapped, dynamic_configs_rewrapped,
+key_persisted_to, previous_key_kept_as, message, warning}`. `key_persisted_to`
+and `previous_key_kept_as` are `null` on an env install, and `warning` appears
+only when the key was not saved. Exports taken before a rotation need the old
+key, so take a fresh export. See [Backup & Recovery](https://gatehouse.to/docs/backup/#after-rotating-the-master-key).
 
 ---
 

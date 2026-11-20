@@ -1,10 +1,17 @@
 <!DOCTYPE html><html lang="en" data-astro-cid-hkbrpulz><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Authentication · Gatehouse</title><meta name="description" content="Root token, user accounts, AppRoles for agents, OIDC SSO, and TOTP two-factor auth."><link rel="canonical" href="https://gatehouse.to/docs/authentication/"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta property="og:type" content="website"><meta property="og:title" content="Authentication · Gatehouse"><meta property="og:description" content="Root token, user accounts, AppRoles for agents, OIDC SSO, and TOTP two-factor auth."><meta property="og:url" content="https://gatehouse.to/docs/authentication/"><meta property="og:image" content="https://gatehouse.to/og-image.png"><meta name="twitter:card" content="summary_large_image"><link rel="stylesheet" href="/_assets/Base.DWMW-wVu.css"><link rel="stylesheet" href="/_assets/_..Ca2pNeYm.css"><style>.callout[data-astro-cid-q2ml7llr]{border-left:3px solid var(--accent);background:var(--accent-subtle);border-radius:0 8px 8px 0;margin:1.5rem 0;padding:1rem 1.25rem}.callout-warning[data-astro-cid-q2ml7llr]{border-left-color:var(--warning);background:#fbbf2414}.callout-danger[data-astro-cid-q2ml7llr]{border-left-color:var(--danger);background:#f8717114}.callout-head[data-astro-cid-q2ml7llr]{font-family:var(--font-display);align-items:center;gap:.5rem;margin-bottom:.4rem;display:flex}.icon[data-astro-cid-q2ml7llr]{background:var(--accent);color:#fff;width:1.1rem;height:1.1rem;font-size:.75rem;font-family:var(--font-mono);border-radius:999px;justify-content:center;align-items:center;font-style:italic;display:inline-flex}.callout-warning[data-astro-cid-q2ml7llr] .icon[data-astro-cid-q2ml7llr]{background:var(--warning);color:var(--bg-primary)}.callout-danger[data-astro-cid-q2ml7llr] .icon[data-astro-cid-q2ml7llr]{background:var(--danger);color:var(--bg-primary)}.callout-body[data-astro-cid-q2ml7llr]{color:var(--text-primary)}.callout-body[data-astro-cid-q2ml7llr] p{margin:.25rem 0}.callout-body[data-astro-cid-q2ml7llr] p+p{margin-top:.5rem}
 </style></head><body data-astro-cid-hkbrpulz><header class="site-nav" data-astro-cid-wpvy4v7s><div class="container nav-inner" data-astro-cid-wpvy4v7s><a href="/" class="brand" aria-label="Gatehouse home" data-astro-cid-wpvy4v7s><span class="logo" style="--logo-size:26px" data-astro-cid-f7espo7c><svg viewBox="190 50 220 230" width="26" height="26" preserveAspectRatio="xMidYMid meet" aria-hidden="true" data-astro-cid-f7espo7c><g transform="translate(0,328) scale(0.1,-0.1)" data-astro-cid-f7espo7c><path fill="#6c63ff" d="M2490 2696 l-485 -122 0 -519 c0 -471 2 -528 19 -605 73 -333 278 -607 608 -812 134 -83 327 -172 373 -172 48 0 282 114 411 199 257 171 449 412 528 661 52 167 51 156 51 719 l0 529 -485 123 c-267 67 -496 122 -510 122 -14 0 -243 -55 -510 -123z" data-astro-cid-f7espo7c></path><path fill="#ffffff" d="M2935 2303 c-278 -41 -485 -277 -485 -553 0 -259 188 -492 439 -545 89 -19 137 -19 224 0 105 22 192 70 272 150 107 106 165 235 165 366 0 89 1 89 -242 89 -192 0 -206 1 -223 20 -31 34 -86 45 -127 26 -85 -40 -92 -154 -12 -207 48 -32 119 -19 147 28 6 10 47 13 169 13 l160 0 -7 -37 c-32 -172 -206 -321 -386 -331 -323 -19 -548 312 -413 607 115 254 444 331 654 155 57 -48 120 -29 120 36 0 46 -102 121 -219 159 -60 20 -183 32 -236 24z" data-astro-cid-f7espo7c></path></g></svg><span class="wordmark" data-astro-cid-f7espo7c>Gatehouse</span></span></a><nav data-astro-cid-wpvy4v7s><a href="/docs/getting-started/" data-astro-cid-wpvy4v7s>Docs</a><a href="/docs/for-agents/" data-astro-cid-wpvy4v7s>Agents</a><a href="https://github.com/bshandley/gatehouse" target="_blank" rel="noopener" data-astro-cid-wpvy4v7s>GitHub <span aria-hidden="true" data-astro-cid-wpvy4v7s>↗</span></a></nav></div></header><main data-astro-cid-hkbrpulz><div class="container docs-shell" data-astro-cid-lpetmyok><aside class="sidebar" data-astro-cid-wv7whodv><nav data-astro-cid-wv7whodv><section class="group" data-astro-cid-wv7whodv><h4 data-astro-cid-wv7whodv>GETTING STARTED</h4><ul data-astro-cid-wv7whodv><li data-astro-cid-wv7whodv><a href="/docs/getting-started/" class data-astro-cid-wv7whodv>Getting Started</a></li></ul></section><section class="group" data-astro-cid-wv7whodv><h4 data-astro-cid-wv7whodv>CORE CONCEPTS</h4><ul data-astro-cid-wv7whodv><li data-astro-cid-wv7whodv><a href="/docs/concepts/" class data-astro-cid-wv7whodv>Core Concepts</a></li></ul></section><section class="group" data-astro-cid-wv7whodv><h4 data-astro-cid-wv7whodv>USING GATEHOUSE</h4><ul data-astro-cid-wv7whodv><li data-astro-cid-wv7whodv><a href="/docs/authentication/" class="current" data-astro-cid-wv7whodv>Authentication</a></li><li data-astro-cid-wv7whodv><a href="/docs/web-ui/" class data-astro-cid-wv7whodv>Web UI Tour</a></li><li data-astro-cid-wv7whodv><a href="/docs/providers/" class data-astro-cid-wv7whodv>Dynamic Secret Providers</a></li><li data-astro-cid-wv7whodv><a href="/docs/security/" class data-astro-cid-wv7whodv>Security &amp; Threat Model</a></li><li data-astro-cid-wv7whodv><a href="/docs/backup/" class data-astro-cid-wv7whodv>Backup &amp; Recovery</a></li></ul></section><section class="group" data-astro-cid-wv7whodv><h4 data-astro-cid-wv7whodv>REFERENCE</h4><ul data-astro-cid-wv7whodv><li data-astro-cid-wv7whodv><a href="/docs/api-reference/" class data-astro-cid-wv7whodv>API Reference</a></li><li data-astro-cid-wv7whodv><a href="/docs/for-agents/" class data-astro-cid-wv7whodv>For Agents</a></li><li data-astro-cid-wv7whodv><a href="/docs/integrations/" class data-astro-cid-wv7whodv>Integrations</a></li></ul></section></nav></aside><article class="prose" data-astro-cid-lpetmyok><h1>Authentication</h1><p>Gatehouse supports three authentication methods. They all produce (or are) a bearer token that goes in the <code>Authorization</code> header.</p>
 <h2 id="root-token">Root token<a class="heading-anchor" aria-label="Link to this heading" href="#root-token">#</a></h2>
-<p>Set via the <code>GATEHOUSE_ROOT_TOKEN</code> environment variable on the container. The root token has <code>admin</code> capability on everything. Use it to bootstrap the first admin user, then unset the env var and restart.</p>
-<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<p>The root token has <code>admin</code> capability on everything. There are two sources:</p>
+<ul>
+<li><strong>Bootstrap token (default).</strong> On a fresh install with no admin, Gatehouse generates a one-time token, saves it to <code>/data/bootstrap-root.token</code> (mode 0600), and prints it to the container log. Use it to create the first admin user. It retires on the first restart after an admin exists.</li>
+<li><strong><code>GATEHOUSE_ROOT_TOKEN</code> (override).</strong> If this environment variable is set and non-empty, it is the root token and always wins. No bootstrap token is generated, and it never retires on its own. It works as it did before 0.23.0.</li>
+</ul>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># The bootstrap token. If you set GATEHOUSE_ROOT_TOKEN yourself, use that value instead.</span></span>
+<span class="line"><span style="color:#E06C75">ROOT_TOKEN</span><span style="color:#56B6C2">=</span><span style="color:#98C379">&quot;$(</span><span style="color:#61AFEF">docker</span><span style="color:#98C379"> exec gatehouse cat /data/bootstrap-root.token)&quot;</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#98C379">  http://localhost:3100/v1/auth/users</span></span></code></pre>
-<aside class="callout callout-danger" data-astro-cid-q2ml7llr><div class="callout-head" data-astro-cid-q2ml7llr><span class="icon" aria-hidden="true" data-astro-cid-q2ml7llr>!</span><strong data-astro-cid-q2ml7llr>Do not leave the root token set in production</strong></div><div class="callout-body" data-astro-cid-q2ml7llr><p>The root token bypasses every access control check. Once you have an admin user account, remove <code>GATEHOUSE_ROOT_TOKEN</code> from the container environment and restart.</p></div></aside>
+<p><code>GET /v1/config</code> reports which one is active as <code>root_token_source</code>: <code>env</code>, <code>bootstrap</code>, or <code>null</code> when there is no root token. See <a href="/docs/security/#root-token-handling">Security</a> for the lifecycle.</p>
+<aside class="callout callout-danger" data-astro-cid-q2ml7llr><div class="callout-head" data-astro-cid-q2ml7llr><span class="icon" aria-hidden="true" data-astro-cid-q2ml7llr>!</span><strong data-astro-cid-q2ml7llr>Do not leave a root token active in production</strong></div><div class="callout-body" data-astro-cid-q2ml7llr><p>The root token bypasses every access control check. The bootstrap token retires itself once an admin exists and you restart. If you set <code>GATEHOUSE_ROOT_TOKEN</code> yourself, remove it from the container environment and restart once you have an admin user account.</p></div></aside>
 <h2 id="user-accounts-for-humans">User accounts (for humans)<a class="heading-anchor" aria-label="Link to this heading" href="#user-accounts-for-humans">#</a></h2>
 <p>Admin users log into the web UI with a username and password. User accounts can optionally enable TOTP two-factor auth.</p>
 <p><strong>Login:</strong></p>
@@ -15,9 +22,21 @@
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;token&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;JWT&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;identity&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;user:alice&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;display_name&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;Alice&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;role&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;admin&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;expires_in&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">86400</span></span>
 <span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
-<p>When TOTP is enabled, the login endpoint returns a short-lived pre-auth token that can only be exchanged for a full JWT at <code>POST /v1/auth/login/totp</code> with a valid 6-digit code or recovery code.</p>
+<p>When TOTP is enabled, the login endpoint does not return a JWT. It returns <code>totp_required</code> and a pre-auth token that lasts 5 minutes:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;totp_required&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">true</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;totp_token&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;pre-auth token&gt;&quot;</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>Exchange it at <code>POST /v1/auth/login/totp</code> with the 6-digit code (or a recovery code):</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># TOTP_TOKEN holds the totp_token from the login response</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/auth/login/totp</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &quot;{</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">totp_token</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">: </span><span style="color:#56B6C2">\&quot;</span><span style="color:#E06C75">$TOTP_TOKEN</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">, </span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">code</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">: </span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">123456</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">}&quot;</span></span></code></pre>
+<p>The response has the same fields as a normal login, plus <code>recovery_code_consumed</code> (<code>true</code> when the code was a recovery code, which is then spent).</p>
 <h2 id="approles-for-agents">AppRoles (for agents)<a class="heading-anchor" aria-label="Link to this heading" href="#approles-for-agents">#</a></h2>
 <p>AppRoles are how agents authenticate. An admin creates an AppRole in the web UI or via the API, which produces a <code>role_id</code> and <code>secret_id</code>. The agent exchanges these for a JWT and uses the JWT for all subsequent requests.</p>
 <p><strong>Admin creates an AppRole:</strong></p>
@@ -56,22 +75,67 @@
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;id&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;onboard-...&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;onboard_url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;https://gatehouse.example/v1/onboard/&lt;token&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
-<span class="line"><span style="color:#E06C75">  &quot;expires_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;...&quot;</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;onboard_url_internal&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;http://10.0.0.5:3100/v1/onboard/&lt;token&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;token&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;token&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;expires_at&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;...&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;role_display_name&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;my-agent&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;policies&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;agent-readonly&quot;</span><span style="color:#ABB2BF">]</span></span>
 <span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p><code>onboard_url_internal</code> appears only when <code>GATEHOUSE_INTERNAL_URL</code> is set (split-DNS setups). <code>ttl_seconds</code> is 60 to 3600 and defaults to 900.</p>
 <p><strong>Agent side: exchange the token.</strong> The agent runs the curl snippet, reads the markdown (which is self-installing instructions), and calls exchange exactly once:</p>
-<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> https://gatehouse.example/v1/onboard/</span><span style="color:#ABB2BF">&lt;</span><span style="color:#98C379">toke</span><span style="color:#ABB2BF">n&gt;</span><span style="color:#98C379">/exchange</span></span></code></pre>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># ONBOARD_TOKEN is the last path segment of the onboarding URL</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> &quot;https://gatehouse.example/v1/onboard/</span><span style="color:#E06C75">$ONBOARD_TOKEN</span><span style="color:#98C379">/exchange&quot;</span></span></code></pre>
 <p>Response (consumed on success; subsequent calls return 410 Gone):</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;token&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;JWT&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;identity&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;approle:my-agent&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;policies&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;agent-readonly&quot;</span><span style="color:#ABB2BF">],</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;expires_in&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">86400</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;role_id&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;role-...&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;secret_id&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;...&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;base_url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;https://gatehouse.example&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;internal_url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;http://10.0.0.5:3100&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;mcp_url&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;https://gatehouse.example/v1/mcp&quot;</span><span style="color:#ABB2BF">,</span></span>
-<span class="line"><span style="color:#E06C75">  &quot;role_display_name&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;my-agent&quot;</span><span style="color:#ABB2BF">,</span></span>
-<span class="line"><span style="color:#E06C75">  &quot;policies&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;agent-readonly&quot;</span><span style="color:#ABB2BF">],</span></span>
-<span class="line"><span style="color:#E06C75">  &quot;expires_in&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#D19A66">86400</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;role_display_name&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;my-agent&quot;</span></span>
 <span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
-<p>The agent writes <code>role_id</code> / <code>secret_id</code> into its harness’s credential path (<code>~/.hermes/.env</code>, <code>~/.claude/.env.gatehouse</code>, <code>~/.openclaw/workspace/.env</code>, or <code>.env.gatehouse</code> in cwd for Codex/Cursor/Windsurf) and installs a <code>gatehouse</code> skill so future sessions know how to use the vault.</p>
+<p><code>internal_url</code> appears only when <code>GATEHOUSE_INTERNAL_URL</code> is set. When it is present the agent writes it as its URL instead of <code>base_url</code>.</p>
+<p>The agent writes <code>role_id</code> / <code>secret_id</code> into its harness’s credential path and installs a <code>gatehouse</code> skill so future sessions know how to use the vault:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Harness</th><th>Credential file</th><th>Skill</th></tr></thead><tbody><tr><td>Hermes Agent</td><td><code>~/.hermes/.env</code></td><td><code>skill_manage</code> tool</td></tr><tr><td>OpenClaw</td><td><code>~/.openclaw/workspace/.env</code></td><td><code>~/.openclaw/skills/gatehouse/SKILL.md</code></td></tr><tr><td>Claude Code</td><td><code>~/.claude/.env.gatehouse</code></td><td><code>~/.claude/skills/gatehouse/SKILL.md</code></td></tr><tr><td>Pi</td><td><code>~/.pi/agent/.env.gatehouse</code></td><td>appended to <code>~/.pi/agent/AGENTS.md</code></td></tr><tr><td>Codex, Cursor, Windsurf, opencode, others</td><td><code>.env.gatehouse</code> in the working directory</td><td>operating rules appended to <code>AGENTS.md</code> in the repo root</td></tr></tbody></table>
 <p><strong>Important behaviors:</strong></p>
 <ul>
 <li>Exchange <strong>rotates the AppRole’s <code>secret_id</code></strong>. Any agent still running with the previous secret must re-onboard.</li>
@@ -84,15 +148,15 @@
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># List active links</span></span>
 <span class="line"><span style="color:#61AFEF">curl</span><span style="color:#98C379"> http://localhost:3100/v1/onboard</span><span style="color:#D19A66"> -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$ADMIN_JWT</span><span style="color:#98C379">&quot;</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#7F848E;font-style:italic"># Revoke an unused link</span></span>
-<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> DELETE</span><span style="color:#98C379"> http://localhost:3100/v1/onboard/</span><span style="color:#ABB2BF">&lt;</span><span style="color:#98C379">i</span><span style="color:#ABB2BF">d&gt; </span><span style="color:#56B6C2">\</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Revoke an unused link. LINK_ID is the &quot;id&quot; field (onboard-...) from the list or create response.</span></span>
+<span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> DELETE</span><span style="color:#98C379"> &quot;http://localhost:3100/v1/onboard/</span><span style="color:#E06C75">$LINK_ID</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$ADMIN_JWT</span><span style="color:#98C379">&quot;</span></span></code></pre>
 <h2 id="sso-openid-connect">SSO (OpenID Connect)<a class="heading-anchor" aria-label="Link to this heading" href="#sso-openid-connect">#</a></h2>
 <p>Gatehouse supports OIDC single sign-on for the web UI. The login page shows a <code>Sign in with SSO</code> button when SSO is configured; the username and token tabs continue to work for non-SSO users. Tested against PocketID, Authentik, Keycloak, and Google.</p>
 <p><strong>Account model: link-by-verified-email.</strong> SSO is <em>not</em> a way to create new accounts. The IdP-asserted email must match an existing Gatehouse user’s <code>email</code> field, and the user must be <code>enabled = 1</code>. Admins pre-create the user (Users tab) and populate <code>email</code>; the next time that person clicks <code>Sign in with SSO</code>, they land in their existing Gatehouse account.</p>
 <h3 id="configure">Configure<a class="heading-anchor" aria-label="Link to this heading" href="#configure">#</a></h3>
 <ol>
-<li>Sign in with the bootstrap root token or an admin user.</li>
+<li>Sign in with the bootstrap token or an admin user.</li>
 <li>Go to <strong>Settings → SSO / OAuth Configuration</strong> and toggle <strong>Enable SSO</strong> on.</li>
 <li>Fill in:
 <ul>

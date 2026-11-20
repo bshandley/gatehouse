@@ -23,6 +23,7 @@ can connect to at least one of them. Pick the method that fits your setup.</p>
 
 
 <table><thead><tr><th>Transport</th><th>Best for</th></tr></thead><tbody><tr><td>MCP Streamable HTTP</td><td>Windsurf, Cursor, OpenCode, remote agents</td></tr><tr><td>MCP stdio</td><td>Claude Code, Codex CLI, OpenClaw, Hermes</td></tr><tr><td>REST API</td><td>Scripts, CI/CD, custom tooling, direct <code>curl</code></td></tr></tbody></table>
+<p>Every stdio example below opens the vault directly, so it needs the data directory (<code>GATEHOUSE_DATA_DIR</code>, <code>/data</code> in the image) and a master key. <code>GATEHOUSE_MASTER_KEY</code> can be omitted when the data dir holds <code>master.key</code>, which is what a default install generates. The stdio entry exits with an error if it finds neither, and it never creates a key.</p>
 <hr/>
 <h2 id="0-onboarding-links-fastest-way-to-hand-credentials-to-an-agent">0. Onboarding links (fastest way to hand credentials to an agent)<a class="heading-anchor" aria-label="Link to this heading" href="#0-onboarding-links-fastest-way-to-hand-credentials-to-an-agent">#</a></h2>
 <p>If you don’t want to copy-paste <code>role_id</code> / <code>secret_id</code> into chat yourself, let the agent install itself. Generate an onboarding link from the AppRole’s <strong>Onboard</strong> action in the web UI (TTL 5 min to 1 hour), then paste the generated prompt to the agent over any channel:</p>
@@ -30,27 +31,28 @@ can connect to at least one of them. Pick the method that fits your setup.</p>
 <span class="line"><span></span></span>
 <span class="line"><span>curl -fsSL &quot;https://gatehouse.example/v1/onboard/&lt;token&gt;&quot; &gt; /tmp/gatehouse-onboard.md</span></span>
 <span class="line"><span>cat /tmp/gatehouse-onboard.md</span></span></code></pre>
-<p>The fetched markdown detects the harness (Hermes, OpenClaw, Claude Code, Codex/Cursor/Windsurf, or “no filesystem” fallback), calls <code>POST /v1/onboard/&lt;token&gt;/exchange</code> to receive rotated AppRole credentials and a 24h JWT, persists the env vars into the harness’s credential path, and installs a <code>gatehouse</code> skill. Exchange is single-use and rotates the AppRole’s <code>secret_id</code> — any agent already holding the previous <code>secret_id</code> will need to re-onboard.</p>
+<p>The fetched markdown detects the harness (Hermes, OpenClaw, Claude Code, Pi, Codex/Cursor/Windsurf, or “no filesystem” fallback), calls <code>POST /v1/onboard/&lt;token&gt;/exchange</code> to receive rotated AppRole credentials and a 24h JWT, persists the env vars into the harness’s credential path, and installs a <code>gatehouse</code> skill. Exchange is single-use and rotates the AppRole’s <code>secret_id</code> - any agent already holding the previous <code>secret_id</code> will need to re-onboard.</p>
 <p>Behind a reverse proxy? Set <code>GATEHOUSE_PUBLIC_URL=https://gatehouse.yourdomain.com</code> so the generated links use the public origin instead of whatever <code>Host</code> header Hono observes.</p>
 <p>Every harness-specific section below still applies once the link is exchanged; the onboarding markdown writes the same env vars the manual flow would.</p>
 <hr/>
 <h2 id="1-claude-code">1. Claude Code<a class="heading-anchor" aria-label="Link to this heading" href="#1-claude-code">#</a></h2>
 <p>Claude Code supports MCP servers via <code>.claude/settings.json</code> or the <code>claude mcp</code> CLI.</p>
 <h3 id="option-a-stdio-transport-recommended-for-local">Option A: stdio transport (recommended for local)<a class="heading-anchor" aria-label="Link to this heading" href="#option-a-stdio-transport-recommended-for-local">#</a></h3>
-<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Register Gatehouse as an MCP server</span></span>
-<span class="line"><span style="color:#61AFEF">claude</span><span style="color:#98C379"> mcp</span><span style="color:#98C379"> add</span><span style="color:#98C379"> gatehouse</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  --transport</span><span style="color:#98C379"> stdio</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  --</span><span style="color:#98C379"> bun</span><span style="color:#98C379"> run</span><span style="color:#98C379"> /path/to/gatehouse/src/mcp-stdio.ts</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#7F848E;font-style:italic"># Or with Docker</span></span>
-<span class="line"><span style="color:#61AFEF">claude</span><span style="color:#98C379"> mcp</span><span style="color:#98C379"> add</span><span style="color:#98C379"> gatehouse</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  --transport</span><span style="color:#98C379"> stdio</span><span style="color:#56B6C2"> \</span></span>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># With Docker, against a default install (the gatehouse-data volume holds master.key)</span></span>
+<span class="line"><span style="color:#61AFEF">claude</span><span style="color:#98C379"> mcp</span><span style="color:#98C379"> add</span><span style="color:#D19A66"> --transport</span><span style="color:#98C379"> stdio</span><span style="color:#98C379"> gatehouse</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  --</span><span style="color:#98C379"> docker</span><span style="color:#98C379"> run</span><span style="color:#D19A66"> --rm</span><span style="color:#D19A66"> -i</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">    -v</span><span style="color:#98C379"> gatehouse-data:/data</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">    -v</span><span style="color:#98C379"> /path/to/config:/config:ro</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">    -e</span><span style="color:#98C379"> GATEHOUSE_MASTER_KEY=</span><span style="color:#E06C75">$GATEHOUSE_MASTER_KEY</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">    -e</span><span style="color:#98C379"> GATEHOUSE_ROOT_TOKEN=</span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#98C379">    gatehouse:latest</span><span style="color:#98C379"> src/mcp-stdio.ts</span></span></code></pre>
+<span class="line"><span style="color:#D19A66">    -e</span><span style="color:#98C379"> GATEHOUSE_POLICIES=agent-readonly</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#98C379">    ghcr.io/bshandley/gatehouse:latest</span><span style="color:#98C379"> mcp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Or from a checkout, pointing at the data directory</span></span>
+<span class="line"><span style="color:#61AFEF">claude</span><span style="color:#98C379"> mcp</span><span style="color:#98C379"> add</span><span style="color:#D19A66"> --transport</span><span style="color:#98C379"> stdio</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  --env</span><span style="color:#98C379"> GATEHOUSE_DATA_DIR=/path/to/data</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  --env</span><span style="color:#98C379"> GATEHOUSE_POLICIES=agent-readonly</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#98C379">  gatehouse</span><span style="color:#D19A66"> --</span><span style="color:#98C379"> bun</span><span style="color:#98C379"> run</span><span style="color:#98C379"> /path/to/gatehouse/src/mcp-stdio.ts</span></span></code></pre>
+<p>If the key lives in the environment instead of <code>master.key</code>, forward it by name: add <code>-e GATEHOUSE_MASTER_KEY</code> to the <code>docker run</code> (the value is taken from your shell), or <code>--env GATEHOUSE_MASTER_KEY=...</code> to the checkout form. To load policy files, mount your config directory with <code>-v /path/to/config:/config:ro</code>.</p>
+<p><strong><code>GATEHOUSE_POLICIES</code> is required.</strong> It names the policies the agent on the other end may use, comma-separated (<code>agent-readonly</code> above is an example: use one you created in the UI, or a YAML policy under your config dir). There is no default. With neither <code>GATEHOUSE_POLICIES</code> nor <code>GATEHOUSE_TOKEN</code> set, the stdio server refuses to start, so an agent never gets the whole vault because a variable was left out. Full access means writing <code>GATEHOUSE_POLICIES=admin</code> on purpose. Names resolve against the same policies the server uses; an unknown name grants nothing and logs a warning. The identity recorded in the audit log is <code>GATEHOUSE_IDENTITY</code> (default <code>mcp-agent</code>).</p>
+<p>The policy limits what the agent can do through the tools. It does not hide the master key: in stdio mode the key is on the same machine as the agent, and an agent with shell access may be able to read it. For a boundary the agent cannot step around, run Gatehouse as a service and use the HTTP transport with an AppRole. If you do set <code>GATEHOUSE_TOKEN</code>, it is verified like an HTTP bearer token (root token or a Gatehouse JWT) and the entry runs as that identity; a token that does not verify makes it exit. JWTs expire after 24 hours, so for per-agent identity that renews itself, use the HTTP transport.</p>
 <h3 id="option-b-http-transport-gatehouse-running-as-a-service">Option B: HTTP transport (Gatehouse running as a service)<a class="heading-anchor" aria-label="Link to this heading" href="#option-b-http-transport-gatehouse-running-as-a-service">#</a></h3>
 <p>Add to <code>.claude/settings.json</code>:</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
@@ -73,17 +75,20 @@ can connect to at least one of them. Pick the method that fits your setup.</p>
 <p>Codex supports MCP servers via <code>~/.codex/config.toml</code>.</p>
 <h3 id="option-a-stdio-transport">Option A: stdio transport<a class="heading-anchor" aria-label="Link to this heading" href="#option-a-stdio-transport">#</a></h3>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#ABB2BF">[</span><span style="color:#61AFEF">mcp_servers</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">gatehouse</span><span style="color:#ABB2BF">]</span></span>
-<span class="line"><span style="color:#E06C75">command</span><span style="color:#ABB2BF"> = [</span><span style="color:#98C379">&quot;bun&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;run&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;/path/to/gatehouse/src/mcp-stdio.ts&quot;</span><span style="color:#ABB2BF">]</span></span>
-<span class="line"><span style="color:#E06C75">env</span><span style="color:#ABB2BF"> = [</span></span>
-<span class="line"><span style="color:#98C379">  &quot;GATEHOUSE_MASTER_KEY=&lt;your-key&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
-<span class="line"><span style="color:#98C379">  &quot;GATEHOUSE_DATA_DIR=/path/to/data&quot;</span><span style="color:#ABB2BF">,</span></span>
-<span class="line"><span style="color:#98C379">  &quot;GATEHOUSE_CONFIG_DIR=/path/to/config&quot;</span><span style="color:#ABB2BF">,</span></span>
-<span class="line"><span style="color:#98C379">  &quot;GATEHOUSE_ROOT_TOKEN=&lt;your-token&gt;&quot;</span></span>
-<span class="line"><span style="color:#ABB2BF">]</span></span></code></pre>
+<span class="line"><span style="color:#E06C75">command</span><span style="color:#ABB2BF"> = </span><span style="color:#98C379">&quot;bun&quot;</span></span>
+<span class="line"><span style="color:#E06C75">args</span><span style="color:#ABB2BF"> = [</span><span style="color:#98C379">&quot;run&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;/path/to/gatehouse/src/mcp-stdio.ts&quot;</span><span style="color:#ABB2BF">]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#ABB2BF">[</span><span style="color:#61AFEF">mcp_servers</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">gatehouse</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">env</span><span style="color:#ABB2BF">]</span></span>
+<span class="line"><span style="color:#E06C75">GATEHOUSE_DATA_DIR</span><span style="color:#ABB2BF"> = </span><span style="color:#98C379">&quot;/path/to/data&quot;</span></span>
+<span class="line"><span style="color:#E06C75">GATEHOUSE_CONFIG_DIR</span><span style="color:#ABB2BF"> = </span><span style="color:#98C379">&quot;/path/to/config&quot;</span></span>
+<span class="line"><span style="color:#E06C75">GATEHOUSE_POLICIES</span><span style="color:#ABB2BF"> = </span><span style="color:#98C379">&quot;agent-readonly&quot;</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic"># Add GATEHOUSE_MASTER_KEY = &quot;...&quot; only if /path/to/data has no master.key.</span></span></code></pre>
+<p><code>command</code> is a string, <code>args</code> an array, and <code>env</code> a table. To forward a variable from your shell instead of writing its value here, list its name in <code>env_vars = [&quot;GATEHOUSE_MASTER_KEY&quot;]</code>.</p>
 <h3 id="option-b-http-transport">Option B: HTTP transport<a class="heading-anchor" aria-label="Link to this heading" href="#option-b-http-transport">#</a></h3>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#ABB2BF">[</span><span style="color:#61AFEF">mcp_servers</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">gatehouse</span><span style="color:#ABB2BF">]</span></span>
 <span class="line"><span style="color:#E06C75">url</span><span style="color:#ABB2BF"> = </span><span style="color:#98C379">&quot;http://gatehouse.local:3100/v1/mcp&quot;</span></span>
-<span class="line"><span style="color:#E06C75">env_key</span><span style="color:#ABB2BF"> = </span><span style="color:#98C379">&quot;GATEHOUSE_TOKEN&quot;</span></span></code></pre>
+<span class="line"><span style="color:#E06C75">bearer_token_env_var</span><span style="color:#ABB2BF"> = </span><span style="color:#98C379">&quot;GATEHOUSE_TOKEN&quot;</span></span></code></pre>
+<p>Codex sends the value of <code>GATEHOUSE_TOKEN</code> from its environment as <code>Authorization: Bearer</code>.</p>
 <h3 id="environment-variable-safety">Environment variable safety<a class="heading-anchor" aria-label="Link to this heading" href="#environment-variable-safety">#</a></h3>
 <p>Add Gatehouse credentials to Codex’s env policy to prevent leaking:</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#ABB2BF">[</span><span style="color:#61AFEF">shell_environment_policy</span><span style="color:#ABB2BF">]</span></span>
@@ -125,15 +130,24 @@ Gatehouse exposes 11 tools - well under Windsurf’s 100-tool limit.</p>
 <span class="line"><span style="color:#ABB2BF">    }</span></span>
 <span class="line"><span style="color:#ABB2BF">  }</span></span>
 <span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
-<p>Or use stdio:</p>
+<p>Or use stdio. The Docker form works on a default install:</p>
+<pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
+<span class="line"><span style="color:#E06C75">  &quot;mcpServers&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">    &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;command&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;docker&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">      &quot;args&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;run&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;--rm&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;-i&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;-v&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;gatehouse-data:/data&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;ghcr.io/bshandley/gatehouse:latest&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;mcp&quot;</span><span style="color:#ABB2BF">]</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">  }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
+<p>Or from a checkout (add <code>GATEHOUSE_MASTER_KEY</code> to <code>env</code> only if the data dir has no <code>master.key</code>):</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;mcpServers&quot;</span><span style="color:#ABB2BF">: {</span></span>
 <span class="line"><span style="color:#E06C75">    &quot;gatehouse&quot;</span><span style="color:#ABB2BF">: {</span></span>
 <span class="line"><span style="color:#E06C75">      &quot;command&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;bun&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">      &quot;args&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;run&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;/path/to/gatehouse/src/mcp-stdio.ts&quot;</span><span style="color:#ABB2BF">],</span></span>
 <span class="line"><span style="color:#E06C75">      &quot;env&quot;</span><span style="color:#ABB2BF">: {</span></span>
-<span class="line"><span style="color:#E06C75">        &quot;GATEHOUSE_MASTER_KEY&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;your-key&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
-<span class="line"><span style="color:#E06C75">        &quot;GATEHOUSE_ROOT_TOKEN&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;your-token&gt;&quot;</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;GATEHOUSE_DATA_DIR&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;/path/to/data&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">        &quot;GATEHOUSE_POLICIES&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;agent-readonly&quot;</span></span>
 <span class="line"><span style="color:#ABB2BF">      }</span></span>
 <span class="line"><span style="color:#ABB2BF">    }</span></span>
 <span class="line"><span style="color:#ABB2BF">  }</span></span>
@@ -156,6 +170,7 @@ Gatehouse exposes 11 tools - well under Windsurf’s 100-tool limit.</p>
 <span class="line"><span style="color:#ABB2BF">  }</span></span>
 <span class="line"><span style="color:#ABB2BF">}</span></span></code></pre>
 <h3 id="local-stdio">Local stdio<a class="heading-anchor" aria-label="Link to this heading" href="#local-stdio">#</a></h3>
+<p>Add <code>GATEHOUSE_MASTER_KEY</code> to <code>env</code> only if the data dir has no <code>master.key</code>.</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="json"><code><span class="line"><span style="color:#ABB2BF">{</span></span>
 <span class="line"><span style="color:#E06C75">  &quot;mcp&quot;</span><span style="color:#ABB2BF">: {</span></span>
 <span class="line"><span style="color:#E06C75">    &quot;servers&quot;</span><span style="color:#ABB2BF">: {</span></span>
@@ -163,8 +178,8 @@ Gatehouse exposes 11 tools - well under Windsurf’s 100-tool limit.</p>
 <span class="line"><span style="color:#E06C75">        &quot;type&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;local&quot;</span><span style="color:#ABB2BF">,</span></span>
 <span class="line"><span style="color:#E06C75">        &quot;command&quot;</span><span style="color:#ABB2BF">: [</span><span style="color:#98C379">&quot;bun&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;run&quot;</span><span style="color:#ABB2BF">, </span><span style="color:#98C379">&quot;/path/to/gatehouse/src/mcp-stdio.ts&quot;</span><span style="color:#ABB2BF">],</span></span>
 <span class="line"><span style="color:#E06C75">        &quot;env&quot;</span><span style="color:#ABB2BF">: {</span></span>
-<span class="line"><span style="color:#E06C75">          &quot;GATEHOUSE_MASTER_KEY&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;your-key&gt;&quot;</span><span style="color:#ABB2BF">,</span></span>
-<span class="line"><span style="color:#E06C75">          &quot;GATEHOUSE_ROOT_TOKEN&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;&lt;your-token&gt;&quot;</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;GATEHOUSE_DATA_DIR&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;/path/to/data&quot;</span><span style="color:#ABB2BF">,</span></span>
+<span class="line"><span style="color:#E06C75">          &quot;GATEHOUSE_POLICIES&quot;</span><span style="color:#ABB2BF">: </span><span style="color:#98C379">&quot;agent-readonly&quot;</span></span>
 <span class="line"><span style="color:#ABB2BF">        }</span></span>
 <span class="line"><span style="color:#ABB2BF">      }</span></span>
 <span class="line"><span style="color:#ABB2BF">    }</span></span>
@@ -273,9 +288,10 @@ The pattern is identical to Cursor:</p>
 <hr/>
 <h2 id="per-agent-identity-setup">Per-agent identity setup<a class="heading-anchor" aria-label="Link to this heading" href="#per-agent-identity-setup">#</a></h2>
 <p>The real power of Gatehouse is giving each agent its own identity and access scope.</p>
+<p>The REST examples below use <code>$ADMIN_JWT</code>, the token of an admin user (sign in with <code>POST /v1/auth/login</code>, see <a href="https://gatehouse.to/docs/authentication/">Authentication</a>). On a fresh install, create that admin from the web UI with the one-time bootstrap token from the container log first. The bootstrap token, or a <code>GATEHOUSE_ROOT_TOKEN</code> set in the environment, also works as the bearer value.</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Create an AppRole for OpenClaw (read-only API keys, can lease)</span></span>
 <span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/auth/approle</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$ADMIN_JWT</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
 <span class="line"><span style="color:#98C379">    &quot;display_name&quot;: &quot;openclaw-prod&quot;,</span></span>
@@ -286,7 +302,7 @@ The pattern is identical to Cursor:</p>
 <span class="line"></span>
 <span class="line"><span style="color:#7F848E;font-style:italic"># Create a separate AppRole for Codex (coding agent with broader access)</span></span>
 <span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://localhost:3100/v1/auth/approle</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$ADMIN_JWT</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
 <span class="line"><span style="color:#98C379">    &quot;display_name&quot;: &quot;codex-desktop&quot;,</span></span>
@@ -402,7 +418,7 @@ Gatehouse can create temporary credentials on demand - no static passwords neede
 <li><strong>Configure the connection</strong> (admin):</li>
 </ol>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$ADMIN_JWT</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
 <span class="line"><span style="color:#98C379">    &quot;path&quot;: &quot;db/postgres-prod&quot;,</span></span>
 <span class="line"><span style="color:#98C379">    &quot;provider_type&quot;: &quot;postgresql&quot;,</span></span>
@@ -456,7 +472,7 @@ Or revoke early:</li>
 </ul>
 <h3 id="mysql--mariadb">MySQL / MariaDB<a class="heading-anchor" aria-label="Link to this heading" href="#mysql--mariadb">#</a></h3>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$ADMIN_JWT</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
 <span class="line"><span style="color:#98C379">    &quot;path&quot;: &quot;db/mysql-prod&quot;,</span></span>
 <span class="line"><span style="color:#98C379">    &quot;provider_type&quot;: &quot;mysql&quot;,</span></span>
@@ -472,7 +488,7 @@ Or revoke early:</li>
 <p>Creates <code>CREATE USER</code> with parameterized grants. On revoke: kills connections, <code>DROP USER IF EXISTS</code>, <code>FLUSH PRIVILEGES</code>. Admin user needs <code>CREATE USER</code> and <code>GRANT OPTION</code>.</p>
 <h3 id="mongodb">MongoDB<a class="heading-anchor" aria-label="Link to this heading" href="#mongodb">#</a></h3>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$ADMIN_JWT</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
 <span class="line"><span style="color:#98C379">    &quot;path&quot;: &quot;db/mongo-prod&quot;,</span></span>
 <span class="line"><span style="color:#98C379">    &quot;provider_type&quot;: &quot;mongodb&quot;,</span></span>
@@ -488,7 +504,7 @@ Or revoke early:</li>
 <p>Creates <code>createUser</code> with role-scoped access. On revoke: kills sessions via <code>currentOp</code>, <code>dropUser</code>. Admin user needs <code>userAdmin</code> or <code>userAdminAnyDatabase</code> role.</p>
 <h3 id="redis">Redis<a class="heading-anchor" aria-label="Link to this heading" href="#redis">#</a></h3>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$ADMIN_JWT</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
 <span class="line"><span style="color:#98C379">    &quot;path&quot;: &quot;cache/redis-prod&quot;,</span></span>
 <span class="line"><span style="color:#98C379">    &quot;provider_type&quot;: &quot;redis&quot;,</span></span>
@@ -503,7 +519,7 @@ Or revoke early:</li>
 <p>Creates <code>ACL SETUSER</code> with scoped commands and key patterns. On revoke: <code>ACL DELUSER</code> (automatically disconnects sessions). Requires Redis 6+ with ACL support.</p>
 <h3 id="ssh-certificates">SSH Certificates<a class="heading-anchor" aria-label="Link to this heading" href="#ssh-certificates">#</a></h3>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/dynamic</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_ROOT_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
+<span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$ADMIN_JWT</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &#39;{</span></span>
 <span class="line"><span style="color:#98C379">    &quot;path&quot;: &quot;ssh/prod-servers&quot;,</span></span>
 <span class="line"><span style="color:#98C379">    &quot;provider_type&quot;: &quot;ssh-cert&quot;,</span></span>
@@ -550,7 +566,8 @@ Slack tokens, bearer tokens, basic auth URLs, private keys, and connection strin
 <hr/>
 <h2 id="key-rotation">Key rotation<a class="heading-anchor" aria-label="Link to this heading" href="#key-rotation">#</a></h2>
 <p>Rotate the master key without downtime. All secret DEKs and encrypted dynamic
-configs are re-wrapped atomically.</p>
+configs are re-wrapped. You supply the new key: exactly 64 hex characters,
+anything else is a 400.</p>
 <pre class="astro-code one-dark-pro" style="background-color:#282c34;color:#abb2bf;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#7F848E;font-style:italic"># Generate a new key</span></span>
 <span class="line"><span style="color:#E06C75">NEW_KEY</span><span style="color:#56B6C2">=</span><span style="color:#ABB2BF">$(</span><span style="color:#61AFEF">openssl</span><span style="color:#98C379"> rand</span><span style="color:#D19A66"> -hex</span><span style="color:#D19A66"> 32</span><span style="color:#ABB2BF">)</span></span>
 <span class="line"></span>
@@ -558,10 +575,22 @@ configs are re-wrapped atomically.</p>
 <span class="line"><span style="color:#61AFEF">curl</span><span style="color:#D19A66"> -X</span><span style="color:#98C379"> POST</span><span style="color:#98C379"> http://gatehouse.local:3100/v1/admin/rotate-key</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Authorization: Bearer </span><span style="color:#E06C75">$GATEHOUSE_TOKEN</span><span style="color:#98C379">&quot;</span><span style="color:#56B6C2"> \</span></span>
 <span class="line"><span style="color:#D19A66">  -H</span><span style="color:#98C379"> &quot;Content-Type: application/json&quot;</span><span style="color:#56B6C2"> \</span></span>
-<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &quot;{</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">new_master_key</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">: </span><span style="color:#56B6C2">\&quot;</span><span style="color:#E06C75">$NEW_KEY</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">}&quot;</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#7F848E;font-style:italic"># Update your env var and restart Gatehouse</span></span>
-<span class="line"><span style="color:#C678DD">export</span><span style="color:#E06C75"> GATEHOUSE_MASTER_KEY</span><span style="color:#56B6C2">=</span><span style="color:#E06C75">$NEW_KEY</span></span></code></pre>
+<span class="line"><span style="color:#D19A66">  -d</span><span style="color:#98C379"> &quot;{</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">new_master_key</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">: </span><span style="color:#56B6C2">\&quot;</span><span style="color:#E06C75">$NEW_KEY</span><span style="color:#56B6C2">\&quot;</span><span style="color:#98C379">}&quot;</span></span></code></pre>
+<p>What happens to the key depends on where the old one came from:</p>
+<ul>
+<li><strong>Key-file install</strong> (<code>master.key</code> in the data dir, including a key generated
+on first boot): the new key is written to <code>master.key</code> for you, and the old
+one is kept as <code>master.key.pre-rotate-&lt;timestamp&gt;</code>. Nothing else to do, but
+escrow the new key.</li>
+<li><strong>Env install</strong> (<code>GATEHOUSE_MASTER_KEY</code>): nothing is saved. Set
+<code>GATEHOUSE_MASTER_KEY</code> to the new key before the next restart, or the server
+boots with a key that no longer decrypts the data. The response carries a
+<code>warning</code> saying so.</li>
+</ul>
+<p>The response is <code>{rotated, secrets_rewrapped, dynamic_configs_rewrapped, key_persisted_to, previous_key_kept_as, message, warning}</code>. <code>key_persisted_to</code>
+and <code>previous_key_kept_as</code> are <code>null</code> on an env install, and <code>warning</code> appears
+only when the key was not saved. Exports taken before a rotation need the old
+key, so take a fresh export. See <a href="https://gatehouse.to/docs/backup/#after-rotating-the-master-key">Backup &amp; Recovery</a>.</p>
 <hr/>
 <h2 id="audit-log-retention">Audit log retention<a class="heading-anchor" aria-label="Link to this heading" href="#audit-log-retention">#</a></h2>
 <p>Configure how long audit entries are kept. Gatehouse runs an hourly background

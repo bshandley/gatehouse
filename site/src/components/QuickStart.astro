@@ -3,17 +3,12 @@
     <div class="label eyebrow">QUICK START</div>
     <h2>One command.</h2>
     <div class="code-wrap">
-      <pre><code>docker run -d \
-  --name gatehouse \
-  -p 3100:3100 \
-  -v gatehouse-data:/data \
-  -v ./config:/config \
-  -e GATEHOUSE_MASTER_KEY="$(openssl rand -hex 32)" \
-  ghcr.io/bshandley/gatehouse:latest</code></pre>
+      <pre><code>docker run -d --name gatehouse -p 3100:3100 -v gatehouse-data:/data ghcr.io/bshandley/gatehouse:latest
+docker logs gatehouse   # your master key and one-time bootstrap token</code></pre>
       <button class="copy-btn" type="button" data-copy-target>Copy</button>
     </div>
     <p class="after">
-      That's it. Open <code>localhost:3100</code>, paste your root token, start storing secrets.
+      That's it. Save the master key somewhere off this host, open <code>localhost:3100</code>, sign in with the bootstrap token, start storing secrets.
     </p>
   </div>
 </section>

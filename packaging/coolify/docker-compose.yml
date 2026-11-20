@@ -1,0 +1,33 @@
+# documentation: https://gatehouse.to/docs/
+# slogan: The agent secrets vault. Credentials never leave the vault.
+# category: security
+# tags: secrets, vault, ai, agents, mcp, credentials, homelab
+# logo: svgs/gatehouse.svg
+# port: 3100
+#
+# Gatehouse is single-instance by design (in-memory rate limiting and an in-process event bus). Run one. It is built for a homelab, not a cluster.
+#
+# No secrets are needed. On first start Gatehouse generates a master key and a
+# one-time bootstrap root token and prints both once to the container log.
+# Copy both. Escrow the master key somewhere other than this host.
+
+services:
+  gatehouse:
+    image: ghcr.io/bshandley/gatehouse:0.23.0
+    environment:
+      - SERVICE_URL_GATEHOUSE_3100
+      - GATEHOUSE_PUBLIC_URL=${SERVICE_URL_GATEHOUSE_3100}
+      - GATEHOUSE_PROXY_ALLOW_PRIVATE=${GATEHOUSE_PROXY_ALLOW_PRIVATE:-true}
+      - GATEHOUSE_TRUSTED_PROXIES=${GATEHOUSE_TRUSTED_PROXIES:-}
+      - GATEHOUSE_LOG_LEVEL=${GATEHOUSE_LOG_LEVEL:-info}
+    volumes:
+      - gatehouse-data:/data
+    healthcheck:
+      test: ["CMD", "bun", "-e", "const r = await fetch('http://localhost:3100/health'); process.exit(r.ok ? 0 : 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  gatehouse-data:
