@@ -160,3 +160,21 @@ Plan: `docs/superpowers/plans/2026-11-19-distribution.md`.
   to a `docker-compose.dev.yml` override.
 - Upstream catalog submissions are manual and need the maintainer's go-ahead
   each time.
+
+## Amendment (2026-11-21): TrueNAS SCALE
+
+TrueNAS was missed in the original target list, not excluded. Before 24.10
+(Electric Eel) SCALE apps ran on k3s, which the Kubernetes non-goal covers.
+From 24.10 on they are plain Docker Compose, so TrueNAS is a fifth D3 target.
+
+- `packaging/truenas/docker-compose.yml`: a compose for SCALE's
+  Apps, Discover, Install via YAML (custom app). Literal values only: the
+  YAML editor does not read `.env` or expand `${VAR:-default}`.
+- Named volume at `/data`, image default user. This dodges the bind-mount
+  ownership trap (README, Known limitation) and needs no passwd entry for a
+  foreign uid. A commented host-path alternative (a dataset under `/mnt`,
+  run as the TrueNAS `apps` user `568:568`) is documented, with the `chown`
+  step, for operators who want the vault on a snapshotted dataset.
+- Shipped as a patch release. A `truenas/apps` community-train catalog
+  entry (`app.yaml`, `questions.yaml`, Jinja templates) is later work under
+  the upstream submission task, not this amendment.

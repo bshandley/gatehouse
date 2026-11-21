@@ -26,6 +26,8 @@ RUN groupadd -r gatehouse && useradd -r -g gatehouse -d /app gatehouse
 # Unraid templates run as 99:100. ssh-keygen refuses a uid with no passwd
 # entry, so give 99 one (primary group 100 is Debian's "users").
 RUN useradd -u 99 -g 100 -M -s /usr/sbin/nologin unraid
+# TrueNAS SCALE host-path installs run as its apps user, 568:568.
+RUN groupadd -g 568 apps && useradd -u 568 -g 568 -M -s /usr/sbin/nologin apps
 
 WORKDIR /app
 COPY --from=build --chown=gatehouse:gatehouse /app /app

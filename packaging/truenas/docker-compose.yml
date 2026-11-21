@@ -1,0 +1,61 @@
+# Gatehouse for TrueNAS SCALE 24.10 or later (Docker-based apps).
+# Install: Apps, Discover, the three-dot menu, Install via YAML. Name the app
+# "gatehouse" and paste this file.
+#
+# Gatehouse is single-instance by design (in-memory rate limiting and an in-process event bus). Run one. It is built for a homelab, not a cluster.
+#
+# No secrets are needed. On first start Gatehouse generates a master key and a
+# one-time bootstrap root token and prints both once to the container log
+# (the app's Workloads, View Logs). Copy both. Escrow the master key somewhere
+# other than this NAS: if you lose it, the data is unrecoverable.
+#
+# The Install via YAML editor does not read .env files, so every value below
+# is literal. Edit it here before installing.
+#
+# Storage: the default is a named volume, which lives in the ix-apps dataset
+# and needs no ownership setup. To keep the vault on a dataset of your own
+# (snapshots, replication), create one, give it to the apps user, and swap the
+# volume line. From the TrueNAS shell, with your pool name:
+#
+#   mkdir -p /mnt/POOL/apps/gatehouse
+#   chown -R 568:568 /mnt/POOL/apps/gatehouse
+#
+# then add `user: "568:568"` under the service and replace the volume with
+# `- /mnt/POOL/apps/gatehouse:/data`. Skip the chown and first boot fails
+# writing /data/master.key.
+
+services:
+  gatehouse:
+    image: ghcr.io/bshandley/gatehouse:0.24.1
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    environment:
+      GATEHOUSE_PROXY_ALLOW_PRIVATE: "true"
+      GATEHOUSE_LOG_LEVEL: info
+      # Set when Gatehouse sits behind a reverse proxy:
+      # GATEHOUSE_PUBLIC_URL: https://gatehouse.example.com
+      # GATEHOUSE_TRUSTED_PROXIES: <your proxy address or CIDR>
+    volumes:
+      - gatehouse-data:/data
+    healthcheck:
+      test: ["CMD", "bun", "-e", "const r = await fetch('http://localhost:3100/health'); process.exit(r.ok ? 0 : 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "1.0"
+        reservations:
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  gatehouse-data:

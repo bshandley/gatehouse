@@ -1,6 +1,6 @@
 {
   "name": "gatehouse",
-  "version": "0.24.0",
+  "version": "0.24.1",
   "description": "Self-hosted agent secrets vault for AI coding agents and LLM tools. Proxy mode keeps API keys, database credentials, and SSH certificates out of LLM context windows. MCP-native, single Docker container, open-source HashiCorp Vault alternative.",
   "type": "module",
   "bin": {

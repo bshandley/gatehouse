@@ -18,7 +18,7 @@
 
 Gatehouse is single-instance by design (in-memory rate limiting and an in-process event bus). Run one. It is built for a homelab, not a cluster.
 
-**Install.** Ready-made templates for [Unraid, Umbrel, CasaOS, and Coolify](packaging/) are in `packaging/`. You can use them yourself today. They are not listed in any upstream catalog.
+**Install.** Ready-made templates for [Unraid, TrueNAS SCALE, Umbrel, CasaOS, and Coolify](packaging/) are in `packaging/`. You can use them yourself today. They are not listed in any upstream catalog.
 
 ## Why a secrets vault built for AI agents?
 

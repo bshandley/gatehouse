@@ -10,6 +10,7 @@ const TEMPLATES = [
   "packaging/umbrel/docker-compose.yml",
   "packaging/casaos/docker-compose.yml",
   "packaging/coolify/docker-compose.yml",
+  "packaging/truenas/docker-compose.yml",
 ];
 const SINGLE = "Gatehouse is single-instance by design";
 const read = (p: string) => readFileSync(p, "utf8");
@@ -174,6 +175,22 @@ describe("catalog templates", () => {
     const name = mount.split(":")[0];
     expect(name).toMatch(/^[a-z][\w-]*$/);
     expect(Object.keys(doc.volumes)).toContain(name);
+  });
+
+  test("TrueNAS uses a named volume, port 3100, and no compose interpolation", () => {
+    const text = read("packaging/truenas/docker-compose.yml");
+    const doc = YAML.parse(text);
+    const svc = doc.services.gatehouse;
+    const mount = (svc.volumes as string[]).find((v) => v.split(":")[1] === "/data")!;
+    expect(Object.keys(doc.volumes)).toContain(mount.split(":")[0]);
+    expect((svc.ports as string[]).some((p) => p.endsWith(":3100"))).toBe(true);
+    // Install via YAML does not read .env, so a ${VAR} would land literally.
+    expect(text.split("\n").filter((l) => !l.trim().startsWith("#")).join("\n")).not.toContain("${");
+    expect(text).toContain(SINGLE);
+  });
+
+  test("the image carries a passwd entry for the TrueNAS apps uid 568", () => {
+    expect(read("Dockerfile")).toMatch(/useradd[^\n]*-u 568/);
   });
 
   test("umbrel-app.yml version equals VERSION and its description carries the single-instance sentence", () => {

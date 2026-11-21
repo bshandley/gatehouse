@@ -13,7 +13,7 @@
 
 services:
   gatehouse:
-    image: ghcr.io/bshandley/gatehouse:0.24.0
+    image: ghcr.io/bshandley/gatehouse:0.24.1
     environment:
       - SERVICE_URL_GATEHOUSE_3100
       - GATEHOUSE_PUBLIC_URL=${SERVICE_URL_GATEHOUSE_3100}

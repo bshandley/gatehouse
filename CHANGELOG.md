@@ -5,6 +5,13 @@ release notes (built from conventional-commit subjects between tags) carry the
 fine-grained per-commit log. This file summarises each release at a higher
 level.
 
+## [0.24.1] - 2026-11-21
+
+### Added
+
+- **TrueNAS SCALE template.** `packaging/truenas/docker-compose.yml` installs through Apps, Discover, Install via YAML on SCALE 24.10 and later. Literal values (the editor reads no `.env`), a named volume by default, and a documented host-path variant on your own dataset running as the TrueNAS `apps` user. Not yet in the `truenas/apps` catalog.
+- The image has a passwd entry for uid 568 (`apps`), so SSH certificate checkout works under `--user 568:568`. The image smoke job checks it.
+
 ## [0.24.0] - 2026-11-19
 
 Passthrough. Any SDK, CLI, or tool with a base-URL setting can use the vault by changing that URL. No envelope, no code changes. See the new Passthrough docs page.

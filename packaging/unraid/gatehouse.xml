@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>Gatehouse</Name>
-  <Repository>ghcr.io/bshandley/gatehouse:0.24.0</Repository>
+  <Repository>ghcr.io/bshandley/gatehouse:0.24.1</Repository>
   <Registry>https://github.com/bshandley/gatehouse/pkgs/container/gatehouse</Registry>
   <Network>bridge</Network>
   <MyIP/>
